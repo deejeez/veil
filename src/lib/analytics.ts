@@ -3,7 +3,7 @@ import posthog from 'posthog-js'
 export function initAnalytics() {
   const key = import.meta.env.VITE_POSTHOG_KEY as string
   const host = import.meta.env.VITE_POSTHOG_HOST as string
-  if (!key) return
+  if (!key || key.length < 20) return
   posthog.init(key, { api_host: host ?? 'https://us.i.posthog.com', capture_pageview: true })
 }
 
