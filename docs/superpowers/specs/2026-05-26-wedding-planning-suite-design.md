@@ -1,7 +1,8 @@
-# Wedding Planning Suite — Design Spec
+# Veil — Design Spec
 **Date:** 2026-05-26
 **Status:** Approved
 **Version:** v1 MVP
+**App name:** Veil (`veil.ai`)
 
 ---
 
@@ -119,7 +120,7 @@ A persistent card at the bottom of the sidebar showing the most recent AI insigh
 
 ### Backend
 - **Supabase** — Postgres database, Row Level Security (couples only see their own data), Auth (email/password + magic link), Storage (contract/proposal file uploads up to 25MB)
-- **Supabase Edge Functions** — server-side Claude API calls (never expose API key to client)
+- **Supabase Edge Functions** — server-side Claude API and Google Places API calls (never expose API keys to client)
 - No separate API server needed for CRUD
 
 ### AI
@@ -127,6 +128,7 @@ A persistent card at the bottom of the sidebar showing the most recent AI insigh
 - All AI calls are async — UI shows loading state, streams result in
 - Three AI surfaces at launch: planning timeline, vendor shortlist, contract review
 - Vibe Profile is passed as context in every AI call
+- **Vendor shortlist flow:** Google Places Text Search fetches current businesses by category + city → results passed to Claude with vibe profile → Claude ranks, filters, and adds reasoning per vendor
 
 ### Payments
 - **Stripe Checkout** — one-time $149 purchase
@@ -392,6 +394,6 @@ Vendor card (status: Booked)
 
 ## Open Questions
 
-- App name: "The Wedding Planner" (Lovable prototype name) is generic. Consider a distinct brand name before launch.
-- Analytics: basic event tracking (Posthog or Plausible) to understand which AI features get used most. Decide before launch.
-- AI vendor data source: Claude's training data for vendor recommendations may be stale. Consider whether to supplement with a Google Places API call to seed current vendor names, then let Claude rank/describe them.
+- ~~App name~~ **Decided:** Veil (`veil.ai`)
+- ~~Analytics~~ **Decided:** Posthog (event tracking to understand AI feature usage)
+- ~~AI vendor data source~~ **Decided:** Use Google Places API (Text Search) to fetch current, operating vendors by category + city before each Claude shortlist call. Claude handles vibe-matching and ranking; Google handles current reality. Cost ~$0.032/search, ~$0.45/user across all 14 categories. Integrated in v1, not deferred.
