@@ -75,8 +75,8 @@ export default function Finances() {
   const unpaid = payments.filter(p => !p.paid_date)
   const totalScheduled = unpaid.reduce((sum, p) => sum + p.amount, 0)
   const totalRemaining = Math.max(0, totalBudget - totalPaid - totalScheduled)
-  const paidPct = totalBudget > 0 ? (totalPaid / totalBudget) * 100 : 0
-  const scheduledPct = totalBudget > 0 ? (totalScheduled / totalBudget) * 100 : 0
+  const paidPct = totalBudget > 0 ? Math.min((totalPaid / totalBudget) * 100, 100) : 0
+  const scheduledPct = totalBudget > 0 ? Math.min((totalScheduled / totalBudget) * 100, Math.max(0, 100 - paidPct)) : 0
 
   const getDaysUntil = (dueDate: string) =>
     Math.ceil((new Date(dueDate).getTime() - Date.now()) / 86400000)
