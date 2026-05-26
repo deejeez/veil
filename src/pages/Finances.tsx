@@ -1,8 +1,6 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
 import AppShell from '../components/AppShell'
-import Card from '../components/Card'
 import Button from '../components/Button'
-import SectionLabel from '../components/SectionLabel'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple } from '../lib/vendors'
@@ -10,13 +8,10 @@ import { getPaymentsForCouple, insertPayment, markPaymentPaid, deletePayment } f
 import type { Couple, Vendor, Payment } from '../types/database'
 import { track } from '../lib/analytics'
 
-type Tab = 'upcoming' | 'by_family'
-
 export default function Finances() {
   const [couple, setCouple] = useState<Couple | null>(null)
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
-  const [tab, setTab] = useState<Tab>('upcoming')
   const [showAddForm, setShowAddForm] = useState(false)
   const [newPayment, setNewPayment] = useState({ label: '', amount: '', due_date: '', paid_by: 'couple', vendor_id: '' })
   const [loading, setLoading] = useState(true)
@@ -75,8 +70,29 @@ export default function Finances() {
   }
 
   const today = new Date().toISOString().split('T')[0]
-  const upcoming = payments.filter(p => !p.paid_date && (!p.due_date || p.due_date >= today))
-  const past = payments.filter(p => p.paid_date)
+  const totalBudget = couple?.budget_total ?? 0
+  const totalPaid = payments.filter(p => p.paid_date).reduce((sum, p) => sum + p.amount, 0)
+  const unpaid = payments.filter(p => !p.paid_date)
+  const totalScheduled = unpaid.reduce((sum, p) => sum + p.amount, 0)
+  const totalRemaining = Math.max(0, totalBudget - totalPaid - totalScheduled)
+  const paidPct = totalBudget > 0 ? (totalPaid / totalBudget) * 100 : 0
+  const scheduledPct = totalBudget > 0 ? (totalScheduled / totalBudget) * 100 : 0
+
+  const getDaysUntil = (dueDate: string) =>
+    Math.ceil((new Date(dueDate).getTime() - Date.now()) / 86400000)
+
+  const isOverdue = (p: Payment) => !!p.due_date && p.due_date < today && !p.paid_date
+  const isDueSoon = (p: Payment) => {
+    if (!p.due_date || p.paid_date || isOverdue(p)) return false
+    return getDaysUntil(p.due_date) <= 30
+  }
+
+  const nextPayment = [...unpaid]
+    .filter(p => p.due_date)
+    .sort((a, b) => (a.due_date! > b.due_date! ? 1 : -1))[0]
+
+  const alertPayment = unpaid.find(p => p.due_date && (isOverdue(p) || isDueSoon(p)))
+
   const payerGroups = payments.reduce((acc, p) => {
     const payer = p.paid_by || 'couple'
     if (!acc[payer]) acc[payer] = []
@@ -84,177 +100,240 @@ export default function Finances() {
     return acc
   }, {} as Record<string, Payment[]>)
 
-  const inputStyle: CSSProperties = {
-    display: 'block',
-  }
+  const formatDue = (date: string) =>
+    new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
   if (loading) return <AppShell><p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p></AppShell>
 
   return (
     <AppShell>
-      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '34px', fontWeight: 400, marginBottom: '28px' }}>
-        Finances
-      </h1>
+      <div style={{ maxWidth: '640px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '28px' }}>
-        {(['upcoming', 'by_family'] as Tab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: '9px 20px',
-            fontFamily: 'var(--font-body)',
-            fontSize: '14px',
-            fontWeight: tab === t ? 600 : 400,
-            background: tab === t ? 'rgba(200,169,110,0.12)' : 'transparent',
-            border: tab === t ? '1.5px solid var(--color-accent)' : '1.5px solid var(--color-border)',
-            borderRadius: '10px',
-            color: tab === t ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-            cursor: 'pointer',
-            transition: 'all 0.12s',
-            width: 'auto',
-            boxSizing: 'border-box',
-          }}>
-            {t === 'upcoming' ? 'Upcoming' : 'By Family'}
-          </button>
-        ))}
-      </div>
+        {/* Page header */}
+        <div>
+          <div style={{ fontSize: '22px', fontWeight: 400, fontFamily: 'var(--font-heading)', color: 'var(--color-text-primary)', marginBottom: '3px' }}>Finances</div>
+          <div style={{ fontSize: '12px', color: '#aaa' }}>Payment tracking across all booked vendors</div>
+        </div>
 
-      {tab === 'upcoming' && (
-        <>
-          {upcoming.length === 0 && (
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-secondary)', marginBottom: '16px' }}>
-              No upcoming payments. Add one below.
-            </p>
-          )}
-          {upcoming.map(p => {
-            const vendor = vendors.find(v => v.id === p.vendor_id)
-            return (
-              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--color-border)' }}>
-                <div>
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-primary)', margin: '0 0 2px 0' }}>
-                    {p.label}{vendor?.name ? ` — ${vendor.name}` : ''}
-                  </p>
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', margin: 0 }}>
-                    Due {p.due_date} · Paid by {p.paid_by}
-                  </p>
-                </div>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <span style={{ fontFamily: 'var(--font-heading)', fontSize: '16px' }}>
-                    ${p.amount.toLocaleString()}
-                  </span>
-                  <Button variant="secondary" onClick={() => handleMarkPaid(p.id)} style={{ padding: '6px 12px', fontSize: '12px' }}>
-                    Mark Paid
-                  </Button>
-                  <button onClick={async () => {
-                    if (confirm('Remove?')) {
-                      try {
-                        await deletePayment(p.id)
-                        await load()
-                      } catch {
-                        alert('Failed to remove payment. Please try again.')
-                      }
-                    }
-                  }} style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-status-none)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                    ✕
-                  </button>
+        {/* Consolidated summary tile */}
+        <div style={{ border: '1px solid #e5e0d8', borderRadius: '10px', padding: '14px 16px', background: '#fff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+            <div>
+              <div style={{ fontSize: '10px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '3px' }}>Total Budget</div>
+              <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1, fontFamily: 'var(--font-heading)' }}>
+                {totalBudget > 0 ? `$${totalBudget.toLocaleString()}` : '—'}
+              </div>
+            </div>
+            {nextPayment && (
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '10px', color: '#aaa', marginBottom: '2px' }}>Next due</div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#c4788a' }}>
+                  ${nextPayment.amount.toLocaleString()}{' '}
+                  <span style={{ fontSize: '10px', fontWeight: 500 }}>{formatDue(nextPayment.due_date!)}</span>
                 </div>
               </div>
-            )
-          })}
+            )}
+          </div>
 
-          {past.length > 0 && (
-            <>
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', margin: '24px 0 8px 0' }}>
-                Paid
-              </p>
-              {past.map(p => (
-                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--color-bg)', opacity: 0.6 }}>
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', margin: 0 }}>{p.label}</p>
-                  <span style={{ fontFamily: 'var(--font-heading)', fontSize: '14px', color: 'var(--color-status-booked)' }}>
-                    ${p.amount.toLocaleString()} ✓
-                  </span>
-                </div>
-              ))}
-            </>
+          {totalBudget > 0 && (
+            <div style={{ height: '8px', borderRadius: '4px', overflow: 'hidden', display: 'flex', marginBottom: '8px', gap: '2px' }}>
+              <div style={{ width: `${Math.max(paidPct, paidPct > 0 ? 1 : 0)}%`, background: '#4caf50', borderRadius: '4px 0 0 4px' }} />
+              <div style={{ width: `${Math.max(scheduledPct, scheduledPct > 0 ? 1 : 0)}%`, background: '#c4788a' }} />
+              <div style={{ flex: 1, background: '#f0ede8', borderRadius: '0 4px 4px 0' }} />
+            </div>
           )}
-        </>
-      )}
 
-      {tab === 'by_family' && (
-        <>
-          {Object.entries(payerGroups).map(([payer, items]) => {
-            const total = items.reduce((sum, p) => sum + p.amount, 0)
-            const paid = items.filter(p => p.paid_date).reduce((sum, p) => sum + p.amount, 0)
-            return (
-              <Card key={payer} style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <p style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', margin: 0 }}>
-                    {payer.replace('_', "'s ").replace(/\b\w/g, c => c.toUpperCase())}
-                  </p>
-                  <div style={{ textAlign: 'right' }}>
-                    <p style={{ fontFamily: 'var(--font-heading)', fontSize: '18px', margin: 0 }}>${total.toLocaleString()}</p>
-                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-status-booked)', margin: 0 }}>${paid.toLocaleString()} paid</p>
-                  </div>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            {[
+              { color: '#4caf50', amount: totalPaid, label: 'Paid' },
+              { color: '#c4788a', amount: totalScheduled, label: 'Scheduled' },
+              { color: '#e8e3dc', amount: totalRemaining, label: 'Remaining' },
+            ].map(({ color, amount, label }) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: color, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-primary)' }}>${amount.toLocaleString()}</div>
+                  <div style={{ fontSize: '10px', color: '#aaa' }}>{label}</div>
                 </div>
-                {items.map(p => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: '1px solid var(--color-bg)' }}>
-                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>{p.label}</p>
-                    <p style={{ fontFamily: 'var(--font-heading)', fontSize: '13px', margin: 0, color: p.paid_date ? 'var(--color-status-booked)' : 'var(--color-text-primary)' }}>
-                      ${p.amount.toLocaleString()}{p.paid_date ? ' ✓' : ''}
-                    </p>
-                  </div>
-                ))}
-              </Card>
-            )
-          })}
-          {Object.keys(payerGroups).length === 0 && (
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
-              No payments recorded yet.
-            </p>
-          )}
-        </>
-      )}
+              </div>
+            ))}
+          </div>
+        </div>
 
-      {showAddForm ? (
-        <Card style={{ marginTop: '16px' }}>
-          <SectionLabel>Add Payment</SectionLabel>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Label</label>
-              <input placeholder="Deposit" value={newPayment.label} onChange={e => setNewPayment(f => ({ ...f, label: e.target.value }))} style={inputStyle} />
-            </div>
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Amount ($)</label>
-              <input type="number" value={newPayment.amount} onChange={e => setNewPayment(f => ({ ...f, amount: e.target.value }))} style={inputStyle} />
-            </div>
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Due Date</label>
-              <input type="date" value={newPayment.due_date} onChange={e => setNewPayment(f => ({ ...f, due_date: e.target.value }))} style={inputStyle} />
-            </div>
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Paid By</label>
-              <input placeholder="couple" value={newPayment.paid_by} onChange={e => setNewPayment(f => ({ ...f, paid_by: e.target.value }))} style={inputStyle} />
-            </div>
-            <div>
-              <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Vendor (optional)</label>
-              <select value={newPayment.vendor_id} onChange={e => setNewPayment(f => ({ ...f, vendor_id: e.target.value }))} style={{ ...inputStyle, width: '100%' }}>
-                <option value="">— None —</option>
-                {vendors.filter(v => v.name).map(v => (
-                  <option key={v.id} value={v.id}>{v.name}</option>
-                ))}
-              </select>
+        {/* Alert banner — overdue or due within 30 days */}
+        {alertPayment && (
+          <div style={{ border: '1px solid #fcd5d5', borderRadius: '10px', padding: '12px 14px', background: '#fff5f5', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+            <div style={{ fontSize: '15px', flexShrink: 0, marginTop: '1px' }}>⚠️</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#c0392b', marginBottom: '2px' }}>
+                {isOverdue(alertPayment)
+                  ? 'Payment overdue!'
+                  : `Payment due in ${getDaysUntil(alertPayment.due_date!)} days`}
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-primary)' }}>
+                <strong>${alertPayment.amount.toLocaleString()}</strong> · {alertPayment.label}
+                {vendors.find(v => v.id === alertPayment.vendor_id)?.name
+                  ? ` — ${vendors.find(v => v.id === alertPayment.vendor_id)!.name}`
+                  : ''}
+              </div>
+              {alertPayment.due_date && (
+                <div style={{ fontSize: '11px', color: '#aaa', marginTop: '2px' }}>
+                  Due {new Date(alertPayment.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </div>
+              )}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <Button variant="secondary" onClick={() => setShowAddForm(false)}>Cancel</Button>
-            <Button onClick={handleAddPayment} disabled={saving || !newPayment.label || !newPayment.amount}>
-              {saving ? 'Saving...' : 'Add Payment'}
-            </Button>
+        )}
+
+        {/* By Family */}
+        {Object.keys(payerGroups).length > 0 && (
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>By Family</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              {Object.entries(payerGroups).map(([payer, items]) => {
+                const groupTotal = items.reduce((sum, p) => sum + p.amount, 0)
+                const label = payer.replace('_', "'s ").replace(/\b\w/g, c => c.toUpperCase())
+                return (
+                  <div key={payer} style={{ border: '1px solid #e5e0d8', borderRadius: '10px', padding: '12px 14px', background: '#fff' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>{label}</div>
+                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', fontFamily: 'var(--font-heading)', marginBottom: '8px' }}>
+                      ${groupTotal.toLocaleString()}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      {items.map((p, i) => (
+                        <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: i < items.length - 1 ? '5px' : 0, borderBottom: i < items.length - 1 ? '1px solid #f0ede8' : 'none' }}>
+                          <span style={{ fontSize: '11px', color: '#666' }}>{p.label}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: p.paid_date ? '#4caf50' : 'var(--color-text-primary)' }}>
+                            ${p.amount.toLocaleString()}{p.paid_date ? ' ✓' : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-        </Card>
-      ) : (
-        <Button variant="secondary" onClick={() => setShowAddForm(true)} style={{ marginTop: '16px' }}>
-          + Add Payment
-        </Button>
-      )}
+        )}
+
+        {/* Payment Schedule */}
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Payment Schedule</div>
+          <div style={{ border: '1px solid #e5e0d8', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
+            {unpaid.length === 0 ? (
+              <div style={{ padding: '16px', fontSize: '13px', color: '#aaa', textAlign: 'center' }}>
+                No upcoming payments.
+              </div>
+            ) : (
+              [...unpaid]
+                .sort((a, b) => {
+                  if (!a.due_date) return 1
+                  if (!b.due_date) return -1
+                  return a.due_date > b.due_date ? 1 : -1
+                })
+                .map((p, i, arr) => {
+                  const overdue = isOverdue(p)
+                  const dueSoon = isDueSoon(p)
+                  const vendor = vendors.find(v => v.id === p.vendor_id)
+                  const daysUntilDue = p.due_date ? getDaysUntil(p.due_date) : null
+                  const rowBg = overdue ? '#fff5f5' : dueSoon ? '#fffbf4' : '#fff'
+                  const borderCol = overdue ? '#fff0f0' : dueSoon ? '#fef6ec' : '#f0ede8'
+                  const amtColor = overdue ? '#c0392b' : dueSoon ? '#e67e22' : 'var(--color-text-primary)'
+
+                  return (
+                    <div
+                      key={p.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderBottom: i < arr.length - 1 ? `1px solid ${borderCol}` : 'none', background: rowBg }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{p.label}</span>
+                          {overdue && <span style={{ fontSize: '10px', color: '#c0392b', fontWeight: 600, background: '#fde8e8', padding: '1px 6px', borderRadius: '5px' }}>Overdue</span>}
+                          {dueSoon && daysUntilDue !== null && (
+                            <span style={{ fontSize: '10px', color: '#e67e22', fontWeight: 600, background: '#fef0e0', padding: '1px 6px', borderRadius: '5px' }}>
+                              {daysUntilDue}d
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#aaa', marginTop: '1px' }}>
+                          {vendor?.name ?? p.paid_by}{p.due_date ? ` · Due ${formatDue(p.due_date)}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                        <span style={{ fontSize: '14px', fontWeight: 700, color: amtColor }}>${p.amount.toLocaleString()}</span>
+                        <button
+                          onClick={() => handleMarkPaid(p.id)}
+                          style={{ fontSize: '10px', border: `1px solid ${overdue ? '#c0392b' : '#e5e0d8'}`, borderRadius: '6px', padding: '3px 8px', color: overdue ? '#c0392b' : '#888', background: 'none', cursor: 'pointer', fontWeight: overdue ? 600 : 400 }}
+                        >
+                          Pay
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (confirm('Remove this payment?')) {
+                              try { await deletePayment(p.id); await load() }
+                              catch { alert('Failed to remove payment.') }
+                            }
+                          }}
+                          style={{ fontSize: '11px', color: '#ccc', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}
+                        >✕</button>
+                      </div>
+                    </div>
+                  )
+                })
+            )}
+          </div>
+        </div>
+
+        {/* Add payment */}
+        {showAddForm ? (
+          <div style={{ border: '1px solid #e5e0d8', borderRadius: '10px', padding: '14px 16px', background: '#fff' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px' }}>Add Payment</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+              <div>
+                <label style={{ fontSize: '10px', color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Label</label>
+                <input placeholder="Deposit" value={newPayment.label} onChange={e => setNewPayment(f => ({ ...f, label: e.target.value }))} style={{ display: 'block' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '10px', color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Amount ($)</label>
+                <input type="number" value={newPayment.amount} onChange={e => setNewPayment(f => ({ ...f, amount: e.target.value }))} style={{ display: 'block' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '10px', color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Due Date</label>
+                <input type="date" value={newPayment.due_date} onChange={e => setNewPayment(f => ({ ...f, due_date: e.target.value }))} style={{ display: 'block' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '10px', color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Paid By</label>
+                <input placeholder="couple" value={newPayment.paid_by} onChange={e => setNewPayment(f => ({ ...f, paid_by: e.target.value }))} style={{ display: 'block' }} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ fontSize: '10px', color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Vendor (optional)</label>
+                <select value={newPayment.vendor_id} onChange={e => setNewPayment(f => ({ ...f, vendor_id: e.target.value }))} style={{ width: '100%', display: 'block' }}>
+                  <option value="">— None —</option>
+                  {vendors.filter(v => v.name).map(v => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Button variant="secondary" onClick={() => setShowAddForm(false)}>Cancel</Button>
+              <Button onClick={handleAddPayment} disabled={saving || !newPayment.label || !newPayment.amount}>
+                {saving ? 'Saving...' : 'Add Payment'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center' }}>
+            <div
+              onClick={() => setShowAddForm(true)}
+              style={{ display: 'inline-block', border: '1.5px solid #c4788a', borderRadius: '10px', padding: '9px 22px', color: '#c4788a', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+            >
+              + Add Payment
+            </div>
+          </div>
+        )}
+
+      </div>
     </AppShell>
   )
 }
