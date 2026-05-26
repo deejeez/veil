@@ -53,7 +53,13 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { couple_id, category } = await req.json()
+    const body = await req.json().catch(() => null)
+    if (!body?.couple_id || !body?.category) {
+      return new Response(JSON.stringify({ error: 'couple_id and category are required' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    const { couple_id, category } = body
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -114,14 +120,16 @@ Respond in this exact JSON format:
 
     const content = message.content[0]
     if (content.type !== 'text') throw new Error('Unexpected response type')
-    const jsonMatch = content.text.match(/\{[\s\S]*\}/)
+    const fenceMatch = content.text.match(/```(?:json)?\s*([\s\S]*?)```/)
+    const jsonSource = fenceMatch ? fenceMatch[1] : content.text
+    const jsonMatch = jsonSource.match(/\{[\s\S]*?\}/)
     if (!jsonMatch) throw new Error('No JSON in response')
     const result = JSON.parse(jsonMatch[0])
 
     await supabase.from('ai_insights').insert({
       couple_id,
       type: 'vendor_shortlist',
-      content: `Shortlist for ${category}: ${result.vendors.map((v: { name: string }) => v.name).join(', ')}`,
+      content: `Shortlist for ${category}: ${(result.vendors ?? []).map((v: { name: string }) => v.name).join(', ')}`,
     })
 
     return new Response(JSON.stringify(result), {

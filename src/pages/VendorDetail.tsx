@@ -209,14 +209,18 @@ export default function VendorDetail() {
                     variant="ghost"
                     onClick={async () => {
                       if (!couple) return
-                      const vendor = await upsertVendor({
-                        couple_id: couple.id,
-                        category: category!,
-                        name: v.name,
-                        website: v.website,
-                        status: 'shortlisted',
-                      })
-                      setVendors(prev => [...prev, vendor])
+                      try {
+                        const vendor = await upsertVendor({
+                          couple_id: couple.id,
+                          category: category!,
+                          name: v.name,
+                          website: v.website,
+                          status: 'shortlisted',
+                        })
+                        setVendors(prev => [...prev, vendor])
+                      } catch {
+                        alert('Failed to add vendor. Please try again.')
+                      }
                     }}
                   >
                     Add →
