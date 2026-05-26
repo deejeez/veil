@@ -127,11 +127,22 @@ export default function VendorDetail() {
       const { data, error: fnError } = await supabase.functions.invoke('vendor-shortlist', {
         body: { couple_id: couple.id, category },
       })
-      if (fnError) throw fnError
-      setShortlist(data.vendors ?? [])
+      if (fnError) {
+        // Surface the actual error message from the function if available
+        const msg = (data as { error?: string } | null)?.error || fnError.message || "Couldn't generate suggestions"
+        setShortlistError(msg)
+        return
+      }
+      const vendors = (data as { vendors?: typeof shortlist })?.vendors ?? []
+      if (vendors.length === 0) {
+        setShortlistError('No suggestions found for your location. Make sure your city is set in your profile.')
+        return
+      }
+      setShortlist(vendors)
       track('shortlist_generated', { category })
-    } catch {
-      setShortlistError("Couldn't generate suggestions — try again")
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Couldn't generate suggestions — try again"
+      setShortlistError(msg)
     } finally {
       setShortlistLoading(false)
     }
