@@ -6,7 +6,7 @@ import StatusBadge from '../components/StatusBadge'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, seedDefaultVendorCategories } from '../lib/vendors'
-import { Vendor, VENDOR_CATEGORY_LABELS, VENDOR_CATEGORIES } from '../types/database'
+import { type Vendor, VENDOR_CATEGORY_LABELS, VENDOR_CATEGORIES } from '../types/database'
 
 export default function Vendors() {
   const [vendors, setVendors] = useState<Vendor[]>([])

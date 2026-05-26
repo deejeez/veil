@@ -8,7 +8,7 @@ import SectionLabel from '../components/SectionLabel'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, upsertVendor, updateVendorStatus, deleteVendor } from '../lib/vendors'
-import { Couple, Vendor, VendorStatus, VENDOR_CATEGORY_LABELS } from '../types/database'
+import { type Couple, type Vendor, type VendorStatus, VENDOR_CATEGORY_LABELS } from '../types/database'
 import type { AiReview, AiReviewFlag } from '../types/database'
 import { track } from '../lib/analytics'
 
