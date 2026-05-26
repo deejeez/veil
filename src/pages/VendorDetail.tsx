@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { type CSSProperties } from 'react'
 import AppShell from '../components/AppShell'
 import Card from '../components/Card'
 import Button from '../components/Button'
@@ -38,10 +37,14 @@ export default function VendorDetail() {
 
   async function handleAddVendor() {
     if (!couple || !category) return
-    const vendor = await upsertVendor({ couple_id: couple.id, category, status: 'not_started' })
-    setVendors(prev => [...prev, vendor])
-    setEditingId(vendor.id)
-    setEditForm({})
+    try {
+      const vendor = await upsertVendor({ couple_id: couple.id, category, status: 'not_started' })
+      setVendors(prev => [...prev, vendor])
+      setEditingId(vendor.id)
+      setEditForm({})
+    } catch {
+      alert('Failed to add vendor. Please try again.')
+    }
   }
 
   async function handleSave(vendorId: string) {
@@ -56,14 +59,22 @@ export default function VendorDetail() {
   }
 
   async function handleStatusChange(vendorId: string, status: VendorStatus) {
-    await updateVendorStatus(vendorId, status)
-    setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, status } : v))
+    try {
+      await updateVendorStatus(vendorId, status)
+      setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, status } : v))
+    } catch {
+      alert('Failed to update status. Please try again.')
+    }
   }
 
   async function handleDelete(vendorId: string) {
     if (!confirm('Remove this vendor?')) return
-    await deleteVendor(vendorId)
-    setVendors(prev => prev.filter(v => v.id !== vendorId))
+    try {
+      await deleteVendor(vendorId)
+      setVendors(prev => prev.filter(v => v.id !== vendorId))
+    } catch {
+      alert('Failed to remove vendor. Please try again.')
+    }
   }
 
   const inputStyle: CSSProperties = {

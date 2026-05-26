@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { BudgetCategory, Vendor, Payment } from '../types/database'
+import type { BudgetCategory, Vendor, Payment } from '../types/database'
 
 export async function getBudgetCategories(coupleId: string): Promise<BudgetCategory[]> {
   const { data, error } = await supabase
@@ -23,9 +23,11 @@ export async function upsertBudgetCategory(
     .maybeSingle()
 
   if (existing) {
-    await supabase.from('budget_categories').update({ budgeted }).eq('id', existing.id)
+    const { error } = await supabase.from('budget_categories').update({ budgeted }).eq('id', existing.id)
+    if (error) throw error
   } else {
-    await supabase.from('budget_categories').insert({ couple_id: coupleId, category, budgeted })
+    const { error } = await supabase.from('budget_categories').insert({ couple_id: coupleId, category, budgeted })
+    if (error) throw error
   }
 }
 
