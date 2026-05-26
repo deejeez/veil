@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 const TEST_PASSWORD = 'testpassword123'
 
 function testEmail() {
-  return `veil-test-${Date.now()}@example.com`
+  return `veil-test-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`
 }
 
 test.describe('Veil — auth and onboarding', () => {
