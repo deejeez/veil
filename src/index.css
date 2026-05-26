@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-sidebar:        #2C1F14;
+  --color-bg:             #FDFBF7;
+  --color-surface:        #FFFFFF;
+  --color-border:         #E8E0D0;
+  --color-text-primary:   #1A1208;
+  --color-text-secondary: #A0907A;
+  --color-accent:         #C8A96E;
+  --color-accent-hover:   #B8965E;
+  --color-status-booked:  #4A7A5A;
+  --color-status-short:   #9A7840;
+  --color-status-none:    #B0A090;
+  --color-sidebar-text:   #8A7060;
+  --color-sidebar-active: #F5EFE6;
+  --font-heading: Georgia, 'Times New Roman', serif;
+  --font-body: -apple-system, 'Inter', 'Helvetica Neue', sans-serif;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  margin: 0;
+}
