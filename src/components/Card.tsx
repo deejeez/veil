@@ -1,12 +1,13 @@
-import { type CSSProperties, type ReactNode } from 'react'
+import { type CSSProperties, type MouseEventHandler, type ReactNode } from 'react'
 
 interface CardProps {
   children: ReactNode
   className?: string
   style?: CSSProperties
+  onClick?: MouseEventHandler<HTMLDivElement>
 }
 
-export default function Card({ children, className = '', style }: CardProps) {
+export default function Card({ children, className = '', style, onClick }: CardProps) {
   return (
     <div
       className={className}
@@ -16,6 +17,7 @@ export default function Card({ children, className = '', style }: CardProps) {
         padding: '16px',
         ...style,
       }}
+      onClick={onClick}
     >
       {children}
     </div>
