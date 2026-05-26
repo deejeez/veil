@@ -20,19 +20,28 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const c = await getCoupleForUser(user.id)
-      if (!c) return
-      setCouple(c)
-      await seedDefaultVendorCategories(c.id)
-      const [v, p] = await Promise.all([
-        getVendorsForCouple(c.id),
-        getPaymentsForCouple(c.id),
-      ])
-      setVendors(v)
-      setPayments(p)
-      setLoading(false)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          setLoading(false)
+          return
+        }
+        const c = await getCoupleForUser(user.id)
+        if (!c) {
+          setLoading(false)
+          return
+        }
+        setCouple(c)
+        await seedDefaultVendorCategories(c.id)
+        const [v, p] = await Promise.all([
+          getVendorsForCouple(c.id),
+          getPaymentsForCouple(c.id),
+        ])
+        setVendors(v)
+        setPayments(p)
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])
