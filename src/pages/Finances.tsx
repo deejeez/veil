@@ -55,6 +55,8 @@ export default function Finances() {
       setShowAddForm(false)
       setNewPayment({ label: '', amount: '', due_date: '', paid_by: 'couple', vendor_id: '' })
       await load()
+    } catch {
+      alert('Failed to add payment. Please try again.')
     } finally {
       setSaving(false)
     }
