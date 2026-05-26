@@ -62,7 +62,7 @@ export default function Timeline() {
   return (
     <AppShell>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', fontWeight: 400, margin: 0 }}>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '34px', fontWeight: 400, margin: 0 }}>
           Planning Timeline
         </h1>
         <Button onClick={checkTimeline} disabled={loading || !coupleId}>
@@ -80,8 +80,8 @@ export default function Timeline() {
 
       {result && (
         <>
-          <div style={{ display: 'inline-block', padding: '8px 16px', border: `1px solid ${statusColors[result.overall_status]}`, marginBottom: '16px' }}>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', letterSpacing: '0.1em', textTransform: 'uppercase', color: statusColors[result.overall_status], margin: 0 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', padding: '8px 18px', borderRadius: '20px', border: `1.5px solid ${statusColors[result.overall_status]}`, background: `${statusColors[result.overall_status]}15`, marginBottom: '20px' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', letterSpacing: '0.1em', textTransform: 'uppercase', color: statusColors[result.overall_status], margin: 0, fontWeight: 600 }}>
               {result.overall_status}
             </p>
           </div>

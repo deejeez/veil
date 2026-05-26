@@ -79,22 +79,22 @@ export default function Budget() {
 
   return (
     <AppShell>
-      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', fontWeight: 400, marginBottom: '8px' }}>
+      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '34px', fontWeight: 400, marginBottom: '8px' }}>
         Budget
       </h1>
 
       {commitPercent >= 100 && (
-        <div style={{ padding: '10px 14px', background: 'rgba(185,28,28,0.08)', border: '1px solid rgba(185,28,28,0.3)', marginBottom: '16px', fontFamily: 'var(--font-body)', fontSize: '13px', color: '#B91C1C' }}>
+        <div style={{ padding: '12px 16px', background: 'rgba(185,28,28,0.06)', border: '1px solid rgba(185,28,28,0.2)', borderRadius: '12px', marginBottom: '20px', fontFamily: 'var(--font-body)', fontSize: '14px', color: '#B91C1C' }}>
           Budget exceeded — committed {commitPercent}% of total
         </div>
       )}
       {commitPercent >= 90 && commitPercent < 100 && (
-        <div style={{ padding: '10px 14px', background: 'rgba(154,120,64,0.1)', border: '1px solid var(--color-status-short)', marginBottom: '16px', fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-status-short)' }}>
+        <div style={{ padding: '12px 16px', background: 'rgba(154,120,64,0.08)', border: '1px solid var(--color-status-short)', borderRadius: '12px', marginBottom: '20px', fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-status-short)' }}>
           Approaching budget — {commitPercent}% committed
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '28px' }}>
         {[
           { label: 'Total Budget', value: `$${(totalBudgeted / 1000).toFixed(0)}K` },
           { label: 'Committed', value: `$${(totalBooked / 1000).toFixed(1)}K` },
@@ -103,7 +103,7 @@ export default function Budget() {
         ].map(({ label, value }) => (
           <Card key={label}>
             <SectionLabel>{label}</SectionLabel>
-            <p style={{ fontFamily: 'var(--font-heading)', fontSize: '22px', margin: 0 }}>{value}</p>
+            <p style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', margin: 0 }}>{value}</p>
           </Card>
         ))}
       </div>
@@ -129,7 +129,7 @@ export default function Budget() {
                   onChange={e => setEditValue(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') handleSaveBudget(row.category); if (e.key === 'Escape') setEditingCategory(null) }}
                   autoFocus
-                  style={{ width: '80px', padding: '4px 6px', border: '1px solid var(--color-accent)', fontFamily: 'var(--font-body)', fontSize: '13px' }}
+                  style={{ width: '90px', padding: '6px 10px', borderRadius: '8px', border: '1.5px solid var(--color-accent)', fontFamily: 'var(--font-body)', fontSize: '13px' }}
                 />
                 <button onClick={() => handleSaveBudget(row.category)} style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer' }}>✓</button>
               </div>

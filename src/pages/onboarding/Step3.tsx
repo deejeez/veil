@@ -52,11 +52,11 @@ export default function OnboardingStep3() {
         )}
 
         {!loading && insight && (
-          <div style={{ padding: '20px', border: '1px solid var(--color-accent)', background: 'rgba(200,169,110,0.06)', textAlign: 'left', marginBottom: '24px' }}>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '9px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-accent)', marginBottom: '8px' }}>
+          <div style={{ padding: '24px', borderRadius: '16px', border: '1px solid rgba(200,169,110,0.3)', background: 'rgba(200,169,110,0.06)', textAlign: 'left', marginBottom: '32px' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-accent)', marginBottom: '10px', fontWeight: 600 }}>
               AI Advisor
             </p>
-            <p style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', fontStyle: 'italic', color: 'var(--color-text-primary)', lineHeight: 1.6, margin: 0 }}>
+            <p style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', fontStyle: 'italic', color: 'var(--color-text-primary)', lineHeight: 1.7, margin: 0 }}>
               {insight}
             </p>
           </div>

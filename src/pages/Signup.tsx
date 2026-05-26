@@ -19,7 +19,6 @@ export default function Signup() {
       const { user } = await signUp(email, password)
       if (!user) throw new Error('Signup failed — no user returned')
 
-      // Create the couple record
       const { error: insertError } = await supabase.from('couples').insert({
         user_id_primary: user.id,
         email_primary: email,
@@ -35,29 +34,35 @@ export default function Signup() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg)' }}>
-      <div style={{ width: '360px' }}>
-        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', color: 'var(--color-text-primary)', marginBottom: '8px' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg)', padding: '24px' }}>
+      <div style={{
+        width: '100%',
+        maxWidth: '440px',
+        background: 'var(--color-surface)',
+        borderRadius: '20px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.04), 0 8px 40px rgba(0,0,0,0.08)',
+        padding: '48px 44px',
+      }}>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '36px', fontWeight: 400, color: 'var(--color-accent)', marginBottom: '4px', letterSpacing: '0.04em' }}>
           Veil
         </h1>
-        <p style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-secondary)', fontSize: '14px', marginBottom: '32px' }}>
+        <p style={{ fontFamily: 'var(--font-body)', color: 'var(--color-text-secondary)', fontSize: '15px', marginBottom: '36px' }}>
           Plan your wedding, your way
         </p>
 
         {error && (
-          <p style={{ color: '#B91C1C', fontSize: '13px', marginBottom: '16px', fontFamily: 'var(--font-body)' }}>
-            {error}
-          </p>
+          <div style={{ background: 'rgba(185,28,28,0.06)', border: '1px solid rgba(185,28,28,0.2)', borderRadius: '10px', padding: '12px 14px', marginBottom: '20px' }}>
+            <p style={{ color: '#B91C1C', fontSize: '14px', margin: 0, fontFamily: 'var(--font-body)' }}>{error}</p>
+          </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <input
             type="email"
-            placeholder="Email"
+            placeholder="Email address"
             value={email}
             onChange={e => setEmail(e.target.value)}
             required
-            style={{ padding: '10px 12px', border: '1px solid var(--color-border)', fontFamily: 'var(--font-body)', fontSize: '14px', background: 'var(--color-surface)' }}
           />
           <input
             type="password"
@@ -66,15 +71,19 @@ export default function Signup() {
             onChange={e => setPassword(e.target.value)}
             required
             minLength={8}
-            style={{ padding: '10px 12px', border: '1px solid var(--color-border)', fontFamily: 'var(--font-body)', fontSize: '14px', background: 'var(--color-surface)' }}
           />
-          <Button type="submit" disabled={loading}>
-            {loading ? 'Creating account...' : 'Create Account'}
-          </Button>
+          <div style={{ marginTop: '4px' }}>
+            <Button type="submit" disabled={loading} style={{ width: '100%' }}>
+              {loading ? 'Creating account...' : 'Create Account'}
+            </Button>
+          </div>
         </form>
 
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '20px' }}>
-          Already have an account? <Link to="/login" style={{ color: 'var(--color-accent)' }}>Sign in</Link>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-secondary)', marginTop: '24px', textAlign: 'center' }}>
+          Already have an account?{' '}
+          <Link to="/login" style={{ color: 'var(--color-accent)', textDecoration: 'none', fontWeight: 500 }}>
+            Sign in
+          </Link>
         </p>
       </div>
     </div>

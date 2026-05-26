@@ -16,13 +16,7 @@ export default function OnboardingStep1() {
   const navigate = useNavigate()
 
   const inputStyle: CSSProperties = {
-    padding: '10px 12px',
-    border: '1px solid var(--color-border)',
-    fontFamily: 'var(--font-body)',
-    fontSize: '14px',
-    background: 'var(--color-surface)',
-    width: '100%',
-    boxSizing: 'border-box',
+    display: 'block',
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -53,14 +47,17 @@ export default function OnboardingStep1() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg)' }}>
-      <div style={{ maxWidth: '480px', width: '100%' }}>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg)', padding: '40px 24px' }}>
+      <div style={{ maxWidth: '520px', width: '100%' }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
           Step 1 of 3
         </p>
-        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', marginBottom: '24px', fontWeight: 400 }}>
+        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '34px', marginBottom: '8px', fontWeight: 400 }}>
           The basics
         </h2>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '15px', color: 'var(--color-text-secondary)', marginBottom: '32px' }}>
+          Tell us about your big day.
+        </p>
 
         {error && <p style={{ color: '#B91C1C', fontSize: '13px', marginBottom: '16px' }}>{error}</p>}
 

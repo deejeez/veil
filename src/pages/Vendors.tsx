@@ -41,30 +41,30 @@ export default function Vendors() {
 
   return (
     <AppShell>
-      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', fontWeight: 400, marginBottom: '24px' }}>
+      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '34px', fontWeight: 400, marginBottom: '28px' }}>
         Vendors
       </h1>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
         {vendorsByCategory.map(({ category, booked, shortlistedCount }) => (
           <Card
             key={category}
             className=""
-            style={{ cursor: 'pointer', border: '1px solid var(--color-border)', padding: '16px', background: 'var(--color-surface)' }}
+            style={{ cursor: 'pointer' }}
             onClick={() => navigate(`/vendors/${category}`)}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <p style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', margin: '0 0 4px 0', color: 'var(--color-text-primary)' }}>
+                <p style={{ fontFamily: 'var(--font-heading)', fontSize: '16px', margin: '0 0 5px 0', color: 'var(--color-text-primary)' }}>
                   {VENDOR_CATEGORY_LABELS[category]}
                 </p>
                 {booked?.name && (
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', margin: 0 }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>
                     {booked.name}
                   </p>
                 )}
                 {!booked && shortlistedCount > 0 && (
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', margin: 0 }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>
                     {shortlistedCount} shortlisted
                   </p>
                 )}

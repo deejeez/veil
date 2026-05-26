@@ -27,13 +27,18 @@ export default function OnboardingStep2() {
   }
 
   const selectStyle = (value: string, selected: string): CSSProperties => ({
-    padding: '8px 12px',
-    border: value === selected ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
-    background: value === selected ? 'rgba(200,169,110,0.1)' : 'var(--color-surface)',
+    padding: '10px 16px',
+    border: value === selected ? '1.5px solid var(--color-accent)' : '1.5px solid var(--color-border)',
+    borderRadius: '10px',
+    background: value === selected ? 'rgba(200,169,110,0.12)' : 'var(--color-surface)',
     color: value === selected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
     fontFamily: 'var(--font-body)',
-    fontSize: '13px',
+    fontSize: '14px',
     cursor: 'pointer',
+    fontWeight: value === selected ? 500 : 400,
+    transition: 'all 0.12s',
+    width: 'auto',
+    boxSizing: 'border-box' as const,
   })
 
   async function handleSubmit() {
@@ -63,12 +68,12 @@ export default function OnboardingStep2() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', padding: '40px 24px' }}>
-      <div style={{ maxWidth: '560px', margin: '0 auto' }}>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', padding: '48px 24px' }}>
+      <div style={{ maxWidth: '580px', margin: '0 auto' }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
           Step 2 of 3
         </p>
-        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', marginBottom: '4px', fontWeight: 400 }}>
+        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '34px', marginBottom: '4px', fontWeight: 400 }}>
           Your vibe
         </h2>
         <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px', marginBottom: '24px' }}>

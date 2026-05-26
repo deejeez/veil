@@ -85,26 +85,32 @@ export default function Finances() {
   }, {} as Record<string, Payment[]>)
 
   const inputStyle: CSSProperties = {
-    padding: '8px 10px', border: '1px solid var(--color-border)',
-    fontFamily: 'var(--font-body)', fontSize: '13px', background: 'var(--color-surface)',
+    display: 'block',
   }
 
   if (loading) return <AppShell><p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p></AppShell>
 
   return (
     <AppShell>
-      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', fontWeight: 400, marginBottom: '24px' }}>
+      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '34px', fontWeight: 400, marginBottom: '28px' }}>
         Finances
       </h1>
 
-      <div style={{ display: 'flex', gap: '0', marginBottom: '20px', borderBottom: '1px solid var(--color-border)' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '28px' }}>
         {(['upcoming', 'by_family'] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
-            padding: '8px 20px', fontFamily: 'var(--font-body)', fontSize: '13px',
-            background: 'none', border: 'none',
-            borderBottom: tab === t ? '2px solid var(--color-accent)' : '2px solid transparent',
+            padding: '9px 20px',
+            fontFamily: 'var(--font-body)',
+            fontSize: '14px',
+            fontWeight: tab === t ? 600 : 400,
+            background: tab === t ? 'rgba(200,169,110,0.12)' : 'transparent',
+            border: tab === t ? '1.5px solid var(--color-accent)' : '1.5px solid var(--color-border)',
+            borderRadius: '10px',
             color: tab === t ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
             cursor: 'pointer',
+            transition: 'all 0.12s',
+            width: 'auto',
+            boxSizing: 'border-box',
           }}>
             {t === 'upcoming' ? 'Upcoming' : 'By Family'}
           </button>

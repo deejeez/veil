@@ -29,3 +29,28 @@ body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
 }
+
+input, select, textarea {
+  border-radius: 12px;
+  border: 1.5px solid var(--color-border);
+  padding: 13px 16px;
+  font-size: 15px;
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(200, 169, 110, 0.15);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--color-text-secondary);
+  opacity: 0.7;
+}
