@@ -4,7 +4,7 @@ create extension if not exists "uuid-ossp";
 -- COUPLES
 create table couples (
   id                uuid primary key default uuid_generate_v4(),
-  created_at        timestamptz default now(),
+  created_at        timestamptz not null default now(),
   user_id_primary   uuid references auth.users not null,
   user_id_partner   uuid references auth.users,
   email_primary     text not null,
@@ -46,7 +46,7 @@ create table vendors (
   website       text,
   notes         text,
   booked_amount numeric,
-  created_at    timestamptz default now()
+  created_at    timestamptz not null default now()
 );
 
 alter table vendors enable row level security;
@@ -110,7 +110,7 @@ create table contracts (
   vendor_id   uuid references vendors not null,
   file_path   text not null,
   file_name   text not null,
-  uploaded_at timestamptz default now(),
+  uploaded_at timestamptz not null default now(),
   ai_review   jsonb
 );
 
@@ -131,7 +131,7 @@ create table ai_insights (
   couple_id  uuid references couples not null,
   type       text not null,
   content    text not null,
-  created_at timestamptz default now()
+  created_at timestamptz not null default now()
 );
 
 alter table ai_insights enable row level security;
@@ -144,6 +144,15 @@ create policy "couple members can manage ai insights"
       where auth.uid() = user_id_primary or auth.uid() = user_id_partner
     )
   );
+
+-- Indexes on foreign key columns (PostgreSQL does not auto-index FKs)
+create index on vendors (couple_id);
+create index on payments (couple_id);
+create index on payments (vendor_id);
+create index on budget_categories (couple_id);
+create index on contracts (couple_id);
+create index on contracts (vendor_id);
+create index on ai_insights (couple_id);
 
 -- STORAGE: contracts bucket
 insert into storage.buckets (id, name, public) values ('contracts', 'contracts', false);
@@ -160,6 +169,16 @@ create policy "couple members can upload contracts"
 
 create policy "couple members can read contracts"
   on storage.objects for select
+  using (
+    bucket_id = 'contracts' and
+    (storage.foldername(name))[1] in (
+      select id::text from couples
+      where auth.uid() = user_id_primary or auth.uid() = user_id_partner
+    )
+  );
+
+create policy "couple members can delete contracts"
+  on storage.objects for delete
   using (
     bucket_id = 'contracts' and
     (storage.foldername(name))[1] in (

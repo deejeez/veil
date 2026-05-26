@@ -112,7 +112,7 @@ export const VENDOR_CATEGORIES = [
 
 export type VendorCategory = typeof VENDOR_CATEGORIES[number]
 
-export const VENDOR_CATEGORY_LABELS: Record<string, string> = {
+export const VENDOR_CATEGORY_LABELS: Record<VendorCategory, string> = {
   venue: 'Venue',
   band_dj: 'Band / DJ',
   florist: 'Florist',
