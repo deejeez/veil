@@ -8,6 +8,7 @@ const navItems = [
   { to: '/budget', label: 'Budget' },
   { to: '/finances', label: 'Finances' },
   { to: '/timeline', label: 'Timeline' },
+  { to: '/settings', label: 'Settings' },
 ]
 
 interface SidebarProps {

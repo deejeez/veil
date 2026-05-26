@@ -24,6 +24,8 @@ export type Couple = {
   paid: boolean
   stripe_session_id: string | null
   vibe_profile: VibeProfile | null
+  family_a_name: string | null
+  family_b_name: string | null
 }
 
 export type Vendor = {

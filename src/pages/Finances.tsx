@@ -78,6 +78,15 @@ export default function Finances() {
   const paidPct = totalBudget > 0 ? Math.min((totalPaid / totalBudget) * 100, 100) : 0
   const scheduledPct = totalBudget > 0 ? Math.min((totalScheduled / totalBudget) * 100, Math.max(0, 100 - paidPct)) : 0
 
+  const familyAName = couple?.family_a_name || 'Family A'
+  const familyBName = couple?.family_b_name || 'Family B'
+
+  const paidByLabel = (key: string): string => {
+    if (key === 'family_a') return familyAName
+    if (key === 'family_b') return familyBName
+    return 'Couple'
+  }
+
   const getDaysUntil = (dueDate: string) =>
     Math.ceil((new Date(dueDate).getTime() - Date.now()) / 86400000)
 
@@ -191,7 +200,7 @@ export default function Finances() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               {Object.entries(payerGroups).map(([payer, items]) => {
                 const groupTotal = items.reduce((sum, p) => sum + p.amount, 0)
-                const label = payer.replace('_', "'s ").replace(/\b\w/g, c => c.toUpperCase())
+                const label = paidByLabel(payer)
                 return (
                   <div key={payer} style={{ border: '1px solid #e5e0d8', borderRadius: '10px', padding: '12px 14px', background: '#fff' }}>
                     <div style={{ fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>{label}</div>
@@ -255,7 +264,7 @@ export default function Finances() {
                           )}
                         </div>
                         <div style={{ fontSize: '11px', color: '#aaa', marginTop: '1px' }}>
-                          {vendor?.name ?? p.paid_by}{p.due_date ? ` · Due ${formatDue(p.due_date)}` : ''}
+                          {vendor?.name ?? paidByLabel(p.paid_by)}{p.due_date ? ` · Due ${formatDue(p.due_date)}` : ''}
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
@@ -301,8 +310,31 @@ export default function Finances() {
                 <input type="date" value={newPayment.due_date} onChange={e => setNewPayment(f => ({ ...f, due_date: e.target.value }))} style={{ display: 'block' }} />
               </div>
               <div>
-                <label style={{ fontSize: '10px', color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Paid By</label>
-                <input placeholder="couple" value={newPayment.paid_by} onChange={e => setNewPayment(f => ({ ...f, paid_by: e.target.value }))} style={{ display: 'block' }} />
+                <label style={{ fontSize: '10px', color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Paid By</label>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {(['couple', 'family_a', 'family_b'] as const).map(key => {
+                    const active = newPayment.paid_by === key
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setNewPayment(f => ({ ...f, paid_by: key }))}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: '20px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          border: active ? '1.5px solid #c4788a' : '1.5px solid #e5e0d8',
+                          color: active ? '#c4788a' : '#888',
+                          background: active ? 'rgba(196,120,138,0.06)' : '#fff',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {paidByLabel(key)}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ fontSize: '10px', color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Vendor (optional)</label>
