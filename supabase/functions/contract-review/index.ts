@@ -45,7 +45,10 @@ Deno.serve(async (req) => {
 
     const pdfRes = await fetch(urlData.signedUrl)
     const pdfBuffer = await pdfRes.arrayBuffer()
-    const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)))
+    const bytes = new Uint8Array(pdfBuffer)
+    let binary = ''
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+    const pdfBase64 = btoa(binary)
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-5',
