@@ -2,6 +2,8 @@ import { type FormEvent, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { signIn } from '../lib/auth'
 import Button from '../components/Button'
+import { identifyUser } from '../lib/analytics'
+import { supabase } from '../lib/supabase'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -16,6 +18,8 @@ export default function Login() {
     setLoading(true)
     try {
       await signIn(email, password)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) identifyUser(user.id, user.email ?? '')
       navigate('/')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Sign in failed')

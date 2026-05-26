@@ -10,6 +10,7 @@ import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, upsertVendor, updateVendorStatus, deleteVendor } from '../lib/vendors'
 import { Couple, Vendor, VendorStatus, VENDOR_CATEGORY_LABELS } from '../types/database'
 import type { AiReview, AiReviewFlag } from '../types/database'
+import { track } from '../lib/analytics'
 
 export default function VendorDetail() {
   const { category } = useParams<{ category: string }>()
@@ -101,6 +102,7 @@ export default function VendorDetail() {
       })
       if (fnError) throw fnError
       setShortlist(data.vendors ?? [])
+      track('shortlist_generated', { category })
     } catch {
       setShortlistError("Couldn't generate suggestions — try again")
     } finally {
@@ -134,6 +136,7 @@ export default function VendorDetail() {
       })
       if (fnError) throw fnError
       setContracts(prev => prev.map(c => c.id === contractRow.id ? { ...c, ai_review: data } : c))
+      track('contract_uploaded', { category: category })
     } catch (err: unknown) {
       alert('Upload failed: ' + (err instanceof Error ? err.message : String(err)))
     } finally {

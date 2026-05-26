@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getCoupleForUser } from '../../lib/couple'
 import Button from '../../components/Button'
+import { track } from '../../lib/analytics'
 
 export default function OnboardingStep3() {
   const [insight, setInsight] = useState<string | null>(null)
@@ -63,7 +64,7 @@ export default function OnboardingStep3() {
 
         {error && <p style={{ color: 'var(--color-text-secondary)', fontSize: '13px', marginBottom: '16px' }}>{error}</p>}
 
-        <Button onClick={() => navigate('/')} disabled={loading}>
+        <Button onClick={() => { track('onboarding_complete'); navigate('/') }} disabled={loading}>
           Go to Dashboard
         </Button>
       </div>

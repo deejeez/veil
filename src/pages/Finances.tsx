@@ -8,6 +8,7 @@ import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple } from '../lib/vendors'
 import { getPaymentsForCouple, insertPayment, markPaymentPaid, deletePayment } from '../lib/payments'
 import type { Couple, Vendor, Payment } from '../types/database'
+import { track } from '../lib/analytics'
 
 type Tab = 'upcoming' | 'by_family'
 
@@ -64,7 +65,9 @@ export default function Finances() {
 
   async function handleMarkPaid(paymentId: string) {
     try {
+      const p = payments.find(p => p.id === paymentId)
       await markPaymentPaid(paymentId, new Date().toISOString().split('T')[0])
+      if (p) track('payment_marked_paid', { amount: p.amount })
       await load()
     } catch {
       alert('Failed to mark payment as paid. Please try again.')

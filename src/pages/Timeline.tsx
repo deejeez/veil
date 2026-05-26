@@ -5,6 +5,7 @@ import Button from '../components/Button'
 import SectionLabel from '../components/SectionLabel'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
+import { track } from '../lib/analytics'
 
 type TimelineResult = {
   overall_status: 'On Track' | 'At Risk' | 'Behind'
@@ -50,6 +51,7 @@ export default function Timeline() {
       })
       if (fnError) throw fnError
       setResult(data)
+      track('timeline_checked', { overall_status: data.overall_status })
     } catch {
       setError("Couldn't generate timeline — try again")
     } finally {
