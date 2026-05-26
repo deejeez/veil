@@ -9,8 +9,9 @@ import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, upsertVendor, updateVendorStatus, deleteVendor } from '../lib/vendors'
 import { type Couple, type Vendor, type VendorStatus, type VendorCategory, VENDOR_CATEGORY_LABELS } from '../types/database'
-import type { AiReview, AiReviewFlag } from '../types/database'
+import type { AiReview, AiReviewFlag, Payment } from '../types/database'
 import { track } from '../lib/analytics'
+import { getPaymentsForVendor, insertPayment, markPaymentPaid, deletePayment } from '../lib/payments'
 
 export default function VendorDetail() {
   const { category } = useParams<{ category: string }>()
@@ -28,6 +29,10 @@ export default function VendorDetail() {
   const [reviewingContractId, setReviewingContractId] = useState<string | null>(null)
   const [expandedFlag, setExpandedFlag] = useState<string | null>(null)
   const [noteModal, setNoteModal] = useState<{ vendorId: string; status: VendorStatus; note: string } | null>(null)
+  const [vendorPayments, setVendorPayments] = useState<Record<string, Payment[]>>({})
+  const [addingPaymentFor, setAddingPaymentFor] = useState<string | null>(null)
+  const [newVendorPayment, setNewVendorPayment] = useState({ label: '', amount: '', due_date: '', paid_by: 'couple' })
+  const [savingVendorPayment, setSavingVendorPayment] = useState(false)
   const navigate = useNavigate()
 
   async function load() {
@@ -44,6 +49,13 @@ export default function VendorDetail() {
         .select('id, vendor_id, file_name, ai_review')
         .eq('couple_id', c.id)
       setContracts((contractData ?? []) as { id: string; vendor_id: string; file_name: string; ai_review: AiReview | null }[])
+      const bookedVendors = all.filter(v => v.category === category && v.status === 'booked')
+      if (bookedVendors.length > 0) {
+        const paymentResults = await Promise.all(bookedVendors.map(v => getPaymentsForVendor(v.id)))
+        const paymentMap: Record<string, Payment[]> = {}
+        bookedVendors.forEach((v, i) => { paymentMap[v.id] = paymentResults[i] })
+        setVendorPayments(paymentMap)
+      }
     } finally {
       setLoading(false)
     }
@@ -183,6 +195,49 @@ export default function VendorDetail() {
     }
   }
 
+  async function handleAddVendorPayment(vendorId: string) {
+    if (!couple) return
+    setSavingVendorPayment(true)
+    try {
+      await insertPayment({
+        couple_id: couple.id,
+        vendor_id: vendorId,
+        label: newVendorPayment.label,
+        amount: Number(newVendorPayment.amount),
+        due_date: newVendorPayment.due_date || null,
+        paid_date: null,
+        paid_by: newVendorPayment.paid_by,
+        notes: null,
+      })
+      setAddingPaymentFor(null)
+      setNewVendorPayment({ label: '', amount: '', due_date: '', paid_by: 'couple' })
+      await load()
+    } catch {
+      alert('Failed to add payment. Please try again.')
+    } finally {
+      setSavingVendorPayment(false)
+    }
+  }
+
+  async function handleMarkVendorPaymentPaid(paymentId: string) {
+    try {
+      await markPaymentPaid(paymentId, new Date().toISOString().split('T')[0])
+      await load()
+    } catch {
+      alert('Failed to mark payment as paid. Please try again.')
+    }
+  }
+
+  async function handleDeleteVendorPayment(paymentId: string) {
+    if (!confirm('Remove this payment?')) return
+    try {
+      await deletePayment(paymentId)
+      await load()
+    } catch {
+      alert('Failed to remove payment. Please try again.')
+    }
+  }
+
   const inputStyle: CSSProperties = { display: 'block' }
 
   if (loading) return <AppShell><p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p></AppShell>
@@ -262,60 +317,141 @@ export default function VendorDetail() {
             </div>
           )}
           {vendor.status === 'booked' && (
-            <div style={{ marginTop: '12px', borderTop: '1px solid var(--color-bg)', paddingTop: '12px' }}>
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', margin: '0 0 8px 0' }}>
-                Contract Review
-              </p>
-              {contracts.filter(c => c.vendor_id === vendor.id).length === 0 ? (
-                <label style={{ cursor: uploadingContract ? 'default' : 'pointer' }}>
-                  <input
-                    type="file" accept=".pdf" style={{ display: 'none' }}
-                    disabled={uploadingContract}
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleContractUpload(vendor.id, f) }}
-                  />
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-accent)', textDecoration: 'underline', cursor: uploadingContract ? 'default' : 'pointer' }}>
-                    {uploadingContract ? 'Uploading & reviewing...' : '+ Upload Contract PDF'}
-                  </span>
-                </label>
-              ) : null}
-              {contracts.filter(c => c.vendor_id === vendor.id).map(c => (
-                <div key={c.id}>
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', margin: '0 0 8px 0' }}>
-                    📄 {c.file_name}
-                    {reviewingContractId === c.id && <span style={{ color: 'var(--color-text-secondary)', marginLeft: '8px', fontStyle: 'italic' }}>Reviewing contract...</span>}
-                  </p>
-                  {c.ai_review?.status === 'complete' && (
-                    <div style={{ padding: '12px', background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
-                      <p style={{ fontFamily: 'var(--font-heading)', fontSize: '13px', fontStyle: 'italic', color: 'var(--color-text-primary)', marginBottom: '12px', lineHeight: 1.5 }}>
-                        {c.ai_review.summary}
-                      </p>
-                      {c.ai_review.flags.map((flag: AiReviewFlag, i: number) => {
-                        const key = `${c.id}-${i}`
-                        const severityColor: Record<string, string> = { flag: '#B91C1C', caution: 'var(--color-status-short)', info: 'var(--color-text-secondary)' }
-                        return (
-                          <div key={i} style={{ marginBottom: '8px' }}>
-                            <button
-                              onClick={() => setExpandedFlag(expandedFlag === key ? null : key)}
-                              style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
-                            >
-                              <span style={{ fontFamily: 'var(--font-body)', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', color: severityColor[flag.severity], fontWeight: 700 }}>
-                                {flag.severity}
-                              </span>
-                              <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)' }}>{flag.clause}</span>
-                              <span style={{ color: 'var(--color-text-secondary)', fontSize: '11px' }}>{expandedFlag === key ? '▲' : '▼'}</span>
-                            </button>
-                            {expandedFlag === key && (
-                              <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: '6px 0 0 0', lineHeight: 1.5 }}>
-                                {flag.text}
-                              </p>
-                            )}
+            <div style={{ marginTop: '12px', borderTop: '1px solid #f0ede8', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+              {/* Payment Schedule */}
+              <div>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', margin: '0 0 8px 0' }}>
+                  Payment Schedule
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {(vendorPayments[vendor.id] ?? []).map(p => {
+                    const today = new Date().toISOString().split('T')[0]
+                    const isOverdue = !!p.due_date && p.due_date < today && !p.paid_date
+                    const isPaid = !!p.paid_date
+                    return (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '8px', background: isPaid ? '#f0faf0' : isOverdue ? '#fff5f5' : '#fafafa', border: `1px solid ${isPaid ? '#a5d6a7' : isOverdue ? '#fcd5d5' : '#e5e0d8'}` }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{p.label}</div>
+                          <div style={{ fontSize: '11px', color: '#aaa' }}>
+                            ${p.amount.toLocaleString()}
+                            {p.due_date ? ` · Due ${new Date(p.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+                            {isPaid ? ' · Paid ✓' : ''}
                           </div>
-                        )
-                      })}
-                    </div>
-                  )}
+                        </div>
+                        {!isPaid && (
+                          <button
+                            onClick={() => handleMarkVendorPaymentPaid(p.id)}
+                            style={{ fontSize: '10px', border: `1px solid ${isOverdue ? '#c0392b' : '#e5e0d8'}`, borderRadius: '6px', padding: '3px 8px', color: isOverdue ? '#c0392b' : '#888', background: 'none', cursor: 'pointer' }}
+                          >
+                            Pay
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteVendorPayment(p.id)}
+                          style={{ fontSize: '11px', color: '#ccc', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}
+                        >✕</button>
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
+
+                {addingPaymentFor === vendor.id ? (
+                  <div style={{ marginTop: '8px', padding: '10px 12px', border: '1px solid #e5e0d8', borderRadius: '8px', background: '#fff' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '10px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Label</label>
+                        <input placeholder="Deposit" value={newVendorPayment.label} onChange={e => setNewVendorPayment(f => ({ ...f, label: e.target.value }))} style={{ display: 'block', fontSize: '12px' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '10px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Amount ($)</label>
+                        <input type="number" value={newVendorPayment.amount} onChange={e => setNewVendorPayment(f => ({ ...f, amount: e.target.value }))} style={{ display: 'block', fontSize: '12px' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '10px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Due Date</label>
+                        <input type="date" value={newVendorPayment.due_date} onChange={e => setNewVendorPayment(f => ({ ...f, due_date: e.target.value }))} style={{ display: 'block', fontSize: '12px' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '10px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Paid By</label>
+                        <input placeholder="couple" value={newVendorPayment.paid_by} onChange={e => setNewVendorPayment(f => ({ ...f, paid_by: e.target.value }))} style={{ display: 'block', fontSize: '12px' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <Button variant="secondary" onClick={() => { setAddingPaymentFor(null); setNewVendorPayment({ label: '', amount: '', due_date: '', paid_by: 'couple' }) }}>
+                        Cancel
+                      </Button>
+                      <Button onClick={() => handleAddVendorPayment(vendor.id)} disabled={savingVendorPayment || !newVendorPayment.label || !newVendorPayment.amount}>
+                        {savingVendorPayment ? 'Saving...' : 'Add'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingPaymentFor(vendor.id)}
+                    style={{ marginTop: '6px', fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  >
+                    + Add payment
+                  </button>
+                )}
+              </div>
+
+              {/* Contract Review */}
+              <div>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', margin: '0 0 8px 0' }}>
+                  Contract Review
+                </p>
+                {contracts.filter(c => c.vendor_id === vendor.id).length === 0 ? (
+                  <label style={{ cursor: uploadingContract ? 'default' : 'pointer' }}>
+                    <input
+                      type="file" accept=".pdf" style={{ display: 'none' }}
+                      disabled={uploadingContract}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleContractUpload(vendor.id, f) }}
+                    />
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-accent)', textDecoration: 'underline', cursor: uploadingContract ? 'default' : 'pointer' }}>
+                      {uploadingContract ? 'Uploading & reviewing...' : '+ Upload Contract PDF'}
+                    </span>
+                  </label>
+                ) : null}
+                {contracts.filter(c => c.vendor_id === vendor.id).map(c => (
+                  <div key={c.id}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', margin: '0 0 8px 0' }}>
+                      📄 {c.file_name}
+                      {reviewingContractId === c.id && <span style={{ color: 'var(--color-text-secondary)', marginLeft: '8px', fontStyle: 'italic' }}>Reviewing contract...</span>}
+                    </p>
+                    {c.ai_review?.status === 'complete' && (
+                      <div style={{ padding: '12px', background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+                        <p style={{ fontFamily: 'var(--font-heading)', fontSize: '13px', fontStyle: 'italic', color: 'var(--color-text-primary)', marginBottom: '12px', lineHeight: 1.5 }}>
+                          {c.ai_review.summary}
+                        </p>
+                        {c.ai_review.flags.map((flag: AiReviewFlag, i: number) => {
+                          const key = `${c.id}-${i}`
+                          const severityColor: Record<string, string> = { flag: '#B91C1C', caution: 'var(--color-status-short)', info: 'var(--color-text-secondary)' }
+                          return (
+                            <div key={i} style={{ marginBottom: '8px' }}>
+                              <button
+                                onClick={() => setExpandedFlag(expandedFlag === key ? null : key)}
+                                style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                              >
+                                <span style={{ fontFamily: 'var(--font-body)', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', color: severityColor[flag.severity], fontWeight: 700 }}>
+                                  {flag.severity}
+                                </span>
+                                <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)' }}>{flag.clause}</span>
+                                <span style={{ color: 'var(--color-text-secondary)', fontSize: '11px' }}>{expandedFlag === key ? '▲' : '▼'}</span>
+                              </button>
+                              {expandedFlag === key && (
+                                <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: '6px 0 0 0', lineHeight: 1.5 }}>
+                                  {flag.text}
+                                </p>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
             </div>
           )}
         </Card>
@@ -327,7 +463,7 @@ export default function VendorDetail() {
         </Button>
       </div>
 
-      <div style={{ marginTop: '24px', padding: '16px', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
+      <div style={{ marginTop: '24px', border: '1px solid #e5e0d8', borderRadius: '12px', padding: '16px 18px', background: '#fff' }}>
         <SectionLabel>AI Vendor Shortlist</SectionLabel>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '12px' }}>
           Get 4–6 vendors in your city ranked against your vibe profile.
@@ -341,38 +477,38 @@ export default function VendorDetail() {
         {shortlist.length > 0 && (
           <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {shortlist.map((v, i) => (
-              <div key={i} style={{ padding: '12px', border: '1px solid var(--color-border)', background: 'var(--color-bg)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-                  <p style={{ fontFamily: 'var(--font-heading)', fontSize: '14px', margin: 0, color: 'var(--color-text-primary)' }}>
+              <div key={i} style={{ padding: '10px 12px', border: '1px solid #e5e0d8', borderRadius: '8px', background: '#fafafa', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontFamily: 'var(--font-heading)', fontSize: '14px', margin: '0 0 4px 0', color: 'var(--color-text-primary)' }}>
                     {v.name}
                   </p>
-                  <Button
-                    variant="ghost"
-                    onClick={async () => {
-                      if (!couple) return
-                      try {
-                        const vendor = await upsertVendor({
-                          couple_id: couple.id,
-                          category: category!,
-                          name: v.name,
-                          website: v.website,
-                          status: 'shortlisted',
-                        })
-                        setVendors(prev => [...prev, vendor])
-                      } catch {
-                        alert('Failed to add vendor. Please try again.')
-                      }
-                    }}
-                  >
-                    Add →
-                  </Button>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', margin: '0 0 4px 0' }}>
+                    {v.address}
+                  </p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', fontStyle: 'italic', color: 'var(--color-text-primary)', margin: 0 }}>
+                    {v.reason}
+                  </p>
                 </div>
-                <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', margin: '0 0 4px 0' }}>
-                  {v.address}
-                </p>
-                <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', fontStyle: 'italic', color: 'var(--color-text-primary)', margin: 0 }}>
-                  {v.reason}
-                </p>
+                <Button
+                  variant="ghost"
+                  onClick={async () => {
+                    if (!couple) return
+                    try {
+                      const vendor = await upsertVendor({
+                        couple_id: couple.id,
+                        category: category!,
+                        name: v.name,
+                        website: v.website,
+                        status: 'shortlisted',
+                      })
+                      setVendors(prev => [...prev, vendor])
+                    } catch {
+                      alert('Failed to add vendor. Please try again.')
+                    }
+                  }}
+                >
+                  Add →
+                </Button>
               </div>
             ))}
           </div>
