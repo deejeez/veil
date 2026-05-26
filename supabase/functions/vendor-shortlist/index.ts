@@ -61,16 +61,38 @@ Deno.serve(async (req) => {
     }
     const { couple_id, category } = body
 
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    )
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const { data: couple } = await supabase
       .from('couples')
-      .select('city, state, vibe_profile')
+      .select('city, state, vibe_profile, user_id_primary, user_id_partner')
       .eq('id', couple_id)
       .single()
+
+    if (couple?.user_id_primary !== user.id && couple?.user_id_partner !== user.id) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     if (!couple?.city) {
       return new Response(JSON.stringify({ error: 'Set your city in onboarding first' }), {
@@ -122,7 +144,7 @@ Respond in this exact JSON format:
     if (content.type !== 'text') throw new Error('Unexpected response type')
     const fenceMatch = content.text.match(/```(?:json)?\s*([\s\S]*?)```/)
     const jsonSource = fenceMatch ? fenceMatch[1] : content.text
-    const jsonMatch = jsonSource.match(/\{[\s\S]*?\}/)
+    const jsonMatch = jsonSource.match(/\{[\s\S]*\}/)
     if (!jsonMatch) throw new Error('No JSON in response')
     const result = JSON.parse(jsonMatch[0])
 

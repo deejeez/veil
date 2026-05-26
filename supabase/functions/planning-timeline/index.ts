@@ -20,15 +20,43 @@ Deno.serve(async (req) => {
     }
     const { couple_id } = body
 
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    )
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const [{ data: couple }, { data: vendors }] = await Promise.all([
-      supabase.from('couples').select('*').eq('id', couple_id).single(),
+      supabase.from('couples').select('*, user_id_primary, user_id_partner, paid').eq('id', couple_id).single(),
       supabase.from('vendors').select('category, status, name').eq('couple_id', couple_id),
     ])
+
+    if (couple?.user_id_primary !== user.id && couple?.user_id_partner !== user.id) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (!couple.paid) {
+      return new Response(JSON.stringify({ error: 'Payment required' }), {
+        status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const daysUntil = couple.wedding_date
       ? Math.ceil((new Date(couple.wedding_date).getTime() - Date.now()) / 86400000)

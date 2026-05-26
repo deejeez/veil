@@ -20,10 +20,26 @@ Deno.serve(async (req) => {
     }
     const { contract_id } = body
 
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    )
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const { data: contract } = await supabase
       .from('contracts')
@@ -34,6 +50,18 @@ Deno.serve(async (req) => {
     if (!contract) {
       return new Response(JSON.stringify({ error: 'Contract not found' }), {
         status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { data: couple } = await supabase
+      .from('couples')
+      .select('user_id_primary, user_id_partner')
+      .eq('id', contract.couple_id)
+      .single()
+
+    if (couple?.user_id_primary !== user.id && couple?.user_id_partner !== user.id) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
