@@ -76,10 +76,15 @@ overall_status must be exactly one of: "On Track", "At Risk", "Behind"`,
     const content = message.content[0]
     if (content.type !== 'text') throw new Error('Unexpected response')
     const fenceMatch = content.text.match(/```(?:json)?\s*([\s\S]*?)```/)
-    const jsonSource = fenceMatch ? fenceMatch[1] : content.text
-    const jsonMatch = jsonSource.match(/\{[\s\S]*?\}/)
-    if (!jsonMatch) throw new Error('No JSON in response')
-    const result = JSON.parse(jsonMatch[0])
+    const jsonSource = (fenceMatch ? fenceMatch[1] : content.text).trim()
+    let result
+    try {
+      result = JSON.parse(jsonSource)
+    } catch {
+      const jsonMatch = jsonSource.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) throw new Error('No JSON in response')
+      result = JSON.parse(jsonMatch[0])
+    }
 
     await supabase.from('ai_insights').insert({
       couple_id,
