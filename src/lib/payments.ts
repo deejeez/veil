@@ -36,3 +36,24 @@ export function getUpcomingPayments(payments: Payment[], limit = 3): Payment[] {
     .filter(p => !p.paid_date && (!p.due_date || p.due_date >= today))
     .slice(0, limit)
 }
+
+export async function getPaymentsForVendor(vendorId: string): Promise<Payment[]> {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('vendor_id', vendorId)
+    .order('due_date', { ascending: true })
+  if (error) throw error
+  return data as Payment[]
+}
+
+export async function updatePayment(
+  paymentId: string,
+  updates: Partial<Pick<Payment, 'label' | 'amount' | 'due_date' | 'paid_by'>>
+): Promise<void> {
+  const { error } = await supabase
+    .from('payments')
+    .update(updates)
+    .eq('id', paymentId)
+  if (error) throw error
+}
