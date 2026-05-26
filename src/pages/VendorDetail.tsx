@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, upsertVendor, updateVendorStatus, deleteVendor } from '../lib/vendors'
 import { Couple, Vendor, VendorStatus, VENDOR_CATEGORY_LABELS } from '../types/database'
+import type { AiReview, AiReviewFlag } from '../types/database'
 
 export default function VendorDetail() {
   const { category } = useParams<{ category: string }>()
@@ -21,6 +22,10 @@ export default function VendorDetail() {
   const [shortlist, setShortlist] = useState<{ name: string; address: string; website?: string; reason: string }[]>([])
   const [shortlistLoading, setShortlistLoading] = useState(false)
   const [shortlistError, setShortlistError] = useState<string | null>(null)
+  const [contracts, setContracts] = useState<{ id: string; vendor_id: string; file_name: string; ai_review: AiReview | null }[]>([])
+  const [uploadingContract, setUploadingContract] = useState(false)
+  const [reviewingContractId, setReviewingContractId] = useState<string | null>(null)
+  const [expandedFlag, setExpandedFlag] = useState<string | null>(null)
   const navigate = useNavigate()
 
   async function load() {
@@ -32,6 +37,11 @@ export default function VendorDetail() {
       setCouple(c)
       const all = await getVendorsForCouple(c.id)
       setVendors(all.filter(v => v.category === category))
+      const { data: contractData } = await supabase
+        .from('contracts')
+        .select('id, vendor_id, file_name, ai_review')
+        .eq('couple_id', c.id)
+      setContracts((contractData ?? []) as { id: string; vendor_id: string; file_name: string; ai_review: AiReview | null }[])
     } finally {
       setLoading(false)
     }
@@ -95,6 +105,40 @@ export default function VendorDetail() {
       setShortlistError("Couldn't generate suggestions — try again")
     } finally {
       setShortlistLoading(false)
+    }
+  }
+
+  async function handleContractUpload(vendorId: string, file: File) {
+    if (!couple) return
+    if (file.size > 25 * 1024 * 1024) { alert('File too large. Maximum 25MB.'); return }
+    setUploadingContract(true)
+    try {
+      const filePath = `${couple.id}/${vendorId}/${file.name}`
+      const { error: uploadError } = await supabase.storage
+        .from('contracts')
+        .upload(filePath, file, { upsert: true })
+      if (uploadError) throw uploadError
+
+      const { data: contractRow, error: insertError } = await supabase
+        .from('contracts')
+        .insert({ couple_id: couple.id, vendor_id: vendorId, file_path: filePath, file_name: file.name })
+        .select()
+        .single()
+      if (insertError) throw insertError
+
+      setContracts(prev => [...prev, { id: contractRow.id, vendor_id: vendorId, file_name: file.name, ai_review: null }])
+
+      setReviewingContractId(contractRow.id)
+      const { data, error: fnError } = await supabase.functions.invoke('contract-review', {
+        body: { contract_id: contractRow.id },
+      })
+      if (fnError) throw fnError
+      setContracts(prev => prev.map(c => c.id === contractRow.id ? { ...c, ai_review: data } : c))
+    } catch (err: unknown) {
+      alert('Upload failed: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setUploadingContract(false)
+      setReviewingContractId(null)
     }
   }
 
@@ -175,6 +219,63 @@ export default function VendorDetail() {
               {vendor.booked_amount && <p style={{ fontSize: '12px', color: 'var(--color-text-primary)', margin: 0, fontFamily: 'var(--font-heading)' }}>${vendor.booked_amount.toLocaleString()}</p>}
               {vendor.website && <a href={vendor.website} target="_blank" rel="noopener" style={{ fontSize: '12px', color: 'var(--color-accent)' }}>{vendor.website}</a>}
               {vendor.notes && <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: 0, gridColumn: '1 / -1' }}>{vendor.notes}</p>}
+            </div>
+          )}
+          {vendor.status === 'booked' && (
+            <div style={{ marginTop: '12px', borderTop: '1px solid var(--color-bg)', paddingTop: '12px' }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', margin: '0 0 8px 0' }}>
+                Contract Review
+              </p>
+              {contracts.filter(c => c.vendor_id === vendor.id).length === 0 ? (
+                <label style={{ cursor: uploadingContract ? 'default' : 'pointer' }}>
+                  <input
+                    type="file" accept=".pdf" style={{ display: 'none' }}
+                    disabled={uploadingContract}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleContractUpload(vendor.id, f) }}
+                  />
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-accent)', textDecoration: 'underline', cursor: uploadingContract ? 'default' : 'pointer' }}>
+                    {uploadingContract ? 'Uploading & reviewing...' : '+ Upload Contract PDF'}
+                  </span>
+                </label>
+              ) : null}
+              {contracts.filter(c => c.vendor_id === vendor.id).map(c => (
+                <div key={c.id}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', margin: '0 0 8px 0' }}>
+                    📄 {c.file_name}
+                    {reviewingContractId === c.id && <span style={{ color: 'var(--color-text-secondary)', marginLeft: '8px', fontStyle: 'italic' }}>Reviewing contract...</span>}
+                  </p>
+                  {c.ai_review?.status === 'complete' && (
+                    <div style={{ padding: '12px', background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+                      <p style={{ fontFamily: 'var(--font-heading)', fontSize: '13px', fontStyle: 'italic', color: 'var(--color-text-primary)', marginBottom: '12px', lineHeight: 1.5 }}>
+                        {c.ai_review.summary}
+                      </p>
+                      {c.ai_review.flags.map((flag: AiReviewFlag, i: number) => {
+                        const key = `${c.id}-${i}`
+                        const severityColor: Record<string, string> = { flag: '#B91C1C', caution: 'var(--color-status-short)', info: 'var(--color-text-secondary)' }
+                        return (
+                          <div key={i} style={{ marginBottom: '8px' }}>
+                            <button
+                              onClick={() => setExpandedFlag(expandedFlag === key ? null : key)}
+                              style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                            >
+                              <span style={{ fontFamily: 'var(--font-body)', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', color: severityColor[flag.severity], fontWeight: 700 }}>
+                                {flag.severity}
+                              </span>
+                              <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)' }}>{flag.clause}</span>
+                              <span style={{ color: 'var(--color-text-secondary)', fontSize: '11px' }}>{expandedFlag === key ? '▲' : '▼'}</span>
+                            </button>
+                            {expandedFlag === key && (
+                              <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: '6px 0 0 0', lineHeight: 1.5 }}>
+                                {flag.text}
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </Card>
