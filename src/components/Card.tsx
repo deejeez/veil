@@ -13,8 +13,9 @@ export default function Card({ children, className = '', style, onClick }: CardP
       className={className}
       style={{
         background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        padding: '16px',
+        borderRadius: '16px',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 20px rgba(0,0,0,0.07)',
+        padding: '24px',
         ...style,
       }}
       onClick={onClick}

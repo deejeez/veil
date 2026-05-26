@@ -50,7 +50,7 @@ export default function AppShell({ children }: AppShellProps) {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--color-bg)' }}>
       <Sidebar latestInsight={latestInsight} />
-      <main style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
+      <main style={{ flex: 1, padding: '40px 48px', overflowY: 'auto' }}>
         {children}
       </main>
     </div>

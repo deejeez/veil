@@ -17,10 +17,10 @@ export default function Sidebar({ latestInsight }: SidebarProps) {
   return (
     <div
       style={{
-        width: '148px',
+        width: '200px',
         flexShrink: 0,
         background: 'var(--color-sidebar)',
-        padding: '18px 14px',
+        padding: '24px 16px',
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
@@ -33,11 +33,11 @@ export default function Sidebar({ latestInsight }: SidebarProps) {
       <p
         style={{
           fontFamily: 'var(--font-heading)',
-          fontSize: '12px',
-          letterSpacing: '0.12em',
+          fontSize: '15px',
+          letterSpacing: '0.14em',
           textTransform: 'uppercase',
           color: 'var(--color-accent)',
-          marginBottom: '24px',
+          marginBottom: '32px',
           lineHeight: 1.4,
         }}
       >
@@ -53,15 +53,16 @@ export default function Sidebar({ latestInsight }: SidebarProps) {
             end={to === '/'}
             style={({ isActive }) => ({
               display: 'block',
-              fontSize: '11px',
+              fontSize: '13px',
               color: isActive ? 'var(--color-sidebar-active)' : 'var(--color-sidebar-text)',
-              padding: isActive ? '6px 6px 6px 6px' : '6px 8px',
-              marginBottom: '2px',
-              borderLeft: isActive ? '2px solid var(--color-accent)' : '2px solid transparent',
-              background: isActive ? 'rgba(200,169,110,0.15)' : 'transparent',
+              padding: '8px 12px',
+              marginBottom: '4px',
+              borderRadius: '8px',
+              background: isActive ? 'rgba(200,169,110,0.18)' : 'transparent',
               textDecoration: 'none',
               fontFamily: 'var(--font-body)',
-              letterSpacing: '0.02em',
+              fontWeight: isActive ? 600 : 400,
+              letterSpacing: '0.01em',
             })}
           >
             {label}
