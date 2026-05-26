@@ -7,10 +7,14 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   const [authenticated, setAuthenticated] = useState(false)
 
   useEffect(() => {
-    getSession().then(session => {
-      setAuthenticated(!!session)
-      setChecked(true)
-    })
+    getSession()
+      .then(session => {
+        setAuthenticated(!!session)
+        setChecked(true)
+      })
+      .catch(() => {
+        setChecked(true)
+      })
   }, [])
 
   if (!checked) return null

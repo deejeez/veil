@@ -28,7 +28,7 @@ export default function Signup() {
 
       navigate('/onboarding/1')
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Signup failed')
+      setError(err instanceof Error ? err.message : ((err as { message?: string }).message ?? 'Signup failed'))
     } finally {
       setLoading(false)
     }
