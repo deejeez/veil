@@ -92,6 +92,7 @@ export default function Finances() {
     .sort((a, b) => (a.due_date! > b.due_date! ? 1 : -1))[0]
 
   const alertPayment = unpaid.find(p => p.due_date && (isOverdue(p) || isDueSoon(p)))
+  const alertVendorName = alertPayment ? vendors.find(v => v.id === alertPayment.vendor_id)?.name ?? null : null
 
   const payerGroups = payments.reduce((acc, p) => {
     const payer = p.paid_by || 'couple'
@@ -172,9 +173,7 @@ export default function Finances() {
               </div>
               <div style={{ fontSize: '12px', color: 'var(--color-text-primary)' }}>
                 <strong>${alertPayment.amount.toLocaleString()}</strong> · {alertPayment.label}
-                {vendors.find(v => v.id === alertPayment.vendor_id)?.name
-                  ? ` — ${vendors.find(v => v.id === alertPayment.vendor_id)!.name}`
-                  : ''}
+                {alertVendorName ? ` — ${alertVendorName}` : ''}
               </div>
               {alertPayment.due_date && (
                 <div style={{ fontSize: '11px', color: '#aaa', marginTop: '2px' }}>
