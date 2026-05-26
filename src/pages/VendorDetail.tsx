@@ -4,6 +4,7 @@ import AppShell from '../components/AppShell'
 import Card from '../components/Card'
 import Button from '../components/Button'
 import StatusBadge from '../components/StatusBadge'
+import SectionLabel from '../components/SectionLabel'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, upsertVendor, updateVendorStatus, deleteVendor } from '../lib/vendors'
@@ -17,6 +18,9 @@ export default function VendorDetail() {
   const [editForm, setEditForm] = useState<Partial<Vendor>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [shortlist, setShortlist] = useState<{ name: string; address: string; website?: string; reason: string }[]>([])
+  const [shortlistLoading, setShortlistLoading] = useState(false)
+  const [shortlistError, setShortlistError] = useState<string | null>(null)
   const navigate = useNavigate()
 
   async function load() {
@@ -74,6 +78,23 @@ export default function VendorDetail() {
       setVendors(prev => prev.filter(v => v.id !== vendorId))
     } catch {
       alert('Failed to remove vendor. Please try again.')
+    }
+  }
+
+  async function handleGetShortlist() {
+    if (!couple) return
+    setShortlistLoading(true)
+    setShortlistError(null)
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('vendor-shortlist', {
+        body: { couple_id: couple.id, category },
+      })
+      if (fnError) throw fnError
+      setShortlist(data.vendors ?? [])
+    } catch {
+      setShortlistError("Couldn't generate suggestions — try again")
+    } finally {
+      setShortlistLoading(false)
     }
   }
 
@@ -163,6 +184,54 @@ export default function VendorDetail() {
         <Button variant="secondary" onClick={handleAddVendor}>
           + Add Vendor
         </Button>
+      </div>
+
+      <div style={{ marginTop: '24px', padding: '16px', border: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
+        <SectionLabel>AI Vendor Shortlist</SectionLabel>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '12px' }}>
+          Get 4–6 vendors in your city ranked against your vibe profile.
+        </p>
+        <Button onClick={handleGetShortlist} disabled={shortlistLoading} variant="secondary">
+          {shortlistLoading ? 'Finding vendors...' : 'Get AI Shortlist'}
+        </Button>
+        {shortlistError && (
+          <p style={{ color: '#B91C1C', fontSize: '13px', marginTop: '8px' }}>{shortlistError}</p>
+        )}
+        {shortlist.length > 0 && (
+          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {shortlist.map((v, i) => (
+              <div key={i} style={{ padding: '12px', border: '1px solid var(--color-border)', background: 'var(--color-bg)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                  <p style={{ fontFamily: 'var(--font-heading)', fontSize: '14px', margin: 0, color: 'var(--color-text-primary)' }}>
+                    {v.name}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    onClick={async () => {
+                      if (!couple) return
+                      const vendor = await upsertVendor({
+                        couple_id: couple.id,
+                        category: category!,
+                        name: v.name,
+                        website: v.website,
+                        status: 'shortlisted',
+                      })
+                      setVendors(prev => [...prev, vendor])
+                    }}
+                  >
+                    Add →
+                  </Button>
+                </div>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', margin: '0 0 4px 0' }}>
+                  {v.address}
+                </p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', fontStyle: 'italic', color: 'var(--color-text-primary)', margin: 0 }}>
+                  {v.reason}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </AppShell>
   )
