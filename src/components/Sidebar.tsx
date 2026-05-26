@@ -5,6 +5,7 @@ const navItems = [
   { to: '/', label: 'Home' },
   { to: '/todos', label: 'Tasks' },
   { to: '/vendors', label: 'Vendors' },
+  { to: '/venue', label: 'Venue' },
   { to: '/budget', label: 'Budget' },
   { to: '/finances', label: 'Finances' },
   { to: '/timeline', label: 'Timeline' },

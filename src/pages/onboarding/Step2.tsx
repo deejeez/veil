@@ -7,6 +7,25 @@ import Button from '../../components/Button'
 
 const VIBE_WORDS = ['moody', 'airy', 'classic', 'wild', 'intimate', 'grand', 'playful', 'timeless', 'bold', 'soft']
 
+function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
+  return (
+    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '32px' }}>
+      {[1, 2, 3].map(n => (
+        <div
+          key={n}
+          style={{
+            height: '3px',
+            flex: 1,
+            borderRadius: '2px',
+            background: n <= current ? 'var(--color-accent)' : '#e5e0d8',
+            transition: 'background 0.2s',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 export default function OnboardingStep2() {
   const [aesthetic, setAesthetic] = useState<VibeProfile['aesthetic']>('romantic')
   const [formality, setFormality] = useState<VibeProfile['formality']>('cocktail')
@@ -70,6 +89,19 @@ export default function OnboardingStep2() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', padding: '48px 24px' }}>
       <div style={{ maxWidth: '580px', margin: '0 auto' }}>
+        <p style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: '20px',
+          letterSpacing: '0.08em',
+          color: 'var(--color-accent)',
+          margin: '0 0 32px 0',
+          lineHeight: 1,
+        }}>
+          Veil
+        </p>
+
+        <StepIndicator current={2} />
+
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
           Step 2 of 3
         </p>

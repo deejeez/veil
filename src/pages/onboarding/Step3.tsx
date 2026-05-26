@@ -5,6 +5,25 @@ import { getCoupleForUser } from '../../lib/couple'
 import Button from '../../components/Button'
 import { track } from '../../lib/analytics'
 
+function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
+  return (
+    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '32px' }}>
+      {[1, 2, 3].map(n => (
+        <div
+          key={n}
+          style={{
+            height: '3px',
+            flex: 1,
+            borderRadius: '2px',
+            background: n <= current ? 'var(--color-accent)' : '#e5e0d8',
+            transition: 'background 0.2s',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 export default function OnboardingStep3() {
   const [insight, setInsight] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -38,6 +57,19 @@ export default function OnboardingStep3() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg)' }}>
       <div style={{ maxWidth: '480px', width: '100%', textAlign: 'center' }}>
+        <p style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: '20px',
+          letterSpacing: '0.08em',
+          color: 'var(--color-accent)',
+          margin: '0 0 32px 0',
+          lineHeight: 1,
+        }}>
+          Veil
+        </p>
+
+        <StepIndicator current={3} />
+
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>
           Step 3 of 3
         </p>

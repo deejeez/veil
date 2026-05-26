@@ -109,41 +109,59 @@ export default function Dashboard() {
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-        <Card>
+        <Card onClick={() => navigate('/budget')} style={{ cursor: 'pointer' }}>
           <SectionLabel>Budget</SectionLabel>
           <p style={{ fontFamily: 'var(--font-heading)', fontSize: '26px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
             {couple?.budget_total ? `$${(couple.budget_total / 1000).toFixed(0)}K` : '—'}
           </p>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', margin: 0 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', margin: '0 0 8px 0' }}>
             {couple?.budget_total ? `${Math.round((totalCommitted / couple.budget_total) * 100)}% committed` : 'Set in Budget'}
           </p>
+          {couple?.budget_total && couple.budget_total > 0 && (
+            <div style={{ height: '3px', background: '#f0ebe4', borderRadius: '2px', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.min(100, Math.round((totalCommitted / couple.budget_total) * 100))}%`, background: 'var(--color-accent)', borderRadius: '2px' }} />
+            </div>
+          )}
         </Card>
-        <Card>
+        <Card onClick={() => navigate('/finances')} style={{ cursor: 'pointer' }}>
           <SectionLabel>Paid</SectionLabel>
           <p style={{ fontFamily: 'var(--font-heading)', fontSize: '26px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
             ${(totalPaid / 1000).toFixed(1)}K
           </p>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', margin: 0 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', margin: '0 0 8px 0' }}>
             {couple?.budget_total ? `${Math.round((totalPaid / couple.budget_total) * 100)}% of total` : 'total paid'}
           </p>
+          {couple?.budget_total && couple.budget_total > 0 && (
+            <div style={{ height: '3px', background: '#f0ebe4', borderRadius: '2px', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.min(100, Math.round((totalPaid / couple.budget_total) * 100))}%`, background: 'var(--color-status-booked)', borderRadius: '2px' }} />
+            </div>
+          )}
         </Card>
-        <Card>
+        <Card onClick={() => navigate('/vendors')} style={{ cursor: 'pointer' }}>
           <SectionLabel>Vendors</SectionLabel>
           <p style={{ fontFamily: 'var(--font-heading)', fontSize: '26px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
             {bookedVendors.length}<span style={{ color: 'var(--color-text-secondary)', fontSize: '16px' }}> / {vendors.filter(v => v.status !== 'not_started').length}</span>
           </p>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', margin: 0 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', margin: '0 0 8px 0' }}>
             booked
           </p>
+          {vendors.filter(v => v.status !== 'not_started').length > 0 && (
+            <div style={{ height: '3px', background: '#f0ebe4', borderRadius: '2px', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.min(100, Math.round((bookedVendors.length / vendors.filter(v => v.status !== 'not_started').length) * 100))}%`, background: 'var(--color-accent)', borderRadius: '2px' }} />
+            </div>
+          )}
         </Card>
         <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/todos')}>
           <SectionLabel>Tasks</SectionLabel>
           <p style={{ fontFamily: 'var(--font-heading)', fontSize: '26px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
             {pendingTasks.length}
           </p>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: overdueTasks.length > 0 ? '#B91C1C' : 'var(--color-accent)', margin: 0, fontWeight: overdueTasks.length > 0 ? 600 : 400 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: overdueTasks.length > 0 ? '#B91C1C' : 'var(--color-accent)', margin: '0 0 8px 0', fontWeight: overdueTasks.length > 0 ? 600 : 400 }}>
             {overdueTasks.length > 0 ? `${overdueTasks.length} overdue` : 'remaining'}
           </p>
+          <div style={{ height: '3px', background: '#f0ebe4', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: overdueTasks.length > 0 ? '100%' : '0%', background: '#B91C1C', borderRadius: '2px', display: overdueTasks.length > 0 ? 'block' : 'none' }} />
+          </div>
         </Card>
       </div>
 

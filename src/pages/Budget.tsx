@@ -117,11 +117,21 @@ export default function Budget() {
           ))}
         </div>
 
-        {rows.map(row => (
-          <div key={row.category} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: '8px', padding: '8px 0', borderBottom: '1px solid var(--color-bg)', alignItems: 'center' }}>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)', margin: 0 }}>
-              {VENDOR_CATEGORY_LABELS[row.category as keyof typeof VENDOR_CATEGORY_LABELS] ?? row.category}
-            </p>
+        {rows.map(row => {
+          const bookedPercent = row.budgeted > 0 ? Math.min(100, Math.round((row.booked / row.budgeted) * 100)) : 0
+          const isOver = row.remaining < 0 && row.budgeted > 0
+          return (
+          <div key={row.category} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: '8px', padding: '10px 0', borderBottom: '1px solid var(--color-bg)', alignItems: 'center' }}>
+            <div>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)', margin: '0 0 4px 0' }}>
+                {VENDOR_CATEGORY_LABELS[row.category as keyof typeof VENDOR_CATEGORY_LABELS] ?? row.category}
+              </p>
+              {row.budgeted > 0 && (
+                <div style={{ height: '3px', background: '#f0ebe4', borderRadius: '2px', overflow: 'hidden', width: '80%' }}>
+                  <div style={{ height: '100%', width: `${bookedPercent}%`, background: isOver ? '#B91C1C' : 'var(--color-accent)', borderRadius: '2px', transition: 'width 0.3s ease' }} />
+                </div>
+              )}
+            </div>
 
             {editingCategory === row.category ? (
               <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
@@ -155,7 +165,8 @@ export default function Budget() {
               {row.budgeted > 0 ? `$${row.remaining.toLocaleString()}` : '—'}
             </p>
           </div>
-        ))}
+          )
+        })}
       </Card>
     </AppShell>
   )

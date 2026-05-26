@@ -10,6 +10,7 @@ import Vendors from './pages/Vendors'
 import VendorDetail from './pages/VendorDetail'
 import Budget from './pages/Budget'
 import Finances from './pages/Finances'
+import Venue from './pages/Venue'
 import Timeline from './pages/Timeline'
 import Todos from './pages/Todos'
 import Settings from './pages/Settings'
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/" element={<AuthGuard><PaywallGuard><Dashboard /></PaywallGuard></AuthGuard>} />
         <Route path="/vendors" element={<AuthGuard><PaywallGuard><Vendors /></PaywallGuard></AuthGuard>} />
         <Route path="/vendors/:category" element={<AuthGuard><PaywallGuard><VendorDetail /></PaywallGuard></AuthGuard>} />
+        <Route path="/venue" element={<AuthGuard><PaywallGuard><Venue /></PaywallGuard></AuthGuard>} />
         <Route path="/budget" element={<AuthGuard><PaywallGuard><Budget /></PaywallGuard></AuthGuard>} />
         <Route path="/finances" element={<AuthGuard><PaywallGuard><Finances /></PaywallGuard></AuthGuard>} />
         <Route path="/timeline" element={<AuthGuard><PaywallGuard><Timeline /></PaywallGuard></AuthGuard>} />

@@ -4,6 +4,25 @@ import { supabase } from '../../lib/supabase'
 import { getCoupleForUser, updateCouple } from '../../lib/couple'
 import Button from '../../components/Button'
 
+function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
+  return (
+    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '32px' }}>
+      {[1, 2, 3].map(n => (
+        <div
+          key={n}
+          style={{
+            height: '3px',
+            flex: 1,
+            borderRadius: '2px',
+            background: n <= current ? 'var(--color-accent)' : '#e5e0d8',
+            transition: 'background 0.2s',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 export default function OnboardingStep1() {
   const [weddingDate, setWeddingDate] = useState('')
   const [venueName, setVenueName] = useState('')
@@ -49,6 +68,21 @@ export default function OnboardingStep1() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg)', padding: '40px 24px' }}>
       <div style={{ maxWidth: '520px', width: '100%' }}>
+
+        {/* Logo */}
+        <p style={{
+          fontFamily: 'var(--font-heading)',
+          fontSize: '20px',
+          letterSpacing: '0.08em',
+          color: 'var(--color-accent)',
+          margin: '0 0 32px 0',
+          lineHeight: 1,
+        }}>
+          Veil
+        </p>
+
+        <StepIndicator current={1} />
+
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
           Step 1 of 3
         </p>
@@ -96,13 +130,13 @@ export default function OnboardingStep1() {
           </div>
           <div>
             <label style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', display: 'block', marginBottom: '6px' }}>
-              Partner's Email (optional — invite them later)
+              Partner's Email (optional)
             </label>
             <input type="email" placeholder="partner@email.com" value={emailPartner} onChange={e => setEmailPartner(e.target.value)} style={inputStyle} />
           </div>
 
           <Button type="submit" disabled={loading} style={{ marginTop: '8px' }}>
-            {loading ? 'Saving...' : 'Continue'}
+            {loading ? 'Saving...' : 'Continue →'}
           </Button>
         </form>
       </div>
