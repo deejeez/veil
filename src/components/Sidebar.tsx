@@ -3,6 +3,7 @@ import AiAdvisorCard from './AiAdvisorCard'
 
 const navItems = [
   { to: '/', label: 'Home' },
+  { to: '/todos', label: 'Tasks' },
   { to: '/vendors', label: 'Vendors' },
   { to: '/budget', label: 'Budget' },
   { to: '/finances', label: 'Finances' },

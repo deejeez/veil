@@ -27,6 +27,7 @@ export default function VendorDetail() {
   const [uploadingContract, setUploadingContract] = useState(false)
   const [reviewingContractId, setReviewingContractId] = useState<string | null>(null)
   const [expandedFlag, setExpandedFlag] = useState<string | null>(null)
+  const [noteModal, setNoteModal] = useState<{ vendorId: string; status: VendorStatus; note: string } | null>(null)
   const navigate = useNavigate()
 
   async function load() {
@@ -74,9 +75,35 @@ export default function VendorDetail() {
   }
 
   async function handleStatusChange(vendorId: string, status: VendorStatus) {
+    // Prompt for a decision note when booking or eliminating
+    if (status === 'booked' || status === 'eliminated') {
+      setNoteModal({ vendorId, status, note: '' })
+      return
+    }
     try {
       await updateVendorStatus(vendorId, status)
       setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, status } : v))
+    } catch {
+      alert('Failed to update status. Please try again.')
+    }
+  }
+
+  async function handleStatusWithNote() {
+    if (!noteModal) return
+    const { vendorId, status, note } = noteModal
+    try {
+      await updateVendorStatus(vendorId, status)
+      if (note.trim()) {
+        const { supabase: sb } = await import('../lib/supabase')
+        const vendor = vendors.find(v => v.id === vendorId)
+        if (vendor) {
+          const existingNote = vendor.notes ? vendor.notes + '\n\n' : ''
+          const label = status === 'booked' ? '✓ Booked: ' : '✕ Eliminated: '
+          await sb.from('vendors').update({ notes: existingNote + label + note }).eq('id', vendorId)
+        }
+      }
+      setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, status, notes: note.trim() ? ((v.notes ? v.notes + '\n\n' : '') + (status === 'booked' ? '✓ Booked: ' : '✕ Eliminated: ') + note) : v.notes } : v))
+      setNoteModal(null)
     } catch {
       alert('Failed to update status. Please try again.')
     }
@@ -180,8 +207,11 @@ export default function VendorDetail() {
                 style={{ width: 'auto', padding: '6px 10px', fontSize: '12px' }}
               >
                 <option value="not_started">Not Started</option>
+                <option value="researching">Researching</option>
                 <option value="shortlisted">Shortlisted</option>
-                <option value="booked">Booked</option>
+                <option value="meeting_scheduled">Meeting Scheduled</option>
+                <option value="booked">Booked ✓</option>
+                <option value="eliminated">Eliminated ✕</option>
               </select>
               <button onClick={() => { setEditingId(vendor.id); setEditForm(vendor) }} style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer' }}>
                 Edit
@@ -337,6 +367,38 @@ export default function VendorDetail() {
           </div>
         )}
       </div>
+
+      {/* Decision note modal */}
+      {noteModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,13,10,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--color-surface)', borderRadius: '16px', padding: '28px 32px', width: '420px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
+            <p style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: 400, margin: '0 0 6px 0' }}>
+              {noteModal.status === 'booked' ? 'Booking confirmed!' : 'Mark as eliminated'}
+            </p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 18px 0' }}>
+              {noteModal.status === 'booked'
+                ? 'Add a note about why you chose this vendor (optional).'
+                : 'Add a note about why you eliminated this vendor (optional).'}
+            </p>
+            <textarea
+              autoFocus
+              placeholder={noteModal.status === 'booked' ? 'e.g. Best portfolio, great vibe at the tasting...' : 'e.g. Too expensive, booked already...'}
+              value={noteModal.note}
+              onChange={e => setNoteModal(m => m ? { ...m, note: e.target.value } : m)}
+              style={{ width: '100%', minHeight: '80px', fontFamily: 'var(--font-body)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box', display: 'block', marginBottom: '16px' }}
+            />
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <Button variant="secondary" onClick={() => setNoteModal(null)}>Cancel</Button>
+              <Button
+                onClick={handleStatusWithNote}
+                style={{ background: noteModal.status === 'booked' ? 'var(--color-status-booked)' : undefined }}
+              >
+                {noteModal.status === 'booked' ? 'Confirm Booking' : 'Eliminate'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   )
 }

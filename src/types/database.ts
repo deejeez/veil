@@ -1,4 +1,4 @@
-export type VendorStatus = 'not_started' | 'shortlisted' | 'booked'
+export type VendorStatus = 'not_started' | 'researching' | 'shortlisted' | 'meeting_scheduled' | 'booked' | 'eliminated'
 
 export type VibeProfile = {
   aesthetic: 'romantic' | 'modern' | 'rustic' | 'industrial' | 'maximalist' | 'minimalist'
@@ -111,6 +111,18 @@ export const VENDOR_CATEGORIES = [
 ] as const
 
 export type VendorCategory = typeof VENDOR_CATEGORIES[number]
+
+export type Task = {
+  id: string
+  couple_id: string
+  title: string
+  description: string | null
+  due_date: string | null
+  completed: boolean
+  assigned_to: string
+  category: string | null
+  created_at: string
+}
 
 export const VENDOR_CATEGORY_LABELS: Record<VendorCategory, string> = {
   venue: 'Venue',

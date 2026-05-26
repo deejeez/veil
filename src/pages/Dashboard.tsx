@@ -9,12 +9,14 @@ import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, seedDefaultVendorCategories } from '../lib/vendors'
 import { getPaymentsForCouple, getUpcomingPayments } from '../lib/payments'
-import { type Couple, type Vendor, type Payment, VENDOR_CATEGORY_LABELS } from '../types/database'
+import { getTasksForCouple } from '../lib/tasks'
+import { type Couple, type Vendor, type Payment, type Task, VENDOR_CATEGORY_LABELS } from '../types/database'
 
 export default function Dashboard() {
   const [couple, setCouple] = useState<Couple | null>(null)
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
   const [latestInsight, setLatestInsight] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [partnerEmail, setPartnerEmail] = useState('')
@@ -31,9 +33,10 @@ export default function Dashboard() {
         if (!c) { setLoading(false); return }
         setCouple(c)
         await seedDefaultVendorCategories(c.id)
-        const [v, p, insight] = await Promise.all([
+        const [v, p, t, insight] = await Promise.all([
           getVendorsForCouple(c.id),
           getPaymentsForCouple(c.id),
+          getTasksForCouple(c.id),
           supabase
             .from('ai_insights')
             .select('content')
@@ -44,6 +47,7 @@ export default function Dashboard() {
         ])
         setVendors(v)
         setPayments(p)
+        setTasks(t)
         if (insight.data) setLatestInsight(insight.data.content)
       } finally {
         setLoading(false)
@@ -81,6 +85,10 @@ export default function Dashboard() {
   const totalCommitted = bookedVendors.reduce((sum, v) => sum + (v.booked_amount ?? 0), 0)
   const totalPaid = payments.filter(p => p.paid_date).reduce((sum, p) => sum + p.amount, 0)
   const upcoming = getUpcomingPayments(payments)
+  const today = new Date().toISOString().split('T')[0]
+  const pendingTasks = tasks.filter(t => !t.completed)
+  const overdueTasks = pendingTasks.filter(t => t.due_date && t.due_date < today)
+  const upcomingTasks = pendingTasks.slice(0, 5)
 
   if (loading) return <AppShell><p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p></AppShell>
 
@@ -100,32 +108,41 @@ export default function Dashboard() {
       </h1>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
         <Card>
           <SectionLabel>Budget</SectionLabel>
-          <p style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
+          <p style={{ fontFamily: 'var(--font-heading)', fontSize: '26px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
             {couple?.budget_total ? `$${(couple.budget_total / 1000).toFixed(0)}K` : '—'}
           </p>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-accent)', margin: 0 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', margin: 0 }}>
             {couple?.budget_total ? `${Math.round((totalCommitted / couple.budget_total) * 100)}% committed` : 'Set in Budget'}
           </p>
         </Card>
         <Card>
           <SectionLabel>Paid</SectionLabel>
-          <p style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
+          <p style={{ fontFamily: 'var(--font-heading)', fontSize: '26px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
             ${(totalPaid / 1000).toFixed(1)}K
           </p>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-accent)', margin: 0 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', margin: 0 }}>
             {couple?.budget_total ? `${Math.round((totalPaid / couple.budget_total) * 100)}% of total` : 'total paid'}
           </p>
         </Card>
         <Card>
           <SectionLabel>Vendors</SectionLabel>
-          <p style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
-            {bookedVendors.length}<span style={{ color: 'var(--color-text-secondary)', fontSize: '18px' }}> / {vendors.filter(v => v.status !== 'not_started').length}</span>
+          <p style={{ fontFamily: 'var(--font-heading)', fontSize: '26px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
+            {bookedVendors.length}<span style={{ color: 'var(--color-text-secondary)', fontSize: '16px' }}> / {vendors.filter(v => v.status !== 'not_started').length}</span>
           </p>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-accent)', margin: 0 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', margin: 0 }}>
             booked
+          </p>
+        </Card>
+        <Card style={{ cursor: 'pointer' }} onClick={() => navigate('/todos')}>
+          <SectionLabel>Tasks</SectionLabel>
+          <p style={{ fontFamily: 'var(--font-heading)', fontSize: '26px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
+            {pendingTasks.length}
+          </p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: overdueTasks.length > 0 ? '#B91C1C' : 'var(--color-accent)', margin: 0, fontWeight: overdueTasks.length > 0 ? 600 : 400 }}>
+            {overdueTasks.length > 0 ? `${overdueTasks.length} overdue` : 'remaining'}
           </p>
         </Card>
       </div>
@@ -197,7 +214,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
         {/* Vendor status */}
         <Card>
           <SectionLabel>Vendor Status</SectionLabel>
@@ -235,6 +252,34 @@ export default function Dashboard() {
           ))}
           <Button variant="ghost" onClick={() => navigate('/finances')} style={{ marginTop: '14px' }}>
             View all payments →
+          </Button>
+        </Card>
+
+        {/* Upcoming tasks */}
+        <Card>
+          <SectionLabel>Upcoming Tasks</SectionLabel>
+          {upcomingTasks.length === 0 ? (
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
+              No pending tasks
+            </p>
+          ) : upcomingTasks.map(t => {
+            const isOverdue = t.due_date && t.due_date < today
+            return (
+              <div key={t.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--color-bg)', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', border: '2px solid var(--color-border)', flexShrink: 0, marginTop: '4px', display: 'inline-block' }} />
+                <div>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)', margin: '0 0 1px 0' }}>{t.title}</p>
+                  {t.due_date && (
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: isOverdue ? '#B91C1C' : 'var(--color-text-secondary)', margin: 0, fontWeight: isOverdue ? 600 : 400 }}>
+                      {isOverdue ? '⚠ ' : ''}Due {t.due_date}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          <Button variant="ghost" onClick={() => navigate('/todos')} style={{ marginTop: '14px' }}>
+            View all tasks →
           </Button>
         </Card>
       </div>

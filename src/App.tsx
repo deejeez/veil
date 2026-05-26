@@ -11,6 +11,7 @@ import VendorDetail from './pages/VendorDetail'
 import Budget from './pages/Budget'
 import Finances from './pages/Finances'
 import Timeline from './pages/Timeline'
+import Todos from './pages/Todos'
 import AcceptInvite from './pages/AcceptInvite'
 import AuthGuard from './components/AuthGuard'
 import PaywallGuard from './components/PaywallGuard'
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/budget" element={<AuthGuard><PaywallGuard><Budget /></PaywallGuard></AuthGuard>} />
         <Route path="/finances" element={<AuthGuard><PaywallGuard><Finances /></PaywallGuard></AuthGuard>} />
         <Route path="/timeline" element={<AuthGuard><PaywallGuard><Timeline /></PaywallGuard></AuthGuard>} />
+        <Route path="/todos" element={<AuthGuard><PaywallGuard><Todos /></PaywallGuard></AuthGuard>} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

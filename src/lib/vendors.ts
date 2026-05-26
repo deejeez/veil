@@ -21,7 +21,7 @@ export async function upsertVendor(vendor: Partial<Vendor> & { couple_id: string
   return data as Vendor
 }
 
-export async function updateVendorStatus(vendorId: string, status: VendorStatus) {
+export async function updateVendorStatus(vendorId: string, status: VendorStatus | string) {
   const { error } = await supabase.from('vendors').update({ status }).eq('id', vendorId)
   if (error) throw error
 }
