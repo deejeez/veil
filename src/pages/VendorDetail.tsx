@@ -8,7 +8,7 @@ import SectionLabel from '../components/SectionLabel'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, upsertVendor, updateVendorStatus, deleteVendor } from '../lib/vendors'
-import { type Couple, type Vendor, type VendorStatus, VENDOR_CATEGORY_LABELS } from '../types/database'
+import { type Couple, type Vendor, type VendorStatus, type VendorCategory, VENDOR_CATEGORY_LABELS } from '../types/database'
 import type { AiReview, AiReviewFlag } from '../types/database'
 import { track } from '../lib/analytics'
 
@@ -159,7 +159,7 @@ export default function VendorDetail() {
         ← Vendors
       </button>
       <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', fontWeight: 400, marginBottom: '24px' }}>
-        {VENDOR_CATEGORY_LABELS[category ?? ''] ?? category}
+        {VENDOR_CATEGORY_LABELS[category as VendorCategory] ?? category}
       </h1>
 
       {vendors.length === 0 && (
