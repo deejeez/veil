@@ -22,6 +22,7 @@ type BudgetRow = {
 export default function Budget() {
   const [couple, setCouple] = useState<Couple | null>(null)
   const [rows, setRows] = useState<BudgetRow[]>([])
+  const [allPaidTotal, setAllPaidTotal] = useState(0)
   const [editingCategory, setEditingCategory] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [loading, setLoading] = useState(true)
@@ -50,6 +51,7 @@ export default function Budget() {
 
       const summary = computeBudgetSummary(categories, vendors, payments)
       setRows(summary as BudgetRow[])
+      setAllPaidTotal(payments.filter(p => p.paid_date).reduce((sum, p) => sum + p.amount, 0))
     } finally {
       setLoading(false)
     }
@@ -72,7 +74,7 @@ export default function Budget() {
 
   const totalBudgeted = rows.reduce((sum, r) => sum + r.budgeted, 0)
   const totalBooked = rows.reduce((sum, r) => sum + r.booked, 0)
-  const totalPaid = rows.reduce((sum, r) => sum + r.paid, 0)
+  const totalPaid = allPaidTotal  // all paid payments, including non-vendor ones
   const commitPercent = totalBudgeted > 0 ? Math.round((totalBooked / totalBudgeted) * 100) : 0
 
   if (loading) return <AppShell><p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p></AppShell>

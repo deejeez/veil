@@ -145,11 +145,7 @@ export default function VendorDetail() {
     }
   }
 
-  const inputStyle: CSSProperties = {
-    padding: '8px 10px', border: '1px solid var(--color-border)',
-    fontFamily: 'var(--font-body)', fontSize: '13px',
-    background: 'var(--color-surface)', width: '100%', boxSizing: 'border-box',
-  }
+  const inputStyle: CSSProperties = { display: 'block' }
 
   if (loading) return <AppShell><p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p></AppShell>
 
@@ -158,7 +154,7 @@ export default function VendorDetail() {
       <button onClick={() => navigate('/vendors')} style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 16px 0' }}>
         ← Vendors
       </button>
-      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', fontWeight: 400, marginBottom: '24px' }}>
+      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '34px', fontWeight: 400, marginBottom: '24px' }}>
         {VENDOR_CATEGORY_LABELS[category as VendorCategory] ?? category}
       </h1>
 
@@ -181,7 +177,7 @@ export default function VendorDetail() {
               <select
                 value={vendor.status}
                 onChange={e => handleStatusChange(vendor.id, e.target.value as VendorStatus)}
-                style={{ padding: '4px 8px', border: '1px solid var(--color-border)', fontFamily: 'var(--font-body)', fontSize: '12px', background: 'var(--color-surface)' }}
+                style={{ width: 'auto', padding: '6px 10px', fontSize: '12px' }}
               >
                 <option value="not_started">Not Started</option>
                 <option value="shortlisted">Shortlisted</option>

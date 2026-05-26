@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [couple, setCouple] = useState<Couple | null>(null)
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
+  const [latestInsight, setLatestInsight] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [partnerEmail, setPartnerEmail] = useState('')
   const [inviting, setInviting] = useState(false)
@@ -25,23 +26,25 @@ export default function Dashboard() {
     async function load() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          setLoading(false)
-          return
-        }
+        if (!user) { setLoading(false); return }
         const c = await getCoupleForUser(user.id)
-        if (!c) {
-          setLoading(false)
-          return
-        }
+        if (!c) { setLoading(false); return }
         setCouple(c)
         await seedDefaultVendorCategories(c.id)
-        const [v, p] = await Promise.all([
+        const [v, p, insight] = await Promise.all([
           getVendorsForCouple(c.id),
           getPaymentsForCouple(c.id),
+          supabase
+            .from('ai_insights')
+            .select('content')
+            .eq('couple_id', c.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         ])
         setVendors(v)
         setPayments(p)
+        if (insight.data) setLatestInsight(insight.data.content)
       } finally {
         setLoading(false)
       }
@@ -57,7 +60,6 @@ export default function Dashboard() {
         body: { couple_id: couple.id, partner_email: partnerEmail },
       })
       if (error) throw error
-      // Reload couple to show updated email_partner
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const updated = await getCoupleForUser(user.id)
@@ -89,7 +91,7 @@ export default function Dashboard() {
       </p>
 
       {/* Countdown */}
-      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '42px', fontWeight: 400, marginBottom: '32px', lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
+      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '42px', fontWeight: 400, marginBottom: '28px', lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
         {daysUntil !== null ? (
           <><span style={{ color: 'var(--color-accent)' }}>{daysUntil} days</span> until your wedding</>
         ) : (
@@ -98,14 +100,14 @@ export default function Dashboard() {
       </h1>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '28px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         <Card>
           <SectionLabel>Budget</SectionLabel>
           <p style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
             {couple?.budget_total ? `$${(couple.budget_total / 1000).toFixed(0)}K` : '—'}
           </p>
           <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-accent)', margin: 0 }}>
-            {couple?.budget_total ? `${Math.round((totalCommitted / couple.budget_total) * 100)}% committed` : 'Set a budget'}
+            {couple?.budget_total ? `${Math.round((totalCommitted / couple.budget_total) * 100)}% committed` : 'Set in Budget'}
           </p>
         </Card>
         <Card>
@@ -114,13 +116,13 @@ export default function Dashboard() {
             ${(totalPaid / 1000).toFixed(1)}K
           </p>
           <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-accent)', margin: 0 }}>
-            {couple?.budget_total ? `${Math.round((totalPaid / couple.budget_total) * 100)}% of total` : ''}
+            {couple?.budget_total ? `${Math.round((totalPaid / couple.budget_total) * 100)}% of total` : 'total paid'}
           </p>
         </Card>
         <Card>
           <SectionLabel>Vendors</SectionLabel>
           <p style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', margin: '0 0 4px 0', lineHeight: 1.2 }}>
-            {bookedVendors.length} / {vendors.length}
+            {bookedVendors.length}<span style={{ color: 'var(--color-text-secondary)', fontSize: '18px' }}> / {vendors.filter(v => v.status !== 'not_started').length}</span>
           </p>
           <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-accent)', margin: 0 }}>
             booked
@@ -128,9 +130,51 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* AI Planning Advisor — Hero Section */}
+      <div style={{
+        marginBottom: '24px',
+        borderRadius: '20px',
+        border: '1px solid rgba(196,120,138,0.22)',
+        background: 'linear-gradient(135deg, rgba(196,120,138,0.06) 0%, rgba(254,252,250,0) 60%)',
+        padding: '28px 32px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute', top: 0, right: 0, width: '200px', height: '200px',
+          background: 'radial-gradient(circle at top right, rgba(196,120,138,0.08), transparent 70%)',
+          pointerEvents: 'none',
+        }} />
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-accent)', fontWeight: 600, marginBottom: '10px' }}>
+          AI Planning Advisor
+        </p>
+        {latestInsight ? (
+          <p style={{ fontFamily: 'var(--font-heading)', fontSize: '17px', fontStyle: 'italic', color: 'var(--color-text-primary)', lineHeight: 1.75, margin: '0 0 22px 0', maxWidth: '620px' }}>
+            "{latestInsight}"
+          </p>
+        ) : (
+          <>
+            <p style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: 400, color: 'var(--color-text-primary)', margin: '0 0 8px 0', lineHeight: 1.4 }}>
+              Is your planning on track?
+            </p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-secondary)', margin: '0 0 22px 0', lineHeight: 1.6, maxWidth: '500px' }}>
+              Get a personalized assessment of where you stand — what's done, what's urgent, and what to tackle next.
+            </p>
+          </>
+        )}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <Button onClick={() => navigate('/timeline')} style={{ borderRadius: '12px' }}>
+            {latestInsight ? 'Refresh Analysis' : 'Check My Timeline'}
+          </Button>
+          <Button variant="secondary" onClick={() => navigate('/vendors')} style={{ borderRadius: '12px' }}>
+            Find Vendors with AI
+          </Button>
+        </div>
+      </div>
+
       {/* Partner invite — shown only when no partner is linked yet */}
       {couple && !couple.email_partner && (
-        <Card style={{ marginBottom: '28px' }}>
+        <Card style={{ marginBottom: '24px' }}>
           <SectionLabel>Invite Your Partner</SectionLabel>
           {inviteSuccess ? (
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-accent)', margin: '8px 0 0 0' }}>
@@ -143,22 +187,9 @@ export default function Dashboard() {
                 placeholder="partner@email.com"
                 value={partnerEmail}
                 onChange={e => setPartnerEmail(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: '10px 14px',
-                  background: 'var(--color-surface)',
-                  border: '1.5px solid var(--color-border)',
-                  borderRadius: '10px',
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '14px',
-                  color: 'var(--color-text-primary)',
-                  outline: 'none',
-                }}
+                style={{ flex: 1 }}
               />
-              <Button
-                onClick={handleInvitePartner}
-                disabled={inviting || !partnerEmail}
-              >
+              <Button onClick={handleInvitePartner} disabled={inviting || !partnerEmail}>
                 {inviting ? 'Sending...' : 'Send Invite'}
               </Button>
             </div>
@@ -198,7 +229,7 @@ export default function Dashboard() {
                 <span style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', color: 'var(--color-text-primary)' }}>${p.amount.toLocaleString()}</span>
               </div>
               <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', margin: '2px 0 0 0' }}>
-                Due {p.due_date}
+                {p.due_date ? `Due ${p.due_date}` : 'No due date'}
               </p>
             </div>
           ))}
@@ -206,12 +237,6 @@ export default function Dashboard() {
             View all payments →
           </Button>
         </Card>
-      </div>
-
-      <div style={{ marginTop: '28px' }}>
-        <Button onClick={() => navigate('/timeline')}>
-          Check My Timeline
-        </Button>
       </div>
     </AppShell>
   )

@@ -33,6 +33,6 @@ export async function deletePayment(paymentId: string) {
 export function getUpcomingPayments(payments: Payment[], limit = 3): Payment[] {
   const today = new Date().toISOString().split('T')[0]
   return payments
-    .filter(p => !p.paid_date && p.due_date && p.due_date >= today)
+    .filter(p => !p.paid_date && (!p.due_date || p.due_date >= today))
     .slice(0, limit)
 }

@@ -17,10 +17,10 @@ export default function Sidebar({ latestInsight }: SidebarProps) {
   return (
     <div
       style={{
-        width: '200px',
+        width: '220px',
         flexShrink: 0,
         background: 'var(--color-sidebar)',
-        padding: '24px 16px',
+        padding: '28px 20px',
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
@@ -30,19 +30,30 @@ export default function Sidebar({ latestInsight }: SidebarProps) {
       }}
     >
       {/* Logo */}
-      <p
-        style={{
-          fontFamily: 'var(--font-heading)',
-          fontSize: '15px',
-          letterSpacing: '0.14em',
+      <div style={{ marginBottom: '36px' }}>
+        <p
+          style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: '22px',
+            letterSpacing: '0.08em',
+            color: 'var(--color-accent)',
+            margin: '0 0 4px 0',
+            lineHeight: 1.2,
+          }}
+        >
+          Veil
+        </p>
+        <p style={{
+          fontFamily: 'var(--font-body)',
+          fontSize: '10px',
+          letterSpacing: '0.12em',
           textTransform: 'uppercase',
-          color: 'var(--color-accent)',
-          marginBottom: '32px',
-          lineHeight: 1.4,
-        }}
-      >
-        Veil
-      </p>
+          color: 'rgba(196,120,138,0.5)',
+          margin: 0,
+        }}>
+          Your wedding planner
+        </p>
+      </div>
 
       {/* Nav */}
       <nav style={{ flex: 1 }}>
@@ -53,16 +64,17 @@ export default function Sidebar({ latestInsight }: SidebarProps) {
             end={to === '/'}
             style={({ isActive }) => ({
               display: 'block',
-              fontSize: '13px',
+              fontSize: '14px',
               color: isActive ? 'var(--color-sidebar-active)' : 'var(--color-sidebar-text)',
-              padding: '8px 12px',
-              marginBottom: '4px',
-              borderRadius: '8px',
-              background: isActive ? 'rgba(200,169,110,0.18)' : 'transparent',
+              padding: '9px 14px',
+              marginBottom: '2px',
+              borderRadius: '10px',
+              background: isActive ? 'rgba(196,120,138,0.18)' : 'transparent',
               textDecoration: 'none',
               fontFamily: 'var(--font-body)',
               fontWeight: isActive ? 600 : 400,
               letterSpacing: '0.01em',
+              transition: 'background 0.12s',
             })}
           >
             {label}

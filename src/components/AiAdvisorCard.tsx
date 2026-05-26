@@ -10,8 +10,8 @@ export default function AiAdvisorCard({ text, loading = false }: AiAdvisorCardPr
         marginTop: '20px',
         padding: '14px 16px',
         borderRadius: '12px',
-        border: '1px solid rgba(200,169,110,0.25)',
-        background: 'rgba(200,169,110,0.08)',
+        border: '1px solid rgba(196,120,138,0.25)',
+        background: 'rgba(196,120,138,0.08)',
       }}
     >
       <p
@@ -31,7 +31,7 @@ export default function AiAdvisorCard({ text, loading = false }: AiAdvisorCardPr
         style={{
           fontFamily: 'var(--font-heading)',
           fontSize: '12px',
-          color: '#D4C4B0',
+          color: '#C8B8C0',
           lineHeight: 1.6,
           fontStyle: 'italic',
           margin: 0,

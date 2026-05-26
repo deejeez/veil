@@ -75,7 +75,7 @@ export default function Finances() {
   }
 
   const today = new Date().toISOString().split('T')[0]
-  const upcoming = payments.filter(p => !p.paid_date && p.due_date && p.due_date >= today)
+  const upcoming = payments.filter(p => !p.paid_date && (!p.due_date || p.due_date >= today))
   const past = payments.filter(p => p.paid_date)
   const payerGroups = payments.reduce((acc, p) => {
     const payer = p.paid_by || 'couple'
