@@ -16,6 +16,9 @@ export default function Dashboard() {
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
+  const [partnerEmail, setPartnerEmail] = useState('')
+  const [inviting, setInviting] = useState(false)
+  const [inviteSuccess, setInviteSuccess] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -45,6 +48,28 @@ export default function Dashboard() {
     }
     load()
   }, [])
+
+  async function handleInvitePartner() {
+    if (!couple || !partnerEmail) return
+    setInviting(true)
+    try {
+      const { error } = await supabase.functions.invoke('invite-partner', {
+        body: { couple_id: couple.id, partner_email: partnerEmail },
+      })
+      if (error) throw error
+      // Reload couple to show updated email_partner
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const updated = await getCoupleForUser(user.id)
+        if (updated) setCouple(updated)
+      }
+      setInviteSuccess(true)
+    } catch (err) {
+      console.error('Invite failed:', err)
+    } finally {
+      setInviting(false)
+    }
+  }
 
   const daysUntil = couple?.wedding_date
     ? Math.ceil((new Date(couple.wedding_date).getTime() - Date.now()) / 86400000)
@@ -102,6 +127,44 @@ export default function Dashboard() {
           </p>
         </Card>
       </div>
+
+      {/* Partner invite — shown only when no partner is linked yet */}
+      {couple && !couple.email_partner && (
+        <Card style={{ marginBottom: '24px' }}>
+          <SectionLabel>Invite Your Partner</SectionLabel>
+          {inviteSuccess ? (
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-accent)', margin: '8px 0 0 0' }}>
+              Invite sent! Your partner will receive a magic link by email.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+              <input
+                type="email"
+                placeholder="partner@email.com"
+                value={partnerEmail}
+                onChange={e => setPartnerEmail(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '6px',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '13px',
+                  color: 'var(--color-text-primary)',
+                  outline: 'none',
+                }}
+              />
+              <Button
+                onClick={handleInvitePartner}
+                disabled={inviting || !partnerEmail}
+              >
+                {inviting ? 'Sending...' : 'Send Invite'}
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
         {/* Vendor status */}
