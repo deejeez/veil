@@ -44,7 +44,7 @@ export default function OnboardingStep1() {
         email_partner: emailPartner || null,
       })
 
-      navigate('/paywall')
+      navigate('/onboarding/2')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : ((err as { message?: string }).message ?? 'Failed to save'))
     } finally {
