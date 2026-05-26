@@ -14,9 +14,9 @@ export default function OnboardingStep3() {
     async function generateTimeline() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        if (!user) { setLoading(false); return }
         const couple = await getCoupleForUser(user.id)
-        if (!couple) return
+        if (!couple) { setLoading(false); return }
 
         const { data, error: fnError } = await supabase.functions.invoke('planning-timeline', {
           body: { couple_id: couple.id },

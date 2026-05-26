@@ -108,9 +108,7 @@ export default function OnboardingStep2() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
           {VIBE_WORDS.map(word => (
             <button key={word} onClick={() => toggleVibeWord(word)}
-              style={{
-                ...selectStyle('active', vibeWords.includes(word) ? 'active' : 'inactive'),
-              }}>
+              style={selectStyle(word, vibeWords.includes(word) ? word : '')}>
               {word}
             </button>
           ))}
