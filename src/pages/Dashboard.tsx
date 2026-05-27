@@ -5,136 +5,85 @@ import Button from '../components/Button'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, seedDefaultVendorCategories } from '../lib/vendors'
-import { getPaymentsForCouple, getUpcomingPayments } from '../lib/payments'
+import { getPaymentsForCouple } from '../lib/payments'
 import { getTasksForCouple } from '../lib/tasks'
 import { type Couple, type Vendor, type Payment, type Task } from '../types/database'
 import { getCategoriesForCouple } from '../lib/categories'
 import StatusBadge from '../components/StatusBadge'
 
-// ── Stat strip icon SVGs ───────────────────────────────────────────────────
+// ── Donut ring ─────────────────────────────────────────────────────────────
 
-function BudgetIcon() {
+function DonutRing({ pct, size = 48 }: { pct: number; size?: number }) {
+  const r = (size - 10) / 2
+  const circ = 2 * Math.PI * r
+  const offset = circ * (1 - Math.max(0, Math.min(1, pct / 100)))
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
-    </svg>
-  )
-}
-function VendorIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
-      <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-    </svg>
-  )
-}
-function TaskIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-    </svg>
-  )
-}
-function PaidIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#EDE8E4" strokeWidth="4.5" />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} fill="none"
+        stroke="var(--color-accent)" strokeWidth="4.5"
+        strokeDasharray={circ} strokeDashoffset={offset}
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────
+// ── Stat card ──────────────────────────────────────────────────────────────
 
-function StatStrip({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{
-      background: '#fff',
-      border: '1px solid var(--color-border)',
-      borderRadius: '14px',
-      display: 'flex',
-      marginBottom: '28px',
-      overflow: 'hidden',
-    }}>
-      {children}
-    </div>
-  )
-}
-
-function StatCell({
-  icon, label, value, sub, accent, onClick, last,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: string
-  sub?: string
-  accent?: boolean
-  onClick?: () => void
-  last?: boolean
+function StatCard({ label, value, sub, pct, onClick }: {
+  label: string; value: string; sub?: string; pct: number; onClick?: () => void
 }) {
   return (
     <div
       onClick={onClick}
       style={{
         flex: 1,
-        padding: '18px 20px',
-        borderRight: last ? 'none' : '1px solid var(--color-border)',
-        cursor: onClick ? 'pointer' : 'default',
-        transition: 'background 0.12s',
+        background: '#fff',
+        border: '1px solid var(--color-border)',
+        borderRadius: '16px',
+        padding: '16px 18px',
         display: 'flex',
-        flexDirection: 'column',
-        gap: '4px',
+        alignItems: 'center',
+        gap: '14px',
+        cursor: onClick ? 'pointer' : 'default',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+        minWidth: 0,
+        transition: 'box-shadow 0.15s',
       }}
-      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.background = '#faf7f5' }}
-      onMouseLeave={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.background = '' }}
+      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)' }}
+      onMouseLeave={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)' }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-text-secondary)' }}>
-        {icon}
-        <span style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.09em', textTransform: 'uppercase', fontWeight: 600 }}>
+      <DonutRing pct={pct} />
+      <div style={{ minWidth: 0 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', fontWeight: 600, margin: '0 0 3px 0' }}>
           {label}
-        </span>
+        </p>
+        <p style={{ fontFamily: 'var(--font-heading)', fontSize: '22px', fontWeight: 400, color: 'var(--color-text-primary)', lineHeight: 1.1, margin: '0 0 2px 0' }}>
+          {value}
+        </p>
+        {sub && (
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-secondary)', margin: 0 }}>
+            {sub}
+          </p>
+        )}
       </div>
-      <div style={{ fontFamily: 'var(--font-heading)', fontSize: '24px', fontWeight: 400, color: 'var(--color-text-primary)', lineHeight: 1.1 }}>
-        {value}
-      </div>
-      {sub && (
-        <div style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: accent ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}>
-          {sub}
-        </div>
-      )}
     </div>
   )
 }
+
+// ── Section header ─────────────────────────────────────────────────────────
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <p style={{
-      fontFamily: 'var(--font-body)',
-      fontSize: '10px',
-      letterSpacing: '0.12em',
-      textTransform: 'uppercase',
-      color: 'var(--color-text-secondary)',
-      fontWeight: 600,
-      margin: '0 0 10px 0',
+      fontFamily: 'var(--font-body)', fontSize: '10px',
+      letterSpacing: '0.12em', textTransform: 'uppercase',
+      color: 'var(--color-text-secondary)', fontWeight: 600, margin: '0 0 14px 0',
     }}>
       {children}
     </p>
-  )
-}
-
-function Panel({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        background: '#fff',
-        border: '1px solid var(--color-border)',
-        borderRadius: '14px',
-        padding: '20px 22px',
-        cursor: onClick ? 'pointer' : 'default',
-      }}
-    >
-      {children}
-    </div>
   )
 }
 
@@ -218,22 +167,34 @@ export default function Dashboard() {
   const activeVendors = vendors.filter(v => v.status !== 'not_started' && v.status !== 'eliminated')
   const totalCommitted = bookedVendors.reduce((sum, v) => sum + (v.booked_amount ?? 0), 0)
   const totalPaid = payments.filter(p => p.paid_date).reduce((sum, p) => sum + p.amount, 0)
-  const upcoming = getUpcomingPayments(payments)
   const today = new Date().toISOString().split('T')[0]
   const pendingTasks = tasks.filter(t => !t.completed)
   const overdueTasks = pendingTasks.filter(t => t.due_date && t.due_date < today)
-  const upcomingTasks = pendingTasks.slice(0, 5)
+  const completedTasks = tasks.filter(t => t.completed)
+
+  const budgetPct = couple?.budget_total
+    ? Math.min(100, Math.round((totalCommitted / couple.budget_total) * 100))
+    : 0
+  const paidPct = couple?.budget_total
+    ? Math.min(100, Math.round((totalPaid / couple.budget_total) * 100))
+    : 0
+  const vendorPct = activeVendors.length > 0
+    ? Math.round((bookedVendors.length / activeVendors.length) * 100)
+    : 0
+  const taskPct = tasks.length > 0
+    ? Math.round((completedTasks.length / tasks.length) * 100)
+    : 0
 
   if (loading) return <AppShell><p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p></AppShell>
 
   return (
     <AppShell>
       {/* Page heading */}
-      <div style={{ marginBottom: '22px' }}>
+      <div style={{ marginBottom: '24px' }}>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', margin: '0 0 6px 0', fontWeight: 600 }}>
           Overview
         </p>
-        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '32px', fontWeight: 400, margin: 0, lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '30px', fontWeight: 400, margin: 0, lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
           {daysUntil !== null ? (
             <><span style={{ color: 'var(--color-accent)' }}>{daysUntil} days</span> to go</>
           ) : (
@@ -242,42 +203,37 @@ export default function Dashboard() {
         </h1>
       </div>
 
-      {/* Stats strip */}
-      <StatStrip>
-        <StatCell
-          icon={<BudgetIcon />}
+      {/* Stat cards with donut rings */}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+        <StatCard
           label="Budget"
           value={couple?.budget_total ? `$${(couple.budget_total / 1000).toFixed(0)}K` : '—'}
-          sub={couple?.budget_total ? `${Math.round((totalCommitted / couple.budget_total) * 100)}% committed` : 'Set in Budget'}
-          accent
+          sub={couple?.budget_total ? `${budgetPct}% committed` : 'Set in Budget'}
+          pct={budgetPct}
           onClick={() => navigate('/budget')}
         />
-        <StatCell
-          icon={<PaidIcon />}
+        <StatCard
           label="Paid"
           value={`$${(totalPaid / 1000).toFixed(1)}K`}
-          sub={couple?.budget_total ? `${Math.round((totalPaid / couple.budget_total) * 100)}% of total` : 'total paid'}
-          accent
+          sub={`${paidPct}% of budget`}
+          pct={paidPct}
           onClick={() => navigate('/finances')}
         />
-        <StatCell
-          icon={<VendorIcon />}
+        <StatCard
           label="Vendors"
           value={`${bookedVendors.length} / ${activeVendors.length}`}
           sub="booked"
-          accent
+          pct={vendorPct}
           onClick={() => navigate('/vendors')}
         />
-        <StatCell
-          icon={<TaskIcon />}
+        <StatCard
           label="Tasks"
           value={`${pendingTasks.length}`}
-          sub={overdueTasks.length > 0 ? `${overdueTasks.length} overdue` : 'remaining'}
-          accent={overdueTasks.length === 0}
+          sub={overdueTasks.length > 0 ? `${overdueTasks.length} overdue` : `${completedTasks.length} done`}
+          pct={taskPct}
           onClick={() => navigate('/todos')}
-          last
         />
-      </StatStrip>
+      </div>
 
       {/* AI Planning Advisor */}
       <div style={{
@@ -290,6 +246,7 @@ export default function Dashboard() {
         alignItems: 'center',
         gap: '20px',
         flexWrap: 'wrap',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
       }}>
         <div style={{ flex: 1, minWidth: '200px' }}>
           <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-accent)', fontWeight: 600, margin: '0 0 6px 0' }}>
@@ -317,7 +274,7 @@ export default function Dashboard() {
 
       {/* Partner invite */}
       {couple && !couple.email_partner && (
-        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
           <div style={{ flex: 1 }}>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 2px 0' }}>Invite your partner</p>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', margin: 0 }}>Plan together in real time</p>
@@ -341,99 +298,44 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 3-column detail panels */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-
-        {/* Vendor status */}
-        <Panel>
-          <SectionHeader>Vendor Status</SectionHeader>
-          {vendors.filter(v => v.status !== 'not_started').slice(0, 8).map(v => (
-            <div key={v.id} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '8px 0', borderBottom: '1px solid #f5f2ef',
-            }}>
-              <div>
-                <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)', margin: 0, fontWeight: 500 }}>
-                  {categoryLabels[v.category] ?? v.category}
-                </p>
-                {v.name && (
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-secondary)', margin: '1px 0 0 0' }}>
-                    {v.name}
-                  </p>
-                )}
-              </div>
-              <StatusBadge status={v.status} />
-            </div>
-          ))}
-          {vendors.filter(v => v.status === 'not_started').length === vendors.length && (
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: '8px 0 0 0' }}>
-              No vendors started yet
-            </p>
-          )}
-          <button
-            onClick={() => navigate('/vendors')}
-            style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0 0 0', display: 'block' }}
-          >
-            View all vendors →
-          </button>
-        </Panel>
-
-        {/* Upcoming payments */}
-        <Panel>
-          <SectionHeader>Upcoming Payments</SectionHeader>
-          {upcoming.length === 0 ? (
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>
-              No upcoming payments
-            </p>
-          ) : upcoming.map(p => (
-            <div key={p.id} style={{ padding: '9px 0', borderBottom: '1px solid #f5f2ef' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)', fontWeight: 500 }}>{p.label}</span>
-                <span style={{ fontFamily: 'var(--font-heading)', fontSize: '14px', color: 'var(--color-text-primary)' }}>${p.amount.toLocaleString()}</span>
-              </div>
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-secondary)', margin: '2px 0 0 0' }}>
-                {p.due_date ? `Due ${p.due_date}` : 'No due date'}
-              </p>
-            </div>
-          ))}
-          <button
-            onClick={() => navigate('/finances')}
-            style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0 0 0', display: 'block' }}
-          >
-            View all payments →
-          </button>
-        </Panel>
-
-        {/* Upcoming tasks */}
-        <Panel>
-          <SectionHeader>Tasks</SectionHeader>
-          {upcomingTasks.length === 0 ? (
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>
-              No pending tasks
-            </p>
-          ) : upcomingTasks.map(t => {
-            const isOverdue = t.due_date && t.due_date < today
-            return (
-              <div key={t.id} style={{ padding: '8px 0', borderBottom: '1px solid #f5f2ef', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                <div style={{ width: '7px', height: '7px', borderRadius: '50%', border: '2px solid var(--color-border)', flexShrink: 0, marginTop: '5px' }} />
+      {/* Vendor status — grid layout, full width now that payments/tasks live in RightPanel */}
+      <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: '16px', padding: '22px 24px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+        <SectionHeader>Vendor Status</SectionHeader>
+        {vendors.filter(v => v.status !== 'not_started').length === 0 ? (
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>
+            No vendors started yet
+          </p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '8px' }}>
+            {vendors.filter(v => v.status !== 'not_started').map(v => (
+              <div key={v.id} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '10px 14px',
+                background: '#faf8f6',
+                borderRadius: '10px',
+                border: '1px solid #f0ebe6',
+              }}>
                 <div>
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)', margin: '0 0 1px 0', fontWeight: 500 }}>{t.title}</p>
-                  {t.due_date && (
-                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: isOverdue ? '#B91C1C' : 'var(--color-text-secondary)', margin: 0, fontWeight: isOverdue ? 600 : 400 }}>
-                      {isOverdue ? '⚠ ' : ''}Due {t.due_date}
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)', margin: 0, fontWeight: 500 }}>
+                    {categoryLabels[v.category] ?? v.category}
+                  </p>
+                  {v.name && (
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-secondary)', margin: '1px 0 0 0' }}>
+                      {v.name}
                     </p>
                   )}
                 </div>
+                <StatusBadge status={v.status} />
               </div>
-            )
-          })}
-          <button
-            onClick={() => navigate('/todos')}
-            style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0 0 0', display: 'block' }}
-          >
-            View all tasks →
-          </button>
-        </Panel>
+            ))}
+          </div>
+        )}
+        <button
+          onClick={() => navigate('/vendors')}
+          style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '14px 0 0 0', display: 'block' }}
+        >
+          View all vendors →
+        </button>
       </div>
     </AppShell>
   )

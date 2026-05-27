@@ -111,13 +111,14 @@ export default function Sidebar() {
               gap: '10px',
               fontSize: '13.5px',
               color: isActive ? 'var(--color-accent)' : 'var(--color-sidebar-text)',
-              padding: '9px 12px',
-              borderRadius: '10px',
-              background: isActive ? 'var(--color-sidebar-active)' : 'transparent',
+              padding: '9px 12px 9px 9px',
+              borderRadius: '0 8px 8px 0',
+              background: isActive ? 'rgba(196,120,138,0.06)' : 'transparent',
+              borderLeft: isActive ? '3px solid var(--color-accent)' : '3px solid transparent',
               textDecoration: 'none',
               fontFamily: 'var(--font-body)',
               fontWeight: isActive ? 600 : 400,
-              transition: 'background 0.12s, color 0.12s',
+              transition: 'background 0.12s, color 0.12s, border-color 0.12s',
             })}
           >
             <Icon name={icon} />
