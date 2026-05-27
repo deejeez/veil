@@ -126,7 +126,7 @@ export default function Finances() {
         </div>
 
         {/* Consolidated summary tile */}
-        <div style={{ border: '1px solid #e5e0d8', borderRadius: '10px', padding: '14px 16px', background: '#fff' }}>
+        <div style={{ border: '1px solid #E8E8EC', borderRadius: '10px', padding: '14px 16px', background: '#fff' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
             <div>
               <div style={{ fontSize: '10px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '3px' }}>Total Budget</div>
@@ -149,7 +149,7 @@ export default function Finances() {
             <div style={{ height: '8px', borderRadius: '4px', overflow: 'hidden', display: 'flex', marginBottom: '8px', gap: '2px' }}>
               <div style={{ width: `${Math.max(paidPct, paidPct > 0 ? 1 : 0)}%`, background: '#4caf50', borderRadius: '4px 0 0 4px' }} />
               <div style={{ width: `${Math.max(scheduledPct, scheduledPct > 0 ? 1 : 0)}%`, background: '#c4788a' }} />
-              <div style={{ flex: 1, background: '#f0ede8', borderRadius: '0 4px 4px 0' }} />
+              <div style={{ flex: 1, background: '#F0F0F4', borderRadius: '0 4px 4px 0' }} />
             </div>
           )}
 
@@ -202,14 +202,14 @@ export default function Finances() {
                 const groupTotal = items.reduce((sum, p) => sum + p.amount, 0)
                 const label = paidByLabel(payer)
                 return (
-                  <div key={payer} style={{ border: '1px solid #e5e0d8', borderRadius: '10px', padding: '12px 14px', background: '#fff' }}>
+                  <div key={payer} style={{ border: '1px solid #E8E8EC', borderRadius: '10px', padding: '12px 14px', background: '#fff' }}>
                     <div style={{ fontSize: '10px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>{label}</div>
                     <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', fontFamily: 'var(--font-heading)', marginBottom: '8px' }}>
                       ${groupTotal.toLocaleString()}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                       {items.map((p, i) => (
-                        <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: i < items.length - 1 ? '5px' : 0, borderBottom: i < items.length - 1 ? '1px solid #f0ede8' : 'none' }}>
+                        <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: i < items.length - 1 ? '5px' : 0, borderBottom: i < items.length - 1 ? '1px solid #F0F0F4' : 'none' }}>
                           <span style={{ fontSize: '11px', color: '#666' }}>{p.label}</span>
                           <span style={{ fontSize: '11px', fontWeight: 600, color: p.paid_date ? '#4caf50' : 'var(--color-text-primary)' }}>
                             ${p.amount.toLocaleString()}{p.paid_date ? ' ✓' : ''}
@@ -227,7 +227,7 @@ export default function Finances() {
         {/* Payment Schedule */}
         <div>
           <div style={{ fontSize: '11px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Payment Schedule</div>
-          <div style={{ border: '1px solid #e5e0d8', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
+          <div style={{ border: '1px solid #E8E8EC', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
             {unpaid.length === 0 ? (
               <div style={{ padding: '16px', fontSize: '13px', color: '#aaa', textAlign: 'center' }}>
                 No upcoming payments.
@@ -245,7 +245,7 @@ export default function Finances() {
                   const vendor = vendors.find(v => v.id === p.vendor_id)
                   const daysUntilDue = p.due_date ? getDaysUntil(p.due_date) : null
                   const rowBg = overdue ? '#fff5f5' : dueSoon ? '#fffbf4' : '#fff'
-                  const borderCol = overdue ? '#fff0f0' : dueSoon ? '#fef6ec' : '#f0ede8'
+                  const borderCol = overdue ? '#fff0f0' : dueSoon ? '#fef6ec' : '#F0F0F4'
                   const amtColor = overdue ? '#c0392b' : dueSoon ? '#e67e22' : 'var(--color-text-primary)'
 
                   return (
@@ -271,7 +271,7 @@ export default function Finances() {
                         <span style={{ fontSize: '14px', fontWeight: 700, color: amtColor }}>${p.amount.toLocaleString()}</span>
                         <button
                           onClick={() => handleMarkPaid(p.id)}
-                          style={{ fontSize: '10px', border: `1px solid ${overdue ? '#c0392b' : '#e5e0d8'}`, borderRadius: '6px', padding: '3px 8px', color: overdue ? '#c0392b' : '#888', background: 'none', cursor: 'pointer', fontWeight: overdue ? 600 : 400 }}
+                          style={{ fontSize: '10px', border: `1px solid ${overdue ? '#c0392b' : '#E8E8EC'}`, borderRadius: '6px', padding: '3px 8px', color: overdue ? '#c0392b' : '#888', background: 'none', cursor: 'pointer', fontWeight: overdue ? 600 : 400 }}
                         >
                           Pay
                         </button>
@@ -294,7 +294,7 @@ export default function Finances() {
 
         {/* Add payment */}
         {showAddForm ? (
-          <div style={{ border: '1px solid #e5e0d8', borderRadius: '10px', padding: '14px 16px', background: '#fff' }}>
+          <div style={{ border: '1px solid #E8E8EC', borderRadius: '10px', padding: '14px 16px', background: '#fff' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px' }}>Add Payment</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
               <div>
@@ -324,7 +324,7 @@ export default function Finances() {
                           borderRadius: '20px',
                           fontSize: '12px',
                           fontWeight: 600,
-                          border: active ? '1.5px solid #c4788a' : '1.5px solid #e5e0d8',
+                          border: active ? '1.5px solid #c4788a' : '1.5px solid #E8E8EC',
                           color: active ? '#c4788a' : '#888',
                           background: active ? 'rgba(196,120,138,0.06)' : '#fff',
                           cursor: 'pointer',

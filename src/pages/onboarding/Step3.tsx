@@ -15,7 +15,7 @@ function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
             height: '3px',
             flex: 1,
             borderRadius: '2px',
-            background: n <= current ? 'var(--color-accent)' : '#e5e0d8',
+            background: n <= current ? 'var(--color-accent)' : '#E8E8EC',
             transition: 'background 0.2s',
           }}
         />

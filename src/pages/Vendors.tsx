@@ -207,7 +207,7 @@ export default function Vendors() {
       )}
 
       {/* Summary bar */}
-      <div style={{ border: '1px solid #e5e0d8', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px', background: '#fff', display: 'flex', gap: '16px', alignItems: 'center' }}>
+      <div style={{ border: '1px solid #E8E8EC', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px', background: '#fff', display: 'flex', gap: '16px', alignItems: 'center' }}>
         <div style={{ textAlign: 'center', minWidth: '36px' }}>
           <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
             {bookedCount}<span style={{ fontSize: '11px', color: '#ccc' }}>/{total}</span>

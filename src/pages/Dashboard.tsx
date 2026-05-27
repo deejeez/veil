@@ -19,7 +19,7 @@ function DonutRing({ pct, size = 48 }: { pct: number; size?: number }) {
   const offset = circ * (1 - Math.max(0, Math.min(1, pct / 100)))
   return (
     <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#EDE8E4" strokeWidth="4.5" />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#EAEAEF" strokeWidth="4.5" />
       <circle
         cx={size / 2} cy={size / 2} r={r} fill="none"
         stroke="var(--color-accent)" strokeWidth="4.5"
@@ -327,7 +327,7 @@ export default function Dashboard() {
               <div key={v.id} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 padding: '10px 14px',
-                background: '#faf8f6',
+                background: '#F5F5F7',
                 borderRadius: '10px',
                 border: '1px solid #f0ebe6',
               }}>

@@ -310,7 +310,7 @@ export default function VendorDetail() {
             const isOverdue = !!p.due_date && p.due_date < todayStr && !p.paid_date
             const isPaid = !!p.paid_date
             return (
-              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '7px', background: isPaid ? '#f0faf0' : isOverdue ? '#fff5f5' : '#fafafa', border: `1px solid ${isPaid ? '#a5d6a7' : isOverdue ? '#fcd5d5' : '#e5e0d8'}` }}>
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '7px', background: isPaid ? '#f0faf0' : isOverdue ? '#fff5f5' : '#fafafa', border: `1px solid ${isPaid ? '#a5d6a7' : isOverdue ? '#fcd5d5' : '#E8E8EC'}` }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: '#2c2825' }}>{p.label}</div>
                   <div style={{ fontSize: '11px', color: '#aaa' }}>
@@ -323,7 +323,7 @@ export default function VendorDetail() {
                 {!isPaid && (
                   <button
                     onClick={() => handleMarkVendorPaymentPaid(p.id)}
-                    style={{ fontSize: '10px', border: `1px solid ${isOverdue ? '#c0392b' : '#e5e0d8'}`, borderRadius: '5px', padding: '2px 7px', color: isOverdue ? '#c0392b' : '#888', background: 'none', cursor: 'pointer' }}
+                    style={{ fontSize: '10px', border: `1px solid ${isOverdue ? '#c0392b' : '#E8E8EC'}`, borderRadius: '5px', padding: '2px 7px', color: isOverdue ? '#c0392b' : '#888', background: 'none', cursor: 'pointer' }}
                   >Pay</button>
                 )}
                 <button
@@ -336,7 +336,7 @@ export default function VendorDetail() {
         </div>
 
         {addingPaymentFor === vendor.id ? (
-          <div style={{ marginTop: '8px', padding: '10px 12px', border: '1px solid #e5e0d8', borderRadius: '8px', background: '#fff' }}>
+          <div style={{ marginTop: '8px', padding: '10px 12px', border: '1px solid #E8E8EC', borderRadius: '8px', background: '#fff' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
               <div>
                 <label style={{ fontSize: '10px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Label</label>
@@ -358,7 +358,7 @@ export default function VendorDetail() {
                       key={key}
                       type="button"
                       onClick={() => setNewVendorPayment(f => ({ ...f, paid_by: key }))}
-                      style={{ fontSize: '11px', padding: '3px 9px', borderRadius: '20px', border: `1px solid ${newVendorPayment.paid_by === key ? '#c4788a' : '#e5e0d8'}`, background: newVendorPayment.paid_by === key ? '#fdf0f2' : '#fff', color: newVendorPayment.paid_by === key ? '#c4788a' : '#888', cursor: 'pointer', fontWeight: newVendorPayment.paid_by === key ? 600 : 400 }}
+                      style={{ fontSize: '11px', padding: '3px 9px', borderRadius: '20px', border: `1px solid ${newVendorPayment.paid_by === key ? '#c4788a' : '#E8E8EC'}`, background: newVendorPayment.paid_by === key ? '#fdf0f2' : '#fff', color: newVendorPayment.paid_by === key ? '#c4788a' : '#888', cursor: 'pointer', fontWeight: newVendorPayment.paid_by === key ? 600 : 400 }}
                     >
                       {key === 'couple' ? 'Couple' : key === 'family_a' ? familyAName : familyBName}
                     </button>
@@ -525,7 +525,7 @@ export default function VendorDetail() {
           {shortlistExpanded && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {shortlist.map((v, i) => (
-                <div key={i} style={{ padding: '10px 14px', border: '1px solid #e5e0d8', borderRadius: '10px', background: '#fafafa', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                <div key={i} style={{ padding: '10px 14px', border: '1px solid #E8E8EC', borderRadius: '10px', background: '#fafafa', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: '#2c2825', marginBottom: '2px' }}>{v.name}</div>
                     <div style={{ fontSize: '12px', color: '#aaa', marginBottom: '3px' }}>{v.address}</div>
@@ -560,7 +560,7 @@ export default function VendorDetail() {
       )}
 
       {/* Vendor tile list */}
-      <div style={{ display: 'flex', flexDirection: 'column', border: visible.length > 0 ? '1px solid #e5e0d8' : 'none', borderRadius: '10px', overflow: 'hidden', background: '#fff', boxShadow: visible.length > 0 ? '0 1px 4px rgba(0,0,0,0.05)' : 'none' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', border: visible.length > 0 ? '1px solid #E8E8EC' : 'none', borderRadius: '10px', overflow: 'hidden', background: '#fff', boxShadow: visible.length > 0 ? '0 1px 4px rgba(0,0,0,0.05)' : 'none' }}>
         {visible.map((vendor, idx) => {
           const isExpanded = expandedId === vendor.id
           const cfg = STATUS_CONFIG[vendor.status] ?? STATUS_CONFIG.not_started
@@ -569,12 +569,12 @@ export default function VendorDetail() {
           const isLast = idx === visible.length - 1
 
           return (
-            <div key={vendor.id} style={{ borderBottom: isLast ? 'none' : '1px solid #f0ede8' }}>
+            <div key={vendor.id} style={{ borderBottom: isLast ? 'none' : '1px solid #F0F0F4' }}>
 
               {/* Tile row */}
               <div
                 onClick={() => { setExpandedId(isExpanded ? null : vendor.id); setEditingId(null) }}
-                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', cursor: 'pointer', background: isExpanded ? '#faf7f4' : '#fff', transition: 'background 0.1s' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', cursor: 'pointer', background: isExpanded ? '#F5F5F7' : '#fff', transition: 'background 0.1s' }}
               >
                 {/* Avatar circle */}
                 <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: avColor(displayName), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -607,7 +607,7 @@ export default function VendorDetail() {
 
               {/* Expanded panel */}
               {isExpanded && (
-                <div style={{ padding: '14px 16px', borderTop: '1px solid #f0ede8', background: '#faf7f4' }}>
+                <div style={{ padding: '14px 16px', borderTop: '1px solid #F0F0F4', background: '#F5F5F7' }}>
                   {isEditing ? (
                     /* Edit form */
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
@@ -680,7 +680,7 @@ export default function VendorDetail() {
                         </div>
                       )}
                       {vendor.notes && (
-                        <div style={{ marginBottom: '12px', padding: '10px 12px', borderRadius: '8px', background: '#f0ede8', fontSize: '13px', color: '#555', lineHeight: 1.6 }}>
+                        <div style={{ marginBottom: '12px', padding: '10px 12px', borderRadius: '8px', background: '#F0F0F4', fontSize: '13px', color: '#555', lineHeight: 1.6 }}>
                           {vendor.notes}
                         </div>
                       )}
@@ -697,11 +697,11 @@ export default function VendorDetail() {
 
                   {/* Action row */}
                   {!isEditing && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #ede8e2', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #EAEAEF', flexWrap: 'wrap' }}>
                       <select
                         value={vendor.status}
                         onChange={e => handleStatusChange(vendor.id, e.target.value as VendorStatus)}
-                        style={{ fontSize: '12px', padding: '5px 10px', borderRadius: '6px', border: '1px solid #e5e0d8', background: '#fff', color: '#2c2825', flex: '0 0 auto' }}
+                        style={{ fontSize: '12px', padding: '5px 10px', borderRadius: '6px', border: '1px solid #E8E8EC', background: '#fff', color: '#2c2825', flex: '0 0 auto' }}
                       >
                         <option value="not_started">Not Started</option>
                         <option value="researching">Researching</option>

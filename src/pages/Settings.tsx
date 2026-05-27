@@ -94,7 +94,7 @@ export default function Settings() {
         </div>
 
         {/* Couple names */}
-        <div style={{ border: '1px solid #e5e0d8', borderRadius: '12px', padding: '18px 20px', background: '#fff' }}>
+        <div style={{ border: '1px solid #E8E8EC', borderRadius: '12px', padding: '18px 20px', background: '#fff' }}>
           <div style={{ fontSize: '11px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
             Your Names
           </div>
@@ -124,7 +124,7 @@ export default function Settings() {
         </div>
 
         {/* Wedding details */}
-        <div style={{ border: '1px solid #e5e0d8', borderRadius: '12px', padding: '18px 20px', background: '#fff' }}>
+        <div style={{ border: '1px solid #E8E8EC', borderRadius: '12px', padding: '18px 20px', background: '#fff' }}>
           <div style={{ fontSize: '11px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '14px' }}>
             Wedding Details
           </div>
@@ -184,7 +184,7 @@ export default function Settings() {
         </div>
 
         {/* Family names */}
-        <div style={{ border: '1px solid #e5e0d8', borderRadius: '12px', padding: '18px 20px', background: '#fff' }}>
+        <div style={{ border: '1px solid #E8E8EC', borderRadius: '12px', padding: '18px 20px', background: '#fff' }}>
           <div style={{ fontSize: '11px', fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
             Family Names
           </div>
@@ -215,7 +215,7 @@ export default function Settings() {
           </div>
 
           {/* Preview */}
-          <div style={{ background: '#faf8f6', borderRadius: '8px', padding: '12px 14px' }}>
+          <div style={{ background: '#F5F5F7', borderRadius: '8px', padding: '12px 14px' }}>
             <div style={{ fontSize: '10px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>
               Preview — Payment attribution
             </div>
@@ -228,7 +228,7 @@ export default function Settings() {
                     borderRadius: '20px',
                     fontSize: '12px',
                     fontWeight: 600,
-                    border: i === 0 ? '1.5px solid #c4788a' : '1.5px solid #e5e0d8',
+                    border: i === 0 ? '1.5px solid #c4788a' : '1.5px solid #E8E8EC',
                     color: i === 0 ? '#c4788a' : 'var(--color-text-primary)',
                     background: i === 0 ? 'rgba(196,120,138,0.06)' : '#fff',
                   }}

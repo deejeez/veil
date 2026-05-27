@@ -110,7 +110,7 @@ function Shell({ tab, setTab, children }: { tab: string; setTab: (t: string) => 
     letterSpacing: '0.04em',
   })
   return (
-    <div style={{ minHeight: '100dvh', background: '#faf7f4', display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', maxWidth: 480, margin: '0 auto', position: 'relative' }}>
+    <div style={{ minHeight: '100dvh', background: '#F5F5F7', display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', maxWidth: 480, margin: '0 auto', position: 'relative' }}>
       {/* Demo banner */}
       <div style={{ background: '#2c2825', color: '#fff', fontSize: 11, textAlign: 'center', padding: '6px 12px', letterSpacing: '0.05em', fontWeight: 600 }}>
         ✦ DEMO MODE — Emma &amp; James · Sept 14, 2026 · {daysUntil('2026-09-14')} days
@@ -154,7 +154,7 @@ function VendorsPage({ setTab }: { setTab: (t: string) => void }) {
   return (
     <div>
       {/* Header */}
-      <div style={{ padding: '18px 16px 10px', background: '#fff', borderBottom: '1px solid #ede8e2' }}>
+      <div style={{ padding: '18px 16px 10px', background: '#fff', borderBottom: '1px solid #EAEAEF' }}>
         <div style={{ fontSize: 22, fontWeight: 400, fontFamily: 'Georgia, serif', color: '#2c2825', marginBottom: 2 }}>Vendors</div>
         <div style={{ fontSize: 12, color: '#9a9088' }}>Brooklyn, NY · Sept 14, 2026</div>
       </div>
@@ -179,7 +179,7 @@ function VendorsPage({ setTab }: { setTab: (t: string) => void }) {
               </div>
             </div>
           </div>
-          <div style={{ height: 6, borderRadius: 3, background: '#f0ede8', overflow: 'hidden' }}>
+          <div style={{ height: 6, borderRadius: 3, background: '#F0F0F4', overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${bookedPct}%`, background: '#4caf50', borderRadius: 3, transition: 'width 0.4s ease' }} />
           </div>
         </div>
@@ -242,7 +242,7 @@ function VenuePage({ setTab }: { setTab: (t: string) => void }) {
   return (
     <div>
       {/* Header */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #ede8e2', padding: '14px 16px 12px' }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #EAEAEF', padding: '14px 16px 12px' }}>
         <button onClick={() => setTab('vendors')} style={{ fontSize: 12, color: '#c4788a', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
           ← Vendors
         </button>
@@ -305,9 +305,9 @@ function VenuePage({ setTab }: { setTab: (t: string) => void }) {
 
               {/* Expanded detail panel */}
               {isExpanded && (
-                <div style={{ background: '#fff', border: tileBorder, borderTop: '1px solid #f0ede8', borderRadius: '0 0 12px 12px', padding: '12px 14px 14px' }}>
+                <div style={{ background: '#fff', border: tileBorder, borderTop: '1px solid #F0F0F4', borderRadius: '0 0 12px 12px', padding: '12px 14px 14px' }}>
                   {v.notes && (
-                    <div style={{ fontSize: 12, color: '#5a524c', lineHeight: 1.5, marginBottom: 12, padding: '10px 12px', background: '#faf7f4', borderRadius: 8 }}>
+                    <div style={{ fontSize: 12, color: '#5a524c', lineHeight: 1.5, marginBottom: 12, padding: '10px 12px', background: '#F5F5F7', borderRadius: 8 }}>
                       {v.notes}
                     </div>
                   )}
@@ -343,7 +343,7 @@ function VenuePage({ setTab }: { setTab: (t: string) => void }) {
                         const overdue = !p.paid_date && new Date(p.due_date) < new Date()
                         const soon = !p.paid_date && !overdue && daysUntil(p.due_date) <= 30
                         return (
-                          <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #f0ede8' }}>
+                          <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F0F0F4' }}>
                             <div>
                               <div style={{ fontSize: 12, fontWeight: 600, color: '#2c2825' }}>{p.label}</div>
                               <div style={{ fontSize: 11, color: '#9a9088' }}>
@@ -392,7 +392,7 @@ function FinancesPage() {
   return (
     <div>
       {/* Header */}
-      <div style={{ padding: '18px 16px 10px', background: '#fff', borderBottom: '1px solid #ede8e2' }}>
+      <div style={{ padding: '18px 16px 10px', background: '#fff', borderBottom: '1px solid #EAEAEF' }}>
         <div style={{ fontSize: 22, fontWeight: 400, fontFamily: 'Georgia, serif', color: '#2c2825', marginBottom: 2 }}>Finances</div>
         <div style={{ fontSize: 12, color: '#9a9088' }}>Payment tracking across all booked vendors</div>
       </div>
@@ -418,11 +418,11 @@ function FinancesPage() {
           <div style={{ height: 8, borderRadius: 4, overflow: 'hidden', display: 'flex', gap: 2, marginBottom: 10 }}>
             <div style={{ width: `${paidPct}%`, background: '#4caf50', borderRadius: '4px 0 0 4px' }} />
             <div style={{ width: `${schPct}%`, background: '#c4788a' }} />
-            <div style={{ flex: 1, background: '#f0ede8', borderRadius: '0 4px 4px 0' }} />
+            <div style={{ flex: 1, background: '#F0F0F4', borderRadius: '0 4px 4px 0' }} />
           </div>
           {/* Legend */}
           <div style={{ display: 'flex', gap: 14 }}>
-            {[{ color: '#4caf50', label: 'Paid', amount: paid }, { color: '#c4788a', label: 'Scheduled', amount: scheduled }, { color: '#e0dbd4', label: 'Remaining', amount: remaining }].map(item => (
+            {[{ color: '#4caf50', label: 'Paid', amount: paid }, { color: '#c4788a', label: 'Scheduled', amount: scheduled }, { color: '#E0E0E6', label: 'Remaining', amount: remaining }].map(item => (
               <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <div style={{ width: 8, height: 8, borderRadius: 2, background: item.color, flexShrink: 0 }} />
                 <div>
@@ -458,12 +458,12 @@ function FinancesPage() {
               { key: 'family_a', label: FAMILY_A, total: familyATotal, items: BY_FAMILY.family_a },
               { key: 'family_b', label: FAMILY_B, total: familyBTotal, items: BY_FAMILY.family_b },
             ].map(fam => (
-              <div key={fam.key} style={{ border: '1px solid #e5e0d8', borderRadius: 10, padding: '11px 12px', background: '#fff' }}>
+              <div key={fam.key} style={{ border: '1px solid #E8E8EC', borderRadius: 10, padding: '11px 12px', background: '#fff' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#9a9088', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{fam.label}</div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: '#2c2825', fontFamily: 'Georgia, serif', marginBottom: 8 }}>{fmt$(fam.total)}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {fam.items.map((item, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: i < fam.items.length - 1 ? 4 : 0, borderBottom: i < fam.items.length - 1 ? '1px solid #f0ede8' : 'none' }}>
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: i < fam.items.length - 1 ? 4 : 0, borderBottom: i < fam.items.length - 1 ? '1px solid #F0F0F4' : 'none' }}>
                       <span style={{ fontSize: 10, color: '#666' }}>{item.label}</span>
                       <span style={{ fontSize: 10, fontWeight: 600, color: '#2c2825' }}>{fmt$(item.amount)}</span>
                     </div>
@@ -477,12 +477,12 @@ function FinancesPage() {
         {/* Payment schedule */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#9a9088', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Payment Schedule</div>
-          <div style={{ border: '1px solid #e5e0d8', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+          <div style={{ border: '1px solid #E8E8EC', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
             {MOCK_PAYMENTS.map((p, i) => {
               const overdue = !p.paid_date && new Date(p.due_date) < today
               const soon = !p.paid_date && !overdue && daysUntil(p.due_date) <= 30
               const rowBg = p.paid_date ? '#fff' : overdue ? '#fff5f5' : soon ? '#fffbf4' : '#fff'
-              const borderC = p.paid_date ? '#f0ede8' : overdue ? '#fff0f0' : soon ? '#fef6ec' : '#f0ede8'
+              const borderC = p.paid_date ? '#F0F0F4' : overdue ? '#fff0f0' : soon ? '#fef6ec' : '#F0F0F4'
               const paidByLabel = p.paid_by === 'couple' ? 'Couple' : p.paid_by === 'family_a' ? FAMILY_A : FAMILY_B
               return (
                 <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: i < MOCK_PAYMENTS.length - 1 ? `1px solid ${borderC}` : 'none', background: rowBg }}>
@@ -500,7 +500,7 @@ function FinancesPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: p.paid_date ? '#4caf50' : overdue ? '#c0392b' : '#2c2825' }}>{fmt$(p.amount)}</span>
                     {!p.paid_date && (
-                      <button style={{ fontSize: 10, border: `1px solid ${overdue ? '#c0392b' : '#e0dbd4'}`, borderRadius: 6, padding: '3px 8px', color: overdue ? '#c0392b' : '#888', background: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                      <button style={{ fontSize: 10, border: `1px solid ${overdue ? '#c0392b' : '#E0E0E6'}`, borderRadius: 6, padding: '3px 8px', color: overdue ? '#c0392b' : '#888', background: 'none', cursor: 'pointer', fontWeight: 600 }}>
                         Pay
                       </button>
                     )}

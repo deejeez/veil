@@ -4,17 +4,17 @@
 
 :root {
   --color-sidebar:        #FFFFFF;
-  --color-bg:             #EEE8E0;
+  --color-bg:             #F5F5F7;
   --color-surface:        #FFFFFF;
-  --color-border:         #E2D9CF;
-  --color-text-primary:   #2C1F19;
-  --color-text-secondary: #9A8A82;
+  --color-border:         #E8E8EC;
+  --color-text-primary:   #1A1A2E;
+  --color-text-secondary: #72727A;
   --color-accent:         #C4788A;
   --color-accent-hover:   #AE6478;
   --color-status-booked:  #4A7A5A;
   --color-status-short:   #C4843F;
-  --color-status-none:    #B0A090;
-  --color-sidebar-text:   #7C6E67;
+  --color-status-none:    #9E9EA8;
+  --color-sidebar-text:   #72727A;
   --color-sidebar-active: rgba(196,120,138,0.10);
   --font-heading: Georgia, 'Times New Roman', serif;
   --font-body: -apple-system, 'Inter', 'Helvetica Neue', sans-serif;
