@@ -58,16 +58,25 @@ export default function RightPanel() {
       {/* Couple profile + countdown */}
       <div style={{ marginBottom: '24px' }}>
         <div style={{
-          width: '48px', height: '48px', borderRadius: '50%',
+          width: '44px', height: '44px', borderRadius: '50%',
           background: 'linear-gradient(135deg, var(--color-accent) 0%, #9B5FA5 100%)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#fff', fontSize: '15px', fontWeight: 700,
-          marginBottom: '10px',
+          marginBottom: '8px',
         }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
           </svg>
         </div>
+
+        {couple?.name_primary && (
+          <p style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', fontWeight: 400, color: 'var(--color-text-primary)', margin: '0 0 6px 0', lineHeight: 1.3 }}>
+            {couple.name_primary}
+            {couple.name_partner && (
+              <> <span style={{ color: 'var(--color-accent)' }}>&</span> {couple.name_partner}</>
+            )}
+          </p>
+        )}
 
         {daysUntil !== null ? (
           <>

@@ -26,6 +26,8 @@ export type Couple = {
   vibe_profile: VibeProfile | null
   family_a_name: string | null
   family_b_name: string | null
+  name_primary: string | null
+  name_partner: string | null
 }
 
 export type Vendor = {

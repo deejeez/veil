@@ -194,13 +194,29 @@ export default function Dashboard() {
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', margin: '0 0 6px 0', fontWeight: 600 }}>
           Overview
         </p>
-        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '30px', fontWeight: 400, margin: 0, lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
-          {daysUntil !== null ? (
-            <><span style={{ color: 'var(--color-accent)' }}>{daysUntil} days</span> to go</>
-          ) : (
-            'Welcome to Veil'
-          )}
-        </h1>
+        {couple?.name_primary ? (
+          <>
+            <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '30px', fontWeight: 400, margin: '0 0 4px 0', lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
+              {couple.name_primary}
+              {couple.name_partner && (
+                <> <span style={{ color: 'var(--color-accent)'}}>&</span> {couple.name_partner}</>
+              )}
+            </h1>
+            {daysUntil !== null && (
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-secondary)', margin: 0 }}>
+                {daysUntil} days to go
+              </p>
+            )}
+          </>
+        ) : (
+          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '30px', fontWeight: 400, margin: 0, lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
+            {daysUntil !== null ? (
+              <><span style={{ color: 'var(--color-accent)' }}>{daysUntil} days</span> to go</>
+            ) : (
+              'Welcome to Veil'
+            )}
+          </h1>
+        )}
       </div>
 
       {/* Stat cards with donut rings */}
