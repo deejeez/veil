@@ -9,7 +9,19 @@ export type VendorCategoryConfig = {
   sort_order: number
 }
 
+// Hardcoded fallback used when the vendor_categories table doesn't exist yet.
+function hardcodedDefaults(coupleId: string): VendorCategoryConfig[] {
+  return VENDOR_CATEGORIES.map((slug, i) => ({
+    id: '',
+    couple_id: coupleId,
+    slug,
+    label: VENDOR_CATEGORY_LABELS[slug],
+    sort_order: i,
+  }))
+}
+
 // Returns ordered categories for a couple, seeding defaults on first call.
+// Falls back to hardcoded defaults if the vendor_categories table doesn't exist yet.
 export async function getCategoriesForCouple(coupleId: string): Promise<VendorCategoryConfig[]> {
   const { data, error } = await supabase
     .from('vendor_categories')
@@ -17,7 +29,11 @@ export async function getCategoriesForCouple(coupleId: string): Promise<VendorCa
     .eq('couple_id', coupleId)
     .order('sort_order', { ascending: true })
 
-  if (error) throw error
+  if (error) {
+    // 42P01 = table does not exist — migration not applied yet, use hardcoded defaults.
+    if ((error as { code?: string }).code === '42P01') return hardcodedDefaults(coupleId)
+    throw error
+  }
 
   if (!data || data.length === 0) {
     const defaults = VENDOR_CATEGORIES.map((slug, i) => ({
@@ -38,6 +54,7 @@ export async function getCategoriesForCouple(coupleId: string): Promise<VendorCa
 }
 
 // Adds a new custom category. Derives a slug from the label.
+// Requires the vendor_categories migration to have been applied.
 export async function addCategory(coupleId: string, label: string): Promise<VendorCategoryConfig> {
   const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
 
@@ -57,7 +74,8 @@ export async function addCategory(coupleId: string, label: string): Promise<Vend
     .single()
 
   if (error) {
-    if (error.code === '23505') throw new Error(`A category named "${label}" already exists.`)
+    if ((error as { code?: string }).code === '42P01') throw new Error('Apply the vendor_categories migration in Supabase first.')
+    if ((error as { code?: string }).code === '23505') throw new Error(`A category named "${label}" already exists.`)
     throw error
   }
 
