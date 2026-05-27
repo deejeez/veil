@@ -7,7 +7,8 @@ import { getCoupleForUser } from '../lib/couple'
 import { getBudgetCategories, upsertBudgetCategory, computeBudgetSummary } from '../lib/budget'
 import { getVendorsForCouple } from '../lib/vendors'
 import { getPaymentsForCouple } from '../lib/payments'
-import { type Couple, VENDOR_CATEGORIES, VENDOR_CATEGORY_LABELS } from '../types/database'
+import { type Couple } from '../types/database'
+import { getCategoriesForCouple, type VendorCategoryConfig } from '../lib/categories'
 
 type BudgetRow = {
   id: string
@@ -22,6 +23,7 @@ type BudgetRow = {
 export default function Budget() {
   const [couple, setCouple] = useState<Couple | null>(null)
   const [rows, setRows] = useState<BudgetRow[]>([])
+  const [vendorCategories, setVendorCategories] = useState<VendorCategoryConfig[]>([])
   const [allPaidTotal, setAllPaidTotal] = useState(0)
   const [editingCategory, setEditingCategory] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -35,17 +37,20 @@ export default function Budget() {
       if (!c) return
       setCouple(c)
 
-      const [categories, vendors, payments] = await Promise.all([
+      const [vendorCats, categories, vendors, payments] = await Promise.all([
+        getCategoriesForCouple(c.id),
         getBudgetCategories(c.id),
         getVendorsForCouple(c.id),
         getPaymentsForCouple(c.id),
       ])
 
-      // Ensure all 14 categories have budget rows
+      setVendorCategories(vendorCats)
+
+      // Ensure all active vendor categories have budget rows
       const existingCats = new Set(categories.map(bc => bc.category))
-      for (const cat of VENDOR_CATEGORIES) {
-        if (!existingCats.has(cat)) {
-          categories.push({ id: '', couple_id: c.id, category: cat, budgeted: 0 })
+      for (const cat of vendorCats) {
+        if (!existingCats.has(cat.slug)) {
+          categories.push({ id: '', couple_id: c.id, category: cat.slug, budgeted: 0 })
         }
       }
 
@@ -124,7 +129,7 @@ export default function Budget() {
           <div key={row.category} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: '8px', padding: '10px 0', borderBottom: '1px solid var(--color-bg)', alignItems: 'center' }}>
             <div>
               <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)', margin: '0 0 4px 0' }}>
-                {VENDOR_CATEGORY_LABELS[row.category as keyof typeof VENDOR_CATEGORY_LABELS] ?? row.category}
+                {vendorCategories.find(c => c.slug === row.category)?.label ?? row.category}
               </p>
               {row.budgeted > 0 && (
                 <div style={{ height: '3px', background: '#f0ebe4', borderRadius: '2px', overflow: 'hidden', width: '80%' }}>

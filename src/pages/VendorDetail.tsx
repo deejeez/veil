@@ -5,7 +5,8 @@ import Button from '../components/Button'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, upsertVendor, updateVendorStatus, deleteVendor } from '../lib/vendors'
-import { type Couple, type Vendor, type VendorStatus, type VendorCategory, VENDOR_CATEGORY_LABELS } from '../types/database'
+import { type Couple, type Vendor, type VendorStatus } from '../types/database'
+import { getCategoriesForCouple } from '../lib/categories'
 import type { AiReview, AiReviewFlag, Payment } from '../types/database'
 import { track } from '../lib/analytics'
 import { getPaymentsForVendor, insertPayment, markPaymentPaid, deletePayment } from '../lib/payments'
@@ -58,6 +59,7 @@ export default function VendorDetail() {
   const [addingPaymentFor, setAddingPaymentFor] = useState<string | null>(null)
   const [newVendorPayment, setNewVendorPayment] = useState({ label: '', amount: '', due_date: '', paid_by: 'couple' })
   const [savingVendorPayment, setSavingVendorPayment] = useState(false)
+  const [categoryLabel, setCategoryLabel] = useState<string>(category ?? '')
 
   async function load() {
     try {
@@ -66,6 +68,9 @@ export default function VendorDetail() {
       const c = await getCoupleForUser(user.id)
       if (!c) return
       setCouple(c)
+      const cats = await getCategoriesForCouple(c.id)
+      const found = cats.find(cat => cat.slug === category)
+      if (found) setCategoryLabel(found.label)
       const all = await getVendorsForCouple(c.id)
       setVendors(all.filter(v => v.category === category))
       const { data: contractData } = await supabase
@@ -453,7 +458,7 @@ export default function VendorDetail() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '18px' }}>
         <div>
           <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '28px', fontWeight: 400, margin: '0 0 8px 0', color: '#2c2825' }}>
-            {VENDOR_CATEGORY_LABELS[category as VendorCategory] ?? category}
+            {categoryLabel}
           </h1>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {booked.length > 0 && (

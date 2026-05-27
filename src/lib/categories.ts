@@ -1,0 +1,103 @@
+import { supabase } from './supabase'
+import { VENDOR_CATEGORIES, VENDOR_CATEGORY_LABELS } from '../types/database'
+
+export type VendorCategoryConfig = {
+  id: string
+  couple_id: string
+  slug: string
+  label: string
+  sort_order: number
+}
+
+// Returns ordered categories for a couple, seeding defaults on first call.
+export async function getCategoriesForCouple(coupleId: string): Promise<VendorCategoryConfig[]> {
+  const { data, error } = await supabase
+    .from('vendor_categories')
+    .select('*')
+    .eq('couple_id', coupleId)
+    .order('sort_order', { ascending: true })
+
+  if (error) throw error
+
+  if (!data || data.length === 0) {
+    const defaults = VENDOR_CATEGORIES.map((slug, i) => ({
+      couple_id: coupleId,
+      slug,
+      label: VENDOR_CATEGORY_LABELS[slug],
+      sort_order: i,
+    }))
+    const { data: inserted, error: insertError } = await supabase
+      .from('vendor_categories')
+      .insert(defaults)
+      .select()
+    if (insertError) throw insertError
+    return (inserted ?? []) as VendorCategoryConfig[]
+  }
+
+  return data as VendorCategoryConfig[]
+}
+
+// Adds a new custom category. Derives a slug from the label.
+export async function addCategory(coupleId: string, label: string): Promise<VendorCategoryConfig> {
+  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+
+  const { data: existing } = await supabase
+    .from('vendor_categories')
+    .select('sort_order')
+    .eq('couple_id', coupleId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+
+  const sort_order = existing && existing.length > 0 ? existing[0].sort_order + 1 : 14
+
+  const { data, error } = await supabase
+    .from('vendor_categories')
+    .insert({ couple_id: coupleId, slug, label, sort_order })
+    .select()
+    .single()
+
+  if (error) {
+    if (error.code === '23505') throw new Error(`A category named "${label}" already exists.`)
+    throw error
+  }
+
+  // Create placeholder vendor row so the category appears everywhere immediately.
+  await supabase.from('vendors').insert({ couple_id: coupleId, category: slug, status: 'not_started' })
+
+  return data as VendorCategoryConfig
+}
+
+// Renames a category (slug stays the same; all vendor rows already use the slug).
+export async function updateCategoryLabel(id: string, label: string): Promise<void> {
+  const { error } = await supabase.from('vendor_categories').update({ label }).eq('id', id)
+  if (error) throw error
+}
+
+// Deletes a category if it has no real vendor data. Returns { ok, reason? }.
+export async function deleteCategory(
+  id: string,
+  slug: string,
+  coupleId: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const { data: vendors } = await supabase
+    .from('vendors')
+    .select('id, name, status')
+    .eq('couple_id', coupleId)
+    .eq('category', slug)
+
+  if (vendors) {
+    const hasRealData = vendors.some(v => v.name || v.status !== 'not_started')
+    if (hasRealData) {
+      return { ok: false, reason: 'Remove all vendors in this category first.' }
+    }
+  }
+
+  // Clean up placeholder vendor rows and budget row.
+  await supabase.from('vendors').delete().eq('couple_id', coupleId).eq('category', slug)
+  await supabase.from('budget_categories').delete().eq('couple_id', coupleId).eq('category', slug)
+
+  const { error } = await supabase.from('vendor_categories').delete().eq('id', id)
+  if (error) throw error
+
+  return { ok: true }
+}

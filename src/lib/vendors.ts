@@ -31,11 +31,13 @@ export async function deleteVendor(vendorId: string) {
   if (error) throw error
 }
 
-// Ensure all 14 default categories exist for a couple
-export async function seedDefaultVendorCategories(coupleId: string) {
+// Ensure all categories have placeholder vendor rows. Accepts a custom slug list
+// (when categories are DB-driven); falls back to the 14 hardcoded defaults.
+export async function seedDefaultVendorCategories(coupleId: string, slugs?: string[]) {
+  const targets = slugs ?? [...VENDOR_CATEGORIES]
   const existing = await getVendorsForCouple(coupleId)
   const existingCategories = new Set(existing.map(v => v.category))
-  const missing = VENDOR_CATEGORIES.filter(c => !existingCategories.has(c))
+  const missing = targets.filter(c => !existingCategories.has(c))
   if (missing.length === 0) return
 
   const { error } = await supabase.from('vendors').insert(

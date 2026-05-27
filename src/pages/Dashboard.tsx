@@ -10,13 +10,15 @@ import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, seedDefaultVendorCategories } from '../lib/vendors'
 import { getPaymentsForCouple, getUpcomingPayments } from '../lib/payments'
 import { getTasksForCouple } from '../lib/tasks'
-import { type Couple, type Vendor, type Payment, type Task, VENDOR_CATEGORY_LABELS } from '../types/database'
+import { type Couple, type Vendor, type Payment, type Task } from '../types/database'
+import { getCategoriesForCouple } from '../lib/categories'
 
 export default function Dashboard() {
   const [couple, setCouple] = useState<Couple | null>(null)
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [categoryLabels, setCategoryLabels] = useState<Record<string, string>>({})
   const [latestInsight, setLatestInsight] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [partnerEmail, setPartnerEmail] = useState('')
@@ -32,7 +34,11 @@ export default function Dashboard() {
         const c = await getCoupleForUser(user.id)
         if (!c) { setLoading(false); return }
         setCouple(c)
-        await seedDefaultVendorCategories(c.id)
+        const cats = await getCategoriesForCouple(c.id)
+        const labels: Record<string, string> = {}
+        for (const cat of cats) labels[cat.slug] = cat.label
+        setCategoryLabels(labels)
+        await seedDefaultVendorCategories(c.id, cats.map(c => c.slug))
         const [v, p, t, insight] = await Promise.all([
           getVendorsForCouple(c.id),
           getPaymentsForCouple(c.id),
@@ -239,7 +245,7 @@ export default function Dashboard() {
           {vendors.slice(0, 8).map(v => (
             <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--color-bg)' }}>
               <span style={{ fontFamily: 'var(--font-heading)', fontSize: '14px', color: 'var(--color-text-primary)' }}>
-                {VENDOR_CATEGORY_LABELS[v.category as keyof typeof VENDOR_CATEGORY_LABELS] ?? v.category}
+                {categoryLabels[v.category] ?? v.category}
                 {v.name && <span style={{ color: 'var(--color-text-secondary)' }}> — {v.name}</span>}
               </span>
               <StatusBadge status={v.status} />
