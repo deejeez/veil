@@ -3,19 +3,19 @@
 @tailwind utilities;
 
 :root {
-  --color-sidebar:        #1A0D0A;
-  --color-bg:             #FEFCFA;
+  --color-sidebar:        #FFFFFF;
+  --color-bg:             #EEE8E0;
   --color-surface:        #FFFFFF;
-  --color-border:         #EDE5D8;
-  --color-text-primary:   #1A0D0A;
-  --color-text-secondary: #9A8878;
+  --color-border:         #E2D9CF;
+  --color-text-primary:   #2C1F19;
+  --color-text-secondary: #9A8A82;
   --color-accent:         #C4788A;
   --color-accent-hover:   #AE6478;
   --color-status-booked:  #4A7A5A;
   --color-status-short:   #C4843F;
   --color-status-none:    #B0A090;
-  --color-sidebar-text:   #7A6A62;
-  --color-sidebar-active: #FAF3EF;
+  --color-sidebar-text:   #7C6E67;
+  --color-sidebar-active: rgba(196,120,138,0.10);
   --font-heading: Georgia, 'Times New Roman', serif;
   --font-body: -apple-system, 'Inter', 'Helvetica Neue', sans-serif;
 }
@@ -47,7 +47,7 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(196, 120, 138, 0.15);
+  box-shadow: 0 0 0 3px rgba(196, 120, 138, 0.12);
 }
 
 input::placeholder, textarea::placeholder {

@@ -2,7 +2,7 @@
 -- Seeded from the 14 app defaults on first load; couples can add/rename/remove.
 
 create table vendor_categories (
-  id         uuid primary key default uuid_generate_v4(),
+  id         uuid primary key default gen_random_uuid(),
   couple_id  uuid references couples(id) on delete cascade not null,
   slug       text not null,
   label      text not null,
@@ -18,11 +18,13 @@ create policy "Couple members can manage their categories"
   for all
   using (
     couple_id in (
-      select couple_id from couple_members where user_id = auth.uid()
+      select id from couples
+      where auth.uid() = user_id_primary or auth.uid() = user_id_partner
     )
   )
   with check (
     couple_id in (
-      select couple_id from couple_members where user_id = auth.uid()
+      select id from couples
+      where auth.uid() = user_id_primary or auth.uid() = user_id_partner
     )
   );
