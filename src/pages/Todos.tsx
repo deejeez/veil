@@ -234,9 +234,9 @@ export default function Todos() {
                       {isOverdue ? '⚠ ' : ''}Due {task.due_date}
                     </span>
                   )}
-                  {task.assigned_to && task.assigned_to !== 'couple' && (
+                  {task.assigned_to && (
                     <span style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-accent)' }}>
-                      {task.assigned_to}
+                      {task.assigned_to === 'couple' ? 'Both' : task.assigned_to}
                     </span>
                   )}
                   {task.category && (
@@ -292,7 +292,11 @@ export default function Todos() {
             </div>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Assigned To</label>
-              <input placeholder="couple" value={newTask.assigned_to} onChange={e => setNewTask(f => ({ ...f, assigned_to: e.target.value }))} style={inputStyle} />
+              <select value={newTask.assigned_to} onChange={e => setNewTask(f => ({ ...f, assigned_to: e.target.value }))} style={{ ...inputStyle, width: '100%' }}>
+                <option value="couple">Both of us</option>
+                {couple?.name_primary && <option value={couple.name_primary}>{couple.name_primary}</option>}
+                {couple?.name_partner && <option value={couple.name_partner}>{couple.name_partner}</option>}
+              </select>
             </div>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Category</label>
