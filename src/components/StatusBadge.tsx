@@ -1,32 +1,41 @@
 import type { VendorStatus } from '../types/database'
 
-const colors: Record<VendorStatus, string> = {
-  not_started: 'var(--color-status-none)',
-  researching: '#5B8DB8',
-  shortlisted: 'var(--color-status-short)',
-  meeting_scheduled: '#8B5CF6',
-  booked: 'var(--color-status-booked)',
-  eliminated: '#B0A090',
+type BadgeStyle = { bg: string; text: string }
+
+const badgeStyles: Record<VendorStatus, BadgeStyle> = {
+  not_started:       { bg: '#EDEAE6', text: '#8A8179' },
+  researching:       { bg: '#E2EAF0', text: '#5A7A8F' },
+  shortlisted:       { bg: '#F0E8DC', text: '#8B6F4E' },
+  meeting_scheduled: { bg: '#F0E8DC', text: '#8B6F4E' },
+  booked:            { bg: '#E8F0E4', text: '#5A7A4A' },
+  eliminated:        { bg: '#EDEAE6', text: '#8A8179' },
 }
 
 const labels: Record<VendorStatus, string> = {
-  not_started: 'Not Started',
-  researching: 'Researching',
-  shortlisted: 'Shortlisted',
-  meeting_scheduled: 'Meeting Scheduled',
-  booked: 'Booked',
-  eliminated: 'Eliminated',
+  not_started:       'To Do',
+  researching:       'Researching',
+  shortlisted:       'Shortlisted',
+  meeting_scheduled: 'Meeting Set',
+  booked:            'Booked',
+  eliminated:        'Eliminated',
 }
 
 export default function StatusBadge({ status }: { status: VendorStatus | string }) {
-  const safeStatus = (status as VendorStatus) in colors ? (status as VendorStatus) : 'not_started'
+  const safeStatus = (status as VendorStatus) in badgeStyles ? (status as VendorStatus) : 'not_started'
+  const { bg, text } = badgeStyles[safeStatus]
   return (
     <span
       style={{
-        color: colors[safeStatus],
+        display: 'inline-block',
+        background: bg,
+        color: text,
         fontSize: '11px',
-        letterSpacing: '0.04em',
+        fontWeight: 600,
+        letterSpacing: '0.05em',
+        textTransform: 'uppercase',
         fontFamily: 'var(--font-body)',
+        padding: '3px 8px',
+        borderRadius: '6px',
         textDecoration: safeStatus === 'eliminated' ? 'line-through' : 'none',
         opacity: safeStatus === 'eliminated' ? 0.7 : 1,
       }}

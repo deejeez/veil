@@ -51,8 +51,8 @@ export default function Signup() {
         </p>
 
         {error && (
-          <div style={{ background: 'rgba(185,28,28,0.06)', border: '1px solid rgba(185,28,28,0.2)', borderRadius: '10px', padding: '12px 14px', marginBottom: '20px' }}>
-            <p style={{ color: '#B91C1C', fontSize: '14px', margin: 0, fontFamily: 'var(--font-body)' }}>{error}</p>
+          <div style={{ background: 'rgba(196,120,92,0.06)', border: '1px solid rgba(196,120,92,0.2)', borderRadius: '10px', padding: '12px 14px', marginBottom: '20px' }}>
+            <p style={{ color: '#C4785C', fontSize: '14px', margin: 0, fontFamily: 'var(--font-body)' }}>{error}</p>
           </div>
         )}
 

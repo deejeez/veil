@@ -43,7 +43,7 @@ export default function Venue() {
   if (!venue || venue.status === 'not_started') {
     return (
       <AppShell>
-        <div style={{ maxWidth: '560px' }}>
+        <div style={{ maxWidth: '560px', margin: '0 auto' }}>
           <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '8px', fontWeight: 600 }}>
             Venue
           </p>
@@ -75,7 +75,7 @@ export default function Venue() {
 
   return (
     <AppShell>
-      <div style={{ maxWidth: '640px' }}>
+      <div style={{ maxWidth: '640px', margin: '0 auto' }}>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '8px', fontWeight: 600 }}>
           Venue
         </p>
@@ -98,7 +98,7 @@ export default function Venue() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
           {[
             { label: 'Total Cost', value: totalCost > 0 ? `$${totalCost.toLocaleString()}` : '—' },
-            { label: 'Paid', value: totalPaid > 0 ? `$${totalPaid.toLocaleString()}` : '—' },
+            { label: 'Paid', value: totalCost > 0 ? `$${totalPaid.toLocaleString()}` : '—' },
             { label: 'Remaining', value: remaining > 0 ? `$${remaining.toLocaleString()}` : (totalCost > 0 ? 'Paid off' : '—') },
           ].map(({ label, value }) => (
             <Card key={label}>

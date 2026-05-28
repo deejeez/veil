@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
+import { MultiSegmentRing } from '../components/MultiSegmentRing'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, seedDefaultVendorCategories } from '../lib/vendors'
@@ -15,9 +16,42 @@ import { type Vendor } from '../types/database'
 
 const IN_PROGRESS_STATUSES = ['researching', 'shortlisted', 'meeting_scheduled']
 
+// Typical months before wedding when each vendor category should be booked
+const VENDOR_URGENCY: Record<string, number> = {
+  venue: 14,
+  photographer: 12,
+  videographer: 12,
+  caterer: 12,
+  band: 12,
+  officiant: 9,
+  florist: 9,
+  dj: 9,
+  hair_makeup: 9,
+  invitations: 8,
+  cake: 6,
+  transportation: 6,
+  hotels: 6,
+  honeymoon: 6,
+  rehearsal_dinner: 4,
+  favors: 3,
+}
+
+function getUrgencyMonths(slug: string): number {
+  return VENDOR_URGENCY[slug] ?? 6
+}
+
+function urgencyLabel(months: number): string {
+  if (months >= 12) return 'Book 12+ months out'
+  if (months >= 9) return 'Book 9–12 months out'
+  if (months >= 6) return 'Book 6–9 months out'
+  if (months >= 4) return 'Book 4–6 months out'
+  return 'Book 3–4 months out'
+}
+
 export default function Vendors() {
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [categories, setCategories] = useState<VendorCategoryConfig[]>([])
+  const [couple, setCouple] = useState<Awaited<ReturnType<typeof getCoupleForUser>>>(null)
   const [coupleId, setCoupleId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [managing, setManaging] = useState(false)
@@ -26,18 +60,20 @@ export default function Vendors() {
   const [newLabel, setNewLabel] = useState('')
   const [addError, setAddError] = useState<string | null>(null)
   const [savingNew, setSavingNew] = useState(false)
+  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null)
   const navigate = useNavigate()
 
   async function load() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const couple = await getCoupleForUser(user.id)
-      if (!couple) return
-      setCoupleId(couple.id)
-      const cats = await getCategoriesForCouple(couple.id)
-      await seedDefaultVendorCategories(couple.id, cats.map(c => c.slug))
-      setVendors(await getVendorsForCouple(couple.id))
+      const coupleData = await getCoupleForUser(user.id)
+      if (!coupleData) return
+      setCoupleId(coupleData.id)
+      setCouple(coupleData)
+      const cats = await getCategoriesForCouple(coupleData.id)
+      await seedDefaultVendorCategories(coupleData.id, cats.map(c => c.slug))
+      setVendors(await getVendorsForCouple(coupleData.id))
       setCategories(cats)
     } finally {
       setLoading(false)
@@ -45,6 +81,15 @@ export default function Vendors() {
   }
 
   useEffect(() => { load() }, [])
+
+  // Months until wedding (null if no wedding date set)
+  const monthsUntilWedding: number | null = (() => {
+    if (!couple?.wedding_date) return null
+    const wedding = new Date(couple.wedding_date)
+    const today = new Date()
+    const diffMs = wedding.getTime() - today.getTime()
+    return diffMs / (1000 * 60 * 60 * 24 * 30.44)
+  })()
 
   const vendorsByCategory = categories.map(cat => {
     const catVendors = vendors.filter(v => v.category === cat.slug && v.status !== 'eliminated')
@@ -65,13 +110,58 @@ export default function Vendors() {
       else subLabel = 'Researching'
     }
 
-    return { category: cat.slug, label: cat.label, catId: cat.id, state, subLabel, activeCount: active.length }
+    let nextAction = ''
+    if (state === 'not_started') nextAction = 'Get quotes'
+    else if (state === 'in_progress' && shortlistedCount > 0) nextAction = `Compare ${shortlistedCount} proposal${shortlistedCount > 1 ? 's' : ''}`
+
+    const urgencyMonths = getUrgencyMonths(cat.slug)
+    // Overdue: not yet booked and past the typical booking window
+    const isOverdue = state !== 'booked' && monthsUntilWedding !== null && monthsUntilWedding < urgencyMonths
+
+    return {
+      category: cat.slug,
+      label: cat.label,
+      catId: cat.id,
+      state,
+      subLabel,
+      nextAction,
+      activeCount: active.length,
+      urgencyMonths,
+      isOverdue,
+      urgencyText: urgencyLabel(urgencyMonths),
+    }
+  })
+
+  // Sort: booked first (locked in), then overdue/urgent, then remaining by urgency
+  const sortedVendors = [...vendorsByCategory].sort((a, b) => {
+    if (a.state === 'booked' && b.state !== 'booked') return -1
+    if (a.state !== 'booked' && b.state === 'booked') return 1
+    if (a.isOverdue && !b.isOverdue) return -1
+    if (!a.isOverdue && b.isOverdue) return 1
+    return b.urgencyMonths - a.urgencyMonths
   })
 
   const bookedCount = vendorsByCategory.filter(v => v.state === 'booked').length
   const activeCount = vendorsByCategory.filter(v => v.state === 'in_progress').length
   const notStartedCount = vendorsByCategory.filter(v => v.state === 'not_started').length
+  const overdueCount = vendorsByCategory.filter(v => v.isOverdue).length
   const total = categories.length
+
+  // Expected booked count based on months until wedding
+  const expectedBooked: number | null = (() => {
+    if (monthsUntilWedding === null) return null
+    if (monthsUntilWedding >= 12) return 2
+    if (monthsUntilWedding >= 9) return 5
+    if (monthsUntilWedding >= 6) return 8
+    if (monthsUntilWedding >= 3) return 11
+    return total
+  })()
+
+  const arcData = [
+    ...(bookedCount > 0 ? [{ value: bookedCount, color: '#7B8F6B' }] : []),
+    ...(activeCount > 0 ? [{ value: activeCount, color: '#B8926A' }] : []),
+    ...(notStartedCount > 0 ? [{ value: notStartedCount, color: '#D4CFC8' }] : []),
+  ]
 
   async function handleSaveLabel(id: string) {
     if (!editLabel.trim()) return
@@ -122,7 +212,7 @@ export default function Vendors() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
         <div>
           <div style={{ fontSize: '22px', fontWeight: 400, fontFamily: 'var(--font-heading)', color: 'var(--color-text-primary)', marginBottom: '3px' }}>Vendors</div>
-          <div style={{ fontSize: '12px', color: '#aaa' }}>Track and manage all your wedding vendors</div>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Track and manage all your wedding vendors</div>
         </div>
         <button
           onClick={() => setManaging(m => !m)}
@@ -170,7 +260,7 @@ export default function Vendors() {
                     </button>
                     <button
                       onClick={() => handleDelete(cat.id, cat.slug)}
-                      style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: '#B91C1C', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+                      style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: '#C4785C', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
                     >
                       Delete
                     </button>
@@ -202,65 +292,118 @@ export default function Vendors() {
               {savingNew ? 'Adding...' : 'Add'}
             </button>
           </div>
-          {addError && <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: '#B91C1C', margin: '6px 0 0 0' }}>{addError}</p>}
+          {addError && <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: '#C4785C', margin: '6px 0 0 0' }}>{addError}</p>}
         </div>
       )}
 
-      {/* Summary bar */}
-      <div style={{ border: '1px solid #E8E8EC', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px', background: '#fff', display: 'flex', gap: '16px', alignItems: 'center' }}>
-        <div style={{ textAlign: 'center', minWidth: '36px' }}>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
-            {bookedCount}<span style={{ fontSize: '11px', color: '#ccc' }}>/{total}</span>
+      {/* Summary bar with segmented arc chart */}
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '10px 16px', marginBottom: '12px', background: '#fff', display: 'flex', gap: '20px', alignItems: 'center' }}>
+        <MultiSegmentRing data={arcData} totalValue={total} size={80} strokeWidth={14} />
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
+                {bookedCount}<span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 400 }}>/{total}</span>
+              </div>
+              <div style={{ fontSize: '9px', color: '#7B8F6B', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>Booked</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-accent)', lineHeight: 1 }}>{activeCount}</div>
+              <div style={{ fontSize: '9px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Active</div>
+            </div>
+            {overdueCount > 0 ? (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: '#C4785C', lineHeight: 1 }}>{overdueCount}</div>
+                <div style={{ fontSize: '9px', color: '#C4785C', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>Overdue</div>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text-muted)', lineHeight: 1 }}>{notStartedCount}</div>
+                <div style={{ fontSize: '9px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>To do</div>
+              </div>
+            )}
           </div>
-          <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Booked</div>
-        </div>
-        <div style={{ flex: 1, height: '5px', background: '#f0f0f0', borderRadius: '3px', overflow: 'hidden' }}>
-          <div style={{ width: total > 0 ? `${(bookedCount / total) * 100}%` : '0%', height: '100%', background: '#4caf50', borderRadius: '3px' }} />
-        </div>
-        <div style={{ textAlign: 'center', minWidth: '28px' }}>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: '#c4788a', lineHeight: 1 }}>{activeCount}</div>
-          <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Active</div>
-        </div>
-        <div style={{ textAlign: 'center', minWidth: '28px' }}>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: '#ccc', lineHeight: 1 }}>{notStartedCount}</div>
-          <div style={{ fontSize: '9px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>To do</div>
+          {expectedBooked !== null && bookedCount < expectedBooked && (
+            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '6px', fontFamily: 'var(--font-body)' }}>
+              Most couples at this stage have ~{expectedBooked} vendors booked.
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 3-column vendor grid */}
+      {/* 3-column vendor grid sorted by urgency */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '7px' }}>
-        {vendorsByCategory.map(({ category, label, state, subLabel, activeCount: cnt }) => {
-          const tileStyle =
-            state === 'booked'
-              ? { border: '1.5px solid #a5d6a7', background: '#f0faf0' }
-              : state === 'in_progress'
-              ? { border: '1px solid #e8c4ce', background: '#fdf5f7' }
-              : { border: '1px solid #e0e0e0', background: '#f5f5f5' }
+        {sortedVendors.map(({ category, label, state, subLabel, nextAction, activeCount: cnt, isOverdue, urgencyText }) => {
+          const isHovered = hoveredCategory === category
+          const borderColor = isOverdue
+            ? '#C4785C'
+            : state === 'booked' ? '#7B8F6B'
+            : state === 'in_progress' ? '#B8926A'
+            : '#D4CFC8'
+          const tileStyle = isOverdue
+            ? { border: '1px solid #E8C4B4', background: '#FDF3EF', borderLeft: `4px solid ${borderColor}` }
+            : state === 'booked'
+            ? { border: '1.5px solid #C8D8C0', background: '#EFF4EC', borderLeft: `4px solid ${borderColor}` }
+            : state === 'in_progress'
+            ? { border: '1px solid #E8D4BA', background: '#FBF6F0', borderLeft: `4px solid ${borderColor}` }
+            : { border: '1px solid var(--color-border)', background: '#F5F1EC', borderLeft: `4px solid ${borderColor}` }
 
           return (
             <div
               key={category}
-              style={{ ...tileStyle, borderRadius: '8px', padding: '9px 11px', display: 'flex', flexDirection: 'column', gap: '4px', cursor: 'pointer' }}
+              style={{
+                ...tileStyle,
+                borderRadius: '8px',
+                padding: '12px 14px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                cursor: 'pointer',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                transform: isHovered ? 'translateY(-1px)' : 'translateY(0)',
+                boxShadow: isHovered ? '0 4px 12px rgba(140,120,100,0.12)' : 'none',
+              }}
+              onMouseEnter={() => setHoveredCategory(category)}
+              onMouseLeave={() => setHoveredCategory(null)}
               onClick={() => navigate(`/vendors/${category}`)}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: state === 'booked' ? 700 : 600, color: state === 'booked' ? '#1b5e20' : 'var(--color-text-primary)', fontSize: '12px' }}>
+                <div style={{
+                  fontWeight: state === 'booked' ? 700 : 600,
+                  color: isOverdue ? '#C4785C' : state === 'booked' ? '#5A7A4A' : 'var(--color-text-primary)',
+                  fontSize: '12px',
+                }}>
                   {label}
                 </div>
                 {state === 'booked' && (
-                  <span style={{ fontSize: '9px', background: '#c8e6c9', color: '#2e7d32', padding: '1px 6px', borderRadius: '6px', fontWeight: 700, flexShrink: 0 }}>
+                  <span style={{ fontSize: '9px', background: '#E8F0E4', color: '#5A7A4A', padding: '1px 6px', borderRadius: '6px', fontWeight: 700, flexShrink: 0 }}>
                     BOOKED
                   </span>
                 )}
-                {state === 'in_progress' && cnt > 0 && (
-                  <span style={{ fontSize: '9px', background: '#fce4ec', color: '#c4788a', padding: '1px 5px', borderRadius: '6px', fontWeight: 600, flexShrink: 0 }}>
+                {isOverdue && (
+                  <span style={{ fontSize: '9px', background: '#F9E4DC', color: '#C4785C', padding: '1px 6px', borderRadius: '6px', fontWeight: 700, flexShrink: 0 }}>
+                    OVERDUE
+                  </span>
+                )}
+                {!isOverdue && state === 'in_progress' && cnt > 0 && (
+                  <span style={{ fontSize: '9px', background: 'var(--color-sidebar-active)', color: 'var(--color-accent)', padding: '1px 5px', borderRadius: '6px', fontWeight: 600, flexShrink: 0 }}>
                     {cnt}
                   </span>
                 )}
               </div>
               {subLabel && (
-                <div style={{ fontSize: '11px', color: state === 'booked' ? '#388e3c' : state === 'in_progress' ? '#c4788a' : '#888', fontWeight: 500 }}>
+                <div style={{ fontSize: '11px', color: state === 'booked' ? '#5A7A4A' : state === 'in_progress' ? 'var(--color-accent)' : 'var(--color-text-muted)', fontWeight: 500 }}>
                   {subLabel}
+                </div>
+              )}
+              {nextAction && (
+                <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontStyle: 'italic', marginTop: '1px' }}>
+                  → {nextAction}
+                </div>
+              )}
+              {state !== 'booked' && (
+                <div style={{ fontSize: '10px', color: isOverdue ? '#C4785C' : 'var(--color-text-muted)', fontWeight: isOverdue ? 600 : 400, marginTop: '2px' }}>
+                  {urgencyText}
                 </div>
               )}
             </div>

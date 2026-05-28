@@ -78,15 +78,15 @@ function fmtDate(s: string) { return new Date(s).toLocaleDateString('en-US', { m
 function initials(name: string) { return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() }
 function daysUntil(s: string) { return Math.ceil((new Date(s).getTime() - Date.now()) / 86400000) }
 
-const AV_COLORS = ['#c4788a','#5c9e8c','#7a8ec4','#c4a45c','#8e7ab5','#c47a5c','#5a9cc4']
+const AV_COLORS = ['#B8926A','#5c9e8c','#7a8ec4','#c4a45c','#8e7ab5','#c47a5c','#5a9cc4']
 function avColor(name: string) { return AV_COLORS[name.charCodeAt(0) % AV_COLORS.length] }
 
 const STATUS_CONFIG: Record<string, { bg: string; color: string; label: string }> = {
-  booked:            { bg: '#e8f5e9', color: '#2e7d32', label: 'Booked' },
-  shortlisted:       { bg: '#fce4ec', color: '#b5506a', label: 'Shortlisted' },
+  booked:            { bg: '#EFF4EC', color: '#7B8F6B', label: 'Booked' },
+  shortlisted:       { bg: '#F5F1EC', color: '#B8926A', label: 'Shortlisted' },
   meeting_scheduled: { bg: '#fff3e0', color: '#c25a00', label: 'Meeting' },
-  researching:       { bg: '#f0edff', color: '#6b4ec2', label: 'Researching' },
-  not_started:       { bg: '#f0f0f0', color: '#888', label: 'Not started' },
+  researching:       { bg: '#F5F1EC', color: '#7A7168', label: 'Researching' },
+  not_started:       { bg: '#f0f0f0', color: '#A89F95', label: 'Not started' },
 }
 
 function Chip({ status }: { status: string }) {
@@ -106,11 +106,11 @@ function Shell({ tab, setTab, children }: { tab: string; setTab: (t: string) => 
   const tabStyle = (t: string): React.CSSProperties => ({
     flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
     gap: 3, paddingTop: 8, paddingBottom: 6, cursor: 'pointer', fontSize: 10, fontWeight: 600,
-    color: tab === t ? '#c4788a' : '#b0a89e', borderTop: tab === t ? '2px solid #c4788a' : '2px solid transparent',
+    color: tab === t ? '#B8926A' : '#A89F95', borderTop: tab === t ? '2px solid #B8926A' : '2px solid transparent',
     letterSpacing: '0.04em',
   })
   return (
-    <div style={{ minHeight: '100dvh', background: '#F5F5F7', display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', maxWidth: 480, margin: '0 auto', position: 'relative' }}>
+    <div style={{ minHeight: '100dvh', background: '#F5F1EC', display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', maxWidth: 480, margin: '0 auto', position: 'relative' }}>
       {/* Demo banner */}
       <div style={{ background: '#2c2825', color: '#fff', fontSize: 11, textAlign: 'center', padding: '6px 12px', letterSpacing: '0.05em', fontWeight: 600 }}>
         ✦ DEMO MODE — Emma &amp; James · Sept 14, 2026 · {daysUntil('2026-09-14')} days
@@ -146,17 +146,17 @@ function VendorsPage({ setTab }: { setTab: (t: string) => void }) {
   const bookedPct = Math.round((bookedCount / categories.length) * 100)
 
   const tileStyle = (state: string): React.CSSProperties => {
-    if (state === 'booked')     return { background: '#f0faf0', border: '1.5px solid #a5d6a7' }
-    if (state === 'in_progress') return { background: '#fdf5f7', border: '1px solid #e8c4ce' }
+    if (state === 'booked')     return { background: '#EFF4EC', border: '1.5px solid #B5CCA8' }
+    if (state === 'in_progress') return { background: '#F5F1EC', border: '1px solid #E8E3DC' }
     return { background: '#f5f5f5', border: '1px solid #e0e0e0' }
   }
 
   return (
     <div>
       {/* Header */}
-      <div style={{ padding: '18px 16px 10px', background: '#fff', borderBottom: '1px solid #EAEAEF' }}>
+      <div style={{ padding: '18px 16px 10px', background: '#fff', borderBottom: '1px solid #E8E3DC' }}>
         <div style={{ fontSize: 22, fontWeight: 400, fontFamily: 'Georgia, serif', color: '#2c2825', marginBottom: 2 }}>Vendors</div>
-        <div style={{ fontSize: 12, color: '#9a9088' }}>Brooklyn, NY · Sept 14, 2026</div>
+        <div style={{ fontSize: 12, color: '#A89F95' }}>Brooklyn, NY · Sept 14, 2026</div>
       </div>
 
       <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -165,22 +165,22 @@ function VendorsPage({ setTab }: { setTab: (t: string) => void }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
               <span style={{ fontSize: 26, fontWeight: 700, fontFamily: 'Georgia, serif', color: '#2c2825' }}>{bookedCount}</span>
-              <span style={{ fontSize: 14, color: '#b0a89e' }}>/{categories.length}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#4caf50', marginLeft: 4, background: '#e8f5e9', padding: '2px 7px', borderRadius: 5 }}>BOOKED</span>
+              <span style={{ fontSize: 14, color: '#A89F95' }}>/{categories.length}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#7B8F6B', marginLeft: 4, background: '#EFF4EC', padding: '2px 7px', borderRadius: 5 }}>BOOKED</span>
             </div>
             <div style={{ display: 'flex', gap: 10, fontSize: 11 }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontWeight: 700, color: '#c4788a', fontSize: 15 }}>{activeCount}</div>
-                <div style={{ color: '#b0a89e', fontWeight: 600, letterSpacing: '0.04em' }}>ACTIVE</div>
+                <div style={{ fontWeight: 700, color: '#B8926A', fontSize: 15 }}>{activeCount}</div>
+                <div style={{ color: '#A89F95', fontWeight: 600, letterSpacing: '0.04em' }}>ACTIVE</div>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontWeight: 700, color: '#888', fontSize: 15 }}>{todoCount}</div>
-                <div style={{ color: '#b0a89e', fontWeight: 600, letterSpacing: '0.04em' }}>TO DO</div>
+                <div style={{ fontWeight: 700, color: '#A89F95', fontSize: 15 }}>{todoCount}</div>
+                <div style={{ color: '#A89F95', fontWeight: 600, letterSpacing: '0.04em' }}>TO DO</div>
               </div>
             </div>
           </div>
-          <div style={{ height: 6, borderRadius: 3, background: '#F0F0F4', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${bookedPct}%`, background: '#4caf50', borderRadius: 3, transition: 'width 0.4s ease' }} />
+          <div style={{ height: 6, borderRadius: 3, background: '#E8E3DC', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${bookedPct}%`, background: '#7B8F6B', borderRadius: 3, transition: 'width 0.4s ease' }} />
           </div>
         </div>
 
@@ -190,23 +190,23 @@ function VendorsPage({ setTab }: { setTab: (t: string) => void }) {
             <div key={cat} onClick={() => cat === 'venue' && setTab('venue')}
               style={{ ...tileStyle(state), borderRadius: 8, padding: '9px 10px', cursor: cat === 'venue' ? 'pointer' : 'default', position: 'relative' }}>
               {state === 'booked' && (
-                <div style={{ position: 'absolute', top: 6, right: 7, fontSize: 8, fontWeight: 700, color: '#2e7d32', background: '#e8f5e9', padding: '1px 5px', borderRadius: 4, letterSpacing: '0.05em' }}>
+                <div style={{ position: 'absolute', top: 6, right: 7, fontSize: 8, fontWeight: 700, color: '#7B8F6B', background: '#EFF4EC', padding: '1px 5px', borderRadius: 4, letterSpacing: '0.05em' }}>
                   BOOKED
                 </div>
               )}
               {state === 'in_progress' && active.length > 0 && (
-                <div style={{ position: 'absolute', top: 6, right: 7, fontSize: 8, fontWeight: 700, color: '#c4788a', background: '#fce4ec', padding: '1px 5px', borderRadius: 4 }}>
+                <div style={{ position: 'absolute', top: 6, right: 7, fontSize: 8, fontWeight: 700, color: '#B8926A', background: '#F5F1EC', padding: '1px 5px', borderRadius: 4 }}>
                   {active.length}
                 </div>
               )}
-              <div style={{ fontSize: 12, fontWeight: state === 'booked' ? 700 : 600, color: state === 'booked' ? '#1b5e20' : '#2c2825', lineHeight: 1.3, marginTop: 2 }}>
+              <div style={{ fontSize: 12, fontWeight: state === 'booked' ? 700 : 600, color: state === 'booked' ? '#5A7A4A' : '#2c2825', lineHeight: 1.3, marginTop: 2 }}>
                 {CATEGORY_LABELS[cat]}
               </div>
               {booked?.name && (
-                <div style={{ fontSize: 10, color: '#5a8a5a', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{booked.name}</div>
+                <div style={{ fontSize: 10, color: '#7B8F6B', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{booked.name}</div>
               )}
               {!booked && active.length > 0 && (
-                <div style={{ fontSize: 10, color: '#c4788a', marginTop: 2 }}>
+                <div style={{ fontSize: 10, color: '#B8926A', marginTop: 2 }}>
                   {active.filter(v => v.status === 'meeting_scheduled').length > 0 ? 'Meeting soon' :
                    `${active.length} option${active.length > 1 ? 's' : ''}`}
                 </div>
@@ -222,7 +222,7 @@ function VendorsPage({ setTab }: { setTab: (t: string) => void }) {
             <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 2 }}>4 categories need attention</div>
             <div style={{ fontSize: 11, color: '#c4b9b1' }}>AI can shortlist Band/DJ, Caterer, and Florist options in Brooklyn for you</div>
           </div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#c4788a', background: '#fff', borderRadius: 7, padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#B8926A', background: '#fff', borderRadius: 7, padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
             Get picks →
           </div>
         </div>
@@ -242,20 +242,20 @@ function VenuePage({ setTab }: { setTab: (t: string) => void }) {
   return (
     <div>
       {/* Header */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #EAEAEF', padding: '14px 16px 12px' }}>
-        <button onClick={() => setTab('vendors')} style={{ fontSize: 12, color: '#c4788a', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{ background: '#fff', borderBottom: '1px solid #E8E3DC', padding: '14px 16px 12px' }}>
+        <button onClick={() => setTab('vendors')} style={{ fontSize: 12, color: '#B8926A', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
           ← Vendors
         </button>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: 22, fontWeight: 400, fontFamily: 'Georgia, serif', color: '#2c2825' }}>Venue</div>
             <div style={{ display: 'flex', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
-              {booked > 0 && <span style={{ fontSize: 10, fontWeight: 700, background: '#e8f5e9', color: '#2e7d32', padding: '2px 8px', borderRadius: 5 }}>{booked} Booked</span>}
-              {active > 0 && <span style={{ fontSize: 10, fontWeight: 700, background: '#fce4ec', color: '#b5506a', padding: '2px 8px', borderRadius: 5 }}>{active} In Progress</span>}
-              <span style={{ fontSize: 10, fontWeight: 600, color: '#9a9088', padding: '2px 4px' }}>{VENUE_VENDORS.length} venues tracked</span>
+              {booked > 0 && <span style={{ fontSize: 10, fontWeight: 700, background: '#EFF4EC', color: '#7B8F6B', padding: '2px 8px', borderRadius: 5 }}>{booked} Booked</span>}
+              {active > 0 && <span style={{ fontSize: 10, fontWeight: 700, background: '#F5F1EC', color: '#B8926A', padding: '2px 8px', borderRadius: 5 }}>{active} In Progress</span>}
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#A89F95', padding: '2px 4px' }}>{VENUE_VENDORS.length} venues tracked</span>
             </div>
           </div>
-          <button style={{ fontSize: 11, fontWeight: 700, background: '#c4788a', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 12px', cursor: 'pointer' }}>
+          <button style={{ fontSize: 11, fontWeight: 700, background: '#B8926A', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 12px', cursor: 'pointer' }}>
             + Add Venue
           </button>
         </div>
@@ -263,13 +263,13 @@ function VenuePage({ setTab }: { setTab: (t: string) => void }) {
 
       <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {/* AI shortlist banner */}
-        <div style={{ background: '#fff', border: '1px solid #e8c4ce', borderRadius: 10, padding: '11px 14px', display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ background: '#fff', border: '1px solid #E8E3DC', borderRadius: 10, padding: '11px 14px', display: 'flex', gap: 10, alignItems: 'center' }}>
           <span style={{ fontSize: 18 }}>✦</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#2c2825' }}>AI found 3 more venues in Brooklyn</div>
-            <div style={{ fontSize: 11, color: '#9a9088' }}>Based on your budget, capacity, and aesthetic</div>
+            <div style={{ fontSize: 11, color: '#A89F95' }}>Based on your budget, capacity, and aesthetic</div>
           </div>
-          <button style={{ fontSize: 11, fontWeight: 700, color: '#c4788a', background: '#fdf5f7', border: '1px solid #e8c4ce', borderRadius: 7, padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <button style={{ fontSize: 11, fontWeight: 700, color: '#B8926A', background: '#F5F1EC', border: '1px solid #E8E3DC', borderRadius: 7, padding: '5px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
             See picks
           </button>
         </div>
@@ -278,8 +278,8 @@ function VenuePage({ setTab }: { setTab: (t: string) => void }) {
         {VENUE_VENDORS.map(v => {
           const isExpanded = expandedId === v.id
           const isBooked = v.status === 'booked'
-          const tileBg = isBooked ? '#f0faf0' : isExpanded ? '#fff' : '#fff'
-          const tileBorder = isBooked ? '1.5px solid #a5d6a7' : isExpanded ? '1.5px solid #c4788a' : '1px solid #e8e3dc'
+          const tileBg = isBooked ? '#EFF4EC' : '#fff'
+          const tileBorder = isBooked ? '1.5px solid #B5CCA8' : isExpanded ? '1.5px solid #B8926A' : '1px solid #e8e3dc'
 
           return (
             <div key={v.id} style={{ borderRadius: 12, overflow: 'hidden', boxShadow: isExpanded ? '0 2px 10px rgba(0,0,0,0.09)' : '0 1px 3px rgba(0,0,0,0.06)', transition: 'box-shadow 0.2s' }}>
@@ -293,43 +293,43 @@ function VenuePage({ setTab }: { setTab: (t: string) => void }) {
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#2c2825', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.name}</div>
-                  <div style={{ fontSize: 11, color: '#9a9088', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.website}</div>
+                  <div style={{ fontSize: 11, color: '#A89F95', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.website}</div>
                 </div>
                 {/* Right: chip + amount */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
                   <Chip status={v.status} />
-                  {v.booked_amount && <span style={{ fontSize: 12, fontWeight: 700, color: '#2e7d32' }}>{fmt$(v.booked_amount)}</span>}
+                  {v.booked_amount && <span style={{ fontSize: 12, fontWeight: 700, color: '#7B8F6B' }}>{fmt$(v.booked_amount)}</span>}
                 </div>
-                <span style={{ fontSize: 14, color: '#b0a89e', marginLeft: 2, transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>›</span>
+                <span style={{ fontSize: 14, color: '#A89F95', marginLeft: 2, transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>›</span>
               </div>
 
               {/* Expanded detail panel */}
               {isExpanded && (
-                <div style={{ background: '#fff', border: tileBorder, borderTop: '1px solid #F0F0F4', borderRadius: '0 0 12px 12px', padding: '12px 14px 14px' }}>
+                <div style={{ background: '#fff', border: tileBorder, borderTop: '1px solid #E8E3DC', borderRadius: '0 0 12px 12px', padding: '12px 14px 14px' }}>
                   {v.notes && (
-                    <div style={{ fontSize: 12, color: '#5a524c', lineHeight: 1.5, marginBottom: 12, padding: '10px 12px', background: '#F5F5F7', borderRadius: 8 }}>
+                    <div style={{ fontSize: 12, color: '#5a524c', lineHeight: 1.5, marginBottom: 12, padding: '10px 12px', background: '#F5F1EC', borderRadius: 8 }}>
                       {v.notes}
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 8 }}>
                     {v.status === 'booked' ? (
                       <>
-                        <button style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#2e7d32', background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8, padding: '7px 0', cursor: 'pointer' }}>
+                        <button style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#7B8F6B', background: '#EFF4EC', border: '1px solid #B5CCA8', borderRadius: 8, padding: '7px 0', cursor: 'pointer' }}>
                           View Contract
                         </button>
-                        <button style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#2c2825', background: '#f5f5f5', border: '1px solid #e0e0e0', borderRadius: 8, padding: '7px 0', cursor: 'pointer' }}>
+                        <button style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#2c2825', background: '#F5F1EC', border: '1px solid #E8E3DC', borderRadius: 8, padding: '7px 0', cursor: 'pointer' }}>
                           Payments
                         </button>
-                        <button style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#c4788a', background: '#fdf5f7', border: '1px solid #e8c4ce', borderRadius: 8, padding: '7px 0', cursor: 'pointer' }}>
+                        <button style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#B8926A', background: '#F5F1EC', border: '1px solid #E8E3DC', borderRadius: 8, padding: '7px 0', cursor: 'pointer' }}>
                           AI Review
                         </button>
                       </>
                     ) : (
                       <>
-                        <button style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#c4788a', background: '#fdf5f7', border: '1px solid #e8c4ce', borderRadius: 8, padding: '7px 0', cursor: 'pointer' }}>
+                        <button style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#B8926A', background: '#F5F1EC', border: '1px solid #E8E3DC', borderRadius: 8, padding: '7px 0', cursor: 'pointer' }}>
                           Edit Details
                         </button>
-                        <button style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#2e7d32', background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8, padding: '7px 0', cursor: 'pointer' }}>
+                        <button style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#7B8F6B', background: '#EFF4EC', border: '1px solid #B5CCA8', borderRadius: 8, padding: '7px 0', cursor: 'pointer' }}>
                           Mark Booked ✓
                         </button>
                       </>
@@ -338,21 +338,21 @@ function VenuePage({ setTab }: { setTab: (t: string) => void }) {
                   {/* Payments for booked venue */}
                   {v.status === 'booked' && (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#9a9088', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 7 }}>Payments</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#A89F95', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 7 }}>Payments</div>
                       {MOCK_PAYMENTS.filter(p => p.vendor_name === v.name).map(p => {
                         const overdue = !p.paid_date && new Date(p.due_date) < new Date()
                         const soon = !p.paid_date && !overdue && daysUntil(p.due_date) <= 30
                         return (
-                          <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F0F0F4' }}>
+                          <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #E8E3DC' }}>
                             <div>
                               <div style={{ fontSize: 12, fontWeight: 600, color: '#2c2825' }}>{p.label}</div>
-                              <div style={{ fontSize: 11, color: '#9a9088' }}>
+                              <div style={{ fontSize: 11, color: '#A89F95' }}>
                                 {p.paid_date ? `Paid ${fmtDate(p.paid_date)}` : `Due ${fmtDate(p.due_date)}`}
-                                {overdue && <span style={{ color: '#c0392b', fontWeight: 700, marginLeft: 5 }}>OVERDUE</span>}
+                                {overdue && <span style={{ color: '#C4785C', fontWeight: 700, marginLeft: 5 }}>OVERDUE</span>}
                                 {soon && <span style={{ color: '#c25a00', fontWeight: 700, marginLeft: 5 }}>{daysUntil(p.due_date)}d</span>}
                               </div>
                             </div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: p.paid_date ? '#4caf50' : overdue ? '#c0392b' : '#2c2825' }}>{fmt$(p.amount)}</div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: p.paid_date ? '#7B8F6B' : overdue ? '#C4785C' : '#2c2825' }}>{fmt$(p.amount)}</div>
                           </div>
                         )
                       })}
@@ -364,7 +364,7 @@ function VenuePage({ setTab }: { setTab: (t: string) => void }) {
           )
         })}
 
-        <button style={{ width: '100%', fontSize: 12, fontWeight: 600, color: '#c4788a', background: 'none', border: '1.5px dashed #e8c4ce', borderRadius: 10, padding: '12px 0', cursor: 'pointer', marginTop: 2 }}>
+        <button style={{ width: '100%', fontSize: 12, fontWeight: 600, color: '#B8926A', background: 'none', border: '1.5px dashed #E8E3DC', borderRadius: 10, padding: '12px 0', cursor: 'pointer', marginTop: 2 }}>
           + Add another venue
         </button>
       </div>
@@ -392,9 +392,9 @@ function FinancesPage() {
   return (
     <div>
       {/* Header */}
-      <div style={{ padding: '18px 16px 10px', background: '#fff', borderBottom: '1px solid #EAEAEF' }}>
+      <div style={{ padding: '18px 16px 10px', background: '#fff', borderBottom: '1px solid #E8E3DC' }}>
         <div style={{ fontSize: 22, fontWeight: 400, fontFamily: 'Georgia, serif', color: '#2c2825', marginBottom: 2 }}>Finances</div>
-        <div style={{ fontSize: 12, color: '#9a9088' }}>Payment tracking across all booked vendors</div>
+        <div style={{ fontSize: 12, color: '#A89F95' }}>Payment tracking across all booked vendors</div>
       </div>
 
       <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -402,13 +402,13 @@ function FinancesPage() {
         <div style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', boxShadow: '0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.05)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
-              <div style={{ fontSize: 10, color: '#9a9088', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Total Budget</div>
+              <div style={{ fontSize: 10, color: '#A89F95', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Total Budget</div>
               <div style={{ fontSize: 26, fontWeight: 700, color: '#2c2825', fontFamily: 'Georgia, serif', lineHeight: 1 }}>{fmt$(BUDGET)}</div>
             </div>
             {nextDue && (
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 10, color: '#9a9088', marginBottom: 2 }}>Next due</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#c4788a' }}>
+                <div style={{ fontSize: 10, color: '#A89F95', marginBottom: 2 }}>Next due</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#B8926A' }}>
                   {fmt$(nextDue.amount)} <span style={{ fontSize: 10, fontWeight: 500 }}>{fmtDate(nextDue.due_date)}</span>
                 </div>
               </div>
@@ -416,18 +416,18 @@ function FinancesPage() {
           </div>
           {/* 3-part progress bar */}
           <div style={{ height: 8, borderRadius: 4, overflow: 'hidden', display: 'flex', gap: 2, marginBottom: 10 }}>
-            <div style={{ width: `${paidPct}%`, background: '#4caf50', borderRadius: '4px 0 0 4px' }} />
-            <div style={{ width: `${schPct}%`, background: '#c4788a' }} />
-            <div style={{ flex: 1, background: '#F0F0F4', borderRadius: '0 4px 4px 0' }} />
+            <div style={{ width: `${paidPct}%`, background: '#7B8F6B', borderRadius: '4px 0 0 4px' }} />
+            <div style={{ width: `${schPct}%`, background: '#B8926A' }} />
+            <div style={{ flex: 1, background: '#E8E3DC', borderRadius: '0 4px 4px 0' }} />
           </div>
           {/* Legend */}
           <div style={{ display: 'flex', gap: 14 }}>
-            {[{ color: '#4caf50', label: 'Paid', amount: paid }, { color: '#c4788a', label: 'Scheduled', amount: scheduled }, { color: '#E0E0E6', label: 'Remaining', amount: remaining }].map(item => (
+            {[{ color: '#7B8F6B', label: 'Paid', amount: paid }, { color: '#B8926A', label: 'Scheduled', amount: scheduled }, { color: '#E8E3DC', label: 'Remaining', amount: remaining }].map(item => (
               <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <div style={{ width: 8, height: 8, borderRadius: 2, background: item.color, flexShrink: 0 }} />
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#2c2825' }}>{fmt$(item.amount)}</div>
-                  <div style={{ fontSize: 10, color: '#9a9088' }}>{item.label}</div>
+                  <div style={{ fontSize: 10, color: '#A89F95' }}>{item.label}</div>
                 </div>
               </div>
             ))}
@@ -435,36 +435,36 @@ function FinancesPage() {
         </div>
 
         {/* Alert banner — florist deposit urgent */}
-        <div style={{ border: '1px solid #fcd5d5', borderRadius: 10, padding: '12px 14px', background: '#fff5f5', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        <div style={{ border: '1px solid rgba(196,120,92,0.25)', borderRadius: 10, padding: '12px 14px', background: 'rgba(196,120,92,0.06)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
           <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>⚠️</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#c0392b', marginBottom: 2 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#C4785C', marginBottom: 2 }}>
               Payment due in {daysUntil('2026-06-07')} days
             </div>
             <div style={{ fontSize: 12, color: '#2c2825' }}><strong>$1,200</strong> · Florist Deposit for <strong>Petal &amp; Vine</strong></div>
-            <div style={{ fontSize: 11, color: '#9a9088', marginTop: 2 }}>Due June 7, 2026 · {FAMILY_B}</div>
+            <div style={{ fontSize: 11, color: '#A89F95', marginTop: 2 }}>Due June 7, 2026 · {FAMILY_B}</div>
           </div>
-          <button style={{ fontSize: 10, fontWeight: 700, border: '1px solid #c0392b', borderRadius: 7, padding: '4px 10px', color: '#c0392b', background: 'none', cursor: 'pointer', flexShrink: 0 }}>
+          <button style={{ fontSize: 10, fontWeight: 700, border: '1px solid #C4785C', borderRadius: 7, padding: '4px 10px', color: '#C4785C', background: 'none', cursor: 'pointer', flexShrink: 0 }}>
             Pay
           </button>
         </div>
 
         {/* By Family */}
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#9a9088', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>By Family</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#A89F95', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>By Family</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
             {[
               { key: 'couple', label: 'Couple', total: coupleTotal, items: BY_FAMILY.couple },
               { key: 'family_a', label: FAMILY_A, total: familyATotal, items: BY_FAMILY.family_a },
               { key: 'family_b', label: FAMILY_B, total: familyBTotal, items: BY_FAMILY.family_b },
             ].map(fam => (
-              <div key={fam.key} style={{ border: '1px solid #E8E8EC', borderRadius: 10, padding: '11px 12px', background: '#fff' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#9a9088', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{fam.label}</div>
+              <div key={fam.key} style={{ border: '1px solid #E8E3DC', borderRadius: 10, padding: '11px 12px', background: '#fff' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#A89F95', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{fam.label}</div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: '#2c2825', fontFamily: 'Georgia, serif', marginBottom: 8 }}>{fmt$(fam.total)}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {fam.items.map((item, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: i < fam.items.length - 1 ? 4 : 0, borderBottom: i < fam.items.length - 1 ? '1px solid #F0F0F4' : 'none' }}>
-                      <span style={{ fontSize: 10, color: '#666' }}>{item.label}</span>
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: i < fam.items.length - 1 ? 4 : 0, borderBottom: i < fam.items.length - 1 ? '1px solid #E8E3DC' : 'none' }}>
+                      <span style={{ fontSize: 10, color: '#A89F95' }}>{item.label}</span>
                       <span style={{ fontSize: 10, fontWeight: 600, color: '#2c2825' }}>{fmt$(item.amount)}</span>
                     </div>
                   ))}
@@ -476,31 +476,31 @@ function FinancesPage() {
 
         {/* Payment schedule */}
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#9a9088', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Payment Schedule</div>
-          <div style={{ border: '1px solid #E8E8EC', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#A89F95', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Payment Schedule</div>
+          <div style={{ border: '1px solid #E8E3DC', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
             {MOCK_PAYMENTS.map((p, i) => {
               const overdue = !p.paid_date && new Date(p.due_date) < today
               const soon = !p.paid_date && !overdue && daysUntil(p.due_date) <= 30
-              const rowBg = p.paid_date ? '#fff' : overdue ? '#fff5f5' : soon ? '#fffbf4' : '#fff'
-              const borderC = p.paid_date ? '#F0F0F4' : overdue ? '#fff0f0' : soon ? '#fef6ec' : '#F0F0F4'
+              const rowBg = p.paid_date ? '#fff' : overdue ? 'rgba(196,120,92,0.04)' : soon ? '#fffbf4' : '#fff'
+              const borderC = p.paid_date ? '#E8E3DC' : overdue ? 'rgba(196,120,92,0.15)' : soon ? '#fef6ec' : '#E8E3DC'
               const paidByLabel = p.paid_by === 'couple' ? 'Couple' : p.paid_by === 'family_a' ? FAMILY_A : FAMILY_B
               return (
                 <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: i < MOCK_PAYMENTS.length - 1 ? `1px solid ${borderC}` : 'none', background: rowBg }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#2c2825' }}>{p.label}</span>
-                      {overdue && <span style={{ fontSize: 9, color: '#c0392b', fontWeight: 700, background: '#fde8e8', padding: '1px 5px', borderRadius: 4 }}>OVERDUE</span>}
+                      {overdue && <span style={{ fontSize: 9, color: '#C4785C', fontWeight: 700, background: 'rgba(196,120,92,0.1)', padding: '1px 5px', borderRadius: 4 }}>OVERDUE</span>}
                       {soon && <span style={{ fontSize: 9, color: '#c25a00', fontWeight: 700, background: '#fef0e0', padding: '1px 5px', borderRadius: 4 }}>{daysUntil(p.due_date)}d</span>}
-                      {p.paid_date && <span style={{ fontSize: 9, color: '#2e7d32', fontWeight: 700, background: '#e8f5e9', padding: '1px 5px', borderRadius: 4 }}>PAID</span>}
+                      {p.paid_date && <span style={{ fontSize: 9, color: '#7B8F6B', fontWeight: 700, background: '#EFF4EC', padding: '1px 5px', borderRadius: 4 }}>PAID</span>}
                     </div>
-                    <div style={{ fontSize: 11, color: '#9a9088', marginTop: 1 }}>
+                    <div style={{ fontSize: 11, color: '#A89F95', marginTop: 1 }}>
                       {p.vendor_name} · {p.paid_date ? `Paid ${fmtDate(p.paid_date)}` : `Due ${fmtDate(p.due_date)}`} · {paidByLabel}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: p.paid_date ? '#4caf50' : overdue ? '#c0392b' : '#2c2825' }}>{fmt$(p.amount)}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: p.paid_date ? '#7B8F6B' : overdue ? '#C4785C' : '#2c2825' }}>{fmt$(p.amount)}</span>
                     {!p.paid_date && (
-                      <button style={{ fontSize: 10, border: `1px solid ${overdue ? '#c0392b' : '#E0E0E6'}`, borderRadius: 6, padding: '3px 8px', color: overdue ? '#c0392b' : '#888', background: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                      <button style={{ fontSize: 10, border: `1px solid ${overdue ? '#C4785C' : '#E8E3DC'}`, borderRadius: 6, padding: '3px 8px', color: overdue ? '#C4785C' : '#A89F95', background: 'none', cursor: 'pointer', fontWeight: 600 }}>
                         Pay
                       </button>
                     )}
@@ -512,7 +512,7 @@ function FinancesPage() {
         </div>
 
         <div style={{ textAlign: 'center' }}>
-          <button style={{ display: 'inline-block', border: '1.5px solid #c4788a', borderRadius: 10, padding: '9px 22px', color: '#c4788a', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: 'none' }}>
+          <button style={{ display: 'inline-block', border: '1.5px solid #B8926A', borderRadius: 10, padding: '9px 22px', color: '#B8926A', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: 'none' }}>
             + Add Payment
           </button>
         </div>

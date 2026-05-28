@@ -77,7 +77,7 @@ export default function Paywall() {
             <li>Personalized planning timeline — "are you behind?" with specifics</li>
             <li>Budget + payment tracking with family cost splitting</li>
           </ul>
-          {error && <p style={{ color: '#B91C1C', fontSize: '13px', marginBottom: '16px' }}>{error}</p>}
+          {error && <p style={{ color: '#C4785C', fontSize: '13px', marginBottom: '16px' }}>{error}</p>}
           <Button onClick={handleCheckout} disabled={loading} style={{ width: '100%' }}>
             {loading ? 'Redirecting...' : 'Get Started — $149'}
           </Button>

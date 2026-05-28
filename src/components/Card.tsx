@@ -13,8 +13,8 @@ export default function Card({ children, className = '', style, onClick }: CardP
       className={className}
       style={{
         background: 'var(--color-surface)',
-        borderRadius: '16px',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 20px rgba(0,0,0,0.07)',
+        borderRadius: '12px',
+        boxShadow: '0 1px 3px rgba(140,120,100,0.08), 0 4px 12px rgba(140,120,100,0.05)',
         padding: '24px',
         ...style,
       }}

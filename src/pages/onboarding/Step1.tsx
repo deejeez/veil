@@ -14,7 +14,7 @@ function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
             height: '3px',
             flex: 1,
             borderRadius: '2px',
-            background: n <= current ? 'var(--color-accent)' : '#E8E8EC',
+            background: n <= current ? 'var(--color-accent)' : 'var(--color-border)',
             transition: 'background 0.2s',
           }}
         />
@@ -93,7 +93,7 @@ export default function OnboardingStep1() {
           Tell us about your big day.
         </p>
 
-        {error && <p style={{ color: '#B91C1C', fontSize: '13px', marginBottom: '16px' }}>{error}</p>}
+        {error && <p style={{ color: '#C4785C', fontSize: '13px', marginBottom: '16px' }}>{error}</p>}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>

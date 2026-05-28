@@ -10,6 +10,37 @@ import type { Couple, Task } from '../types/database'
 
 const TASK_CATEGORIES = ['ceremony', 'venue', 'catering', 'vendors', 'guests', 'attire', 'decor', 'admin', 'honeymoon', 'other']
 
+const TIMELINE_PHASES = [
+  { id: '12plus', tasks: ['Set a total wedding budget', 'Choose your wedding date', 'Estimate guest count', 'Research and book your venue', 'Consider hiring a wedding planner'] },
+  { id: '9to12', tasks: ['Send save-the-dates', 'Book photographer & videographer', 'Book caterer (or confirm venue catering)', 'Book florist', 'Book band or DJ', 'Start dress / attire shopping'] },
+  { id: '6to9', tasks: ['Book officiant', 'Book hair & makeup artists', 'Book transportation', 'Start planning honeymoon', 'Finalize wedding party'] },
+  { id: '3to6', tasks: ['Send formal invitations (8–10 weeks before)', 'Register for gifts', 'Schedule menu tasting with caterer', 'Order wedding cake', 'Plan rehearsal dinner', 'Arrange accommodations for out-of-town guests'] },
+  { id: '1to3', tasks: ['Confirm all vendor bookings', 'Obtain marriage license', 'Final dress / suit fitting', 'Create seating chart', 'Write vows', 'Book honeymoon flights & hotel (if not done)'] },
+  { id: 'weekof', tasks: ['Confirm day-of timeline with all vendors', 'Final headcount to caterer', 'Pack for honeymoon', 'Prepare emergency kit (safety pins, stain pen, mints)', 'Enjoy your rehearsal dinner'] },
+]
+
+function getUpcomingTimelineTasks(weddingDate: string | null | undefined): string[] {
+  let phaseIdx = 0
+  if (weddingDate) {
+    const d = new Date(weddingDate + 'T12:00:00')
+    const diffMonths = (d.getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 30.44)
+    if (diffMonths >= 12) phaseIdx = 0
+    else if (diffMonths >= 9) phaseIdx = 1
+    else if (diffMonths >= 6) phaseIdx = 2
+    else if (diffMonths >= 3) phaseIdx = 3
+    else if (diffMonths >= 0) phaseIdx = 4
+    else phaseIdx = 5
+  }
+  const tasks: string[] = []
+  for (let i = phaseIdx; i < TIMELINE_PHASES.length && tasks.length < 3; i++) {
+    for (const t of TIMELINE_PHASES[i].tasks) {
+      tasks.push(t)
+      if (tasks.length === 3) break
+    }
+  }
+  return tasks
+}
+
 type Filter = 'pending' | 'completed' | 'all'
 
 export default function Todos() {
@@ -116,9 +147,9 @@ export default function Todos() {
             fontFamily: 'var(--font-body)',
             fontSize: '13px',
             fontWeight: filter === f ? 600 : 400,
-            background: filter === f ? 'rgba(196,120,138,0.12)' : 'transparent',
+            background: filter === f ? 'rgba(184,146,106,0.10)' : 'transparent',
             border: filter === f ? '1.5px solid var(--color-accent)' : '1.5px solid var(--color-border)',
-            borderRadius: '10px',
+            borderRadius: '8px',
             color: filter === f ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
             cursor: 'pointer',
           }}>
@@ -129,9 +160,25 @@ export default function Todos() {
 
       {/* Task list */}
       {filtered.length === 0 && (
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-secondary)', marginBottom: '16px' }}>
-          {filter === 'pending' ? 'No pending tasks — you\'re all caught up! 🎉' : 'No tasks here yet.'}
-        </p>
+        filter === 'pending' ? (
+          <div style={{ marginBottom: '16px' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
+              Nothing due right now. Coming up on your timeline:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {getUpcomingTimelineTasks(couple?.wedding_date).map((task, i) => (
+                <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '9px 12px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-accent)', flexShrink: 0 }} />
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)' }}>{task}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-secondary)', marginBottom: '16px' }}>
+            No tasks here yet.
+          </p>
+        )
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '20px' }}>
@@ -181,7 +228,7 @@ export default function Todos() {
                   {task.due_date && (
                     <span style={{
                       fontFamily: 'var(--font-body)', fontSize: '11px',
-                      color: isOverdue ? '#B91C1C' : 'var(--color-text-secondary)',
+                      color: isOverdue ? '#C4785C' : 'var(--color-text-secondary)',
                       fontWeight: isOverdue ? 600 : 400,
                     }}>
                       {isOverdue ? '⚠ ' : ''}Due {task.due_date}

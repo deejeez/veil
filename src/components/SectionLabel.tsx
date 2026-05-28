@@ -8,7 +8,7 @@ export default function SectionLabel({ children }: { children: ReactNode }) {
         fontSize: '11px',
         letterSpacing: '0.12em',
         textTransform: 'uppercase',
-        color: 'var(--color-text-secondary)',
+        color: 'var(--color-text-muted)',
         margin: '0 0 10px 0',
         fontWeight: 600,
       }}

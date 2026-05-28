@@ -3,21 +3,25 @@
 @tailwind utilities;
 
 :root {
-  --color-sidebar:        #FFFFFF;
-  --color-bg:             #F5F5F7;
+  --color-sidebar:        #F5F1EC;
+  --color-bg:             #FDFBF8;
   --color-surface:        #FFFFFF;
-  --color-border:         #E8E8EC;
-  --color-text-primary:   #1A1A2E;
-  --color-text-secondary: #72727A;
-  --color-accent:         #C4788A;
-  --color-accent-hover:   #AE6478;
-  --color-status-booked:  #4A7A5A;
-  --color-status-short:   #C4843F;
-  --color-status-none:    #9E9EA8;
-  --color-sidebar-text:   #72727A;
-  --color-sidebar-active: rgba(196,120,138,0.10);
-  --font-heading: Georgia, 'Times New Roman', serif;
-  --font-body: -apple-system, 'Inter', 'Helvetica Neue', sans-serif;
+  --color-border:         #E8E3DC;
+  --color-text-primary:   #2C2825;
+  --color-text-secondary: #7A7168;
+  --color-text-muted:     #A89F95;
+  --color-accent:         #B8926A;
+  --color-accent-hover:   #A17D55;
+  --color-status-booked:  #7B8F6B;
+  --color-status-short:   #C4785C;
+  --color-status-none:    #D4CFC8;
+  --color-sidebar-text:   #7A7168;
+  --color-sidebar-active: #EDE8E1;
+  --color-card-shadow:    0 1px 3px rgba(140,120,100,0.08), 0 4px 12px rgba(140,120,100,0.05);
+  --color-search-bg:      #F5F1EC;
+  --font-heading: 'DM Serif Display', Georgia, 'Times New Roman', serif;
+  --font-body: 'DM Sans', -apple-system, 'Helvetica Neue', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
 }
 
 body {
@@ -47,10 +51,25 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(196, 120, 138, 0.12);
+  box-shadow: 0 0 0 3px rgba(184, 146, 106, 0.15);
 }
 
 input::placeholder, textarea::placeholder {
   color: var(--color-text-secondary);
   opacity: 0.7;
+}
+
+@keyframes fadeInPage {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-fade-in {
+  animation: fadeInPage 300ms ease both;
 }
