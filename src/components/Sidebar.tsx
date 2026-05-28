@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
-type IconName = 'home' | 'tasks' | 'vendors' | 'venue' | 'budget' | 'finances' | 'timeline' | 'settings'
+type IconName = 'home' | 'tasks' | 'vendors' | 'venue' | 'guests' | 'budget' | 'finances' | 'timeline' | 'settings'
 
 function Icon({ name, size = 17 }: { name: IconName; size?: number }) {
   const p = {
@@ -28,6 +28,8 @@ function Icon({ name, size = 17 }: { name: IconName; size?: number }) {
       return <svg {...p}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
     case 'timeline':
       return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    case 'guests':
+      return <svg {...p}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
     case 'settings':
       return <svg {...p}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
     default: return null
@@ -41,6 +43,7 @@ const navItems: { to: string; label: string; icon: IconName }[] = [
   { to: '/todos',     label: 'Tasks',     icon: 'tasks' },
   { to: '/vendors',   label: 'Vendors',   icon: 'vendors' },
   { to: '/venue',     label: 'Venue',     icon: 'venue' },
+  { to: '/guests',    label: 'Guests',    icon: 'guests' },
   { to: '/budget',    label: 'Budget',    icon: 'budget' },
   { to: '/finances',  label: 'Finances',  icon: 'finances' },
   { to: '/timeline',  label: 'Timeline',  icon: 'timeline' },
@@ -56,7 +59,7 @@ export default function Sidebar() {
         width: '220px',
         flexShrink: 0,
         background: 'var(--color-sidebar)',
-        borderRight: '1px solid var(--color-border)',
+        boxShadow: '2px 0 12px rgba(140,120,100,0.06)',
         padding: '32px 16px 24px',
         height: '100vh',
         display: 'flex',
@@ -64,6 +67,7 @@ export default function Sidebar() {
         boxSizing: 'border-box',
         position: 'sticky',
         top: 0,
+        zIndex: 10,
       }}
     >
       {/* Logo */}
@@ -90,9 +94,8 @@ export default function Sidebar() {
           fontSize: '10px',
           letterSpacing: '0.1em',
           textTransform: 'uppercase',
-          color: 'var(--color-text-secondary)',
+          color: 'var(--color-text-muted)',
           margin: '5px 0 0 30px',
-          opacity: 0.7,
         }}>
           Wedding Planner
         </p>
@@ -113,7 +116,7 @@ export default function Sidebar() {
               color: isActive ? 'var(--color-accent)' : 'var(--color-sidebar-text)',
               padding: '9px 12px 9px 9px',
               borderRadius: '0 8px 8px 0',
-              background: isActive ? 'rgba(196,120,138,0.06)' : 'transparent',
+              background: isActive ? 'var(--color-sidebar-active)' : 'transparent',
               borderLeft: isActive ? '3px solid var(--color-accent)' : '3px solid transparent',
               textDecoration: 'none',
               fontFamily: 'var(--font-body)',
@@ -129,7 +132,7 @@ export default function Sidebar() {
 
       {/* Footer tag */}
       <div style={{ padding: '0 10px', borderTop: '1px solid var(--color-border)', paddingTop: '16px' }}>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', color: 'var(--color-text-secondary)', margin: 0, opacity: 0.6, letterSpacing: '0.05em' }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-muted)', margin: 0, fontStyle: 'italic', letterSpacing: '0.02em' }}>
           Made with love
         </p>
       </div>

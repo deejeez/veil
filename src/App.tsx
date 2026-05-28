@@ -14,6 +14,7 @@ import Venue from './pages/Venue'
 import Timeline from './pages/Timeline'
 import Todos from './pages/Todos'
 import Settings from './pages/Settings'
+import GuestList from './pages/GuestList'
 import AcceptInvite from './pages/AcceptInvite'
 import Demo from './pages/Demo'
 import AuthGuard from './components/AuthGuard'
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/vendors" element={<AuthGuard><PaywallGuard><Vendors /></PaywallGuard></AuthGuard>} />
         <Route path="/vendors/:category" element={<AuthGuard><PaywallGuard><VendorDetail /></PaywallGuard></AuthGuard>} />
         <Route path="/venue" element={<AuthGuard><PaywallGuard><Venue /></PaywallGuard></AuthGuard>} />
+        <Route path="/guests" element={<AuthGuard><PaywallGuard><GuestList /></PaywallGuard></AuthGuard>} />
         <Route path="/budget" element={<AuthGuard><PaywallGuard><Budget /></PaywallGuard></AuthGuard>} />
         <Route path="/finances" element={<AuthGuard><PaywallGuard><Finances /></PaywallGuard></AuthGuard>} />
         <Route path="/timeline" element={<AuthGuard><PaywallGuard><Timeline /></PaywallGuard></AuthGuard>} />

@@ -84,6 +84,7 @@ export type Contract = {
   file_path: string
   file_name: string
   uploaded_at: string
+  document_type: 'contract' | 'proposal'
   ai_review: AiReview | null
 }
 
@@ -125,6 +126,26 @@ export type Task = {
   completed: boolean
   assigned_to: string
   category: string | null
+  created_at: string
+}
+
+export type Guest = {
+  id: string
+  couple_id: string
+  name: string
+  household: string | null
+  side: 'bride' | 'groom' | 'mutual'
+  tier: 'a_list' | 'b_list'
+  plus_ones: number
+  kids: number
+  created_at: string
+}
+
+export type VendorNote = {
+  id: string
+  couple_id: string
+  vendor_id: string
+  text: string
   created_at: string
 }
 
