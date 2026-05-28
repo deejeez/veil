@@ -130,12 +130,6 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer tag */}
-      <div style={{ padding: '0 10px', borderTop: '1px solid var(--color-border)', paddingTop: '16px' }}>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-muted)', margin: 0, fontStyle: 'italic', letterSpacing: '0.02em' }}>
-          Made with love
-        </p>
-      </div>
     </div>
   )
 }
