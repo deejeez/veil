@@ -130,11 +130,13 @@ Respond with ONLY valid JSON in this exact format, no markdown:
     if (!jsonMatch) throw new Error('AI response was not valid JSON')
     const result = JSON.parse(jsonMatch[0])
 
-    await supabase.from('ai_insights').insert({
-      couple_id,
-      type: 'vendor_shortlist',
-      content: `AI shortlist for ${category} in ${location}: ${(result.vendors ?? []).map((v: { name: string }) => v.name).join(', ')}`,
-    }).catch(() => {}) // non-critical
+    try {
+      await supabase.from('ai_insights').insert({
+        couple_id,
+        type: 'vendor_shortlist',
+        content: `AI shortlist for ${category} in ${location}: ${(result.vendors ?? []).map((v: { name: string }) => v.name).join(', ')}`,
+      })
+    } catch {} // non-critical logging, don't fail the request
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
