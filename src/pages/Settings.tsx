@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import Button from '../components/Button'
 import { supabase } from '../lib/supabase'
@@ -6,6 +7,7 @@ import { getCoupleForUser, updateCouple } from '../lib/couple'
 import type { Couple } from '../types/database'
 
 export default function Settings() {
+  const navigate = useNavigate()
   const [couple, setCouple] = useState<Couple | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -13,6 +15,11 @@ export default function Settings() {
   const [partnerEmail, setPartnerEmail] = useState('')
   const [inviting, setInviting] = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState(false)
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    navigate('/login')
+  }
 
   const [form, setForm] = useState({
     name_primary: '',
@@ -320,6 +327,32 @@ export default function Settings() {
               ✓ Saved
             </div>
           )}
+        </div>
+
+        {/* Account */}
+        <div style={{ border: '1px solid var(--color-border)', borderRadius: '12px', padding: '18px 20px', background: '#fff' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
+            Account
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '14px' }}>
+            Sign out of your account on this device.
+          </div>
+          <button
+            onClick={handleLogout}
+            style={{
+              background: 'none',
+              border: '1px solid #D9C8B8',
+              borderRadius: '8px',
+              padding: '8px 16px',
+              fontSize: '13px',
+              color: '#8B4A3A',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-body)',
+              fontWeight: 500,
+            }}
+          >
+            Sign out
+          </button>
         </div>
 
       </div>
