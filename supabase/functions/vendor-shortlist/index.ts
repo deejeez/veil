@@ -1,4 +1,4 @@
-import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27?target=deno'
+import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.36?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => null)
     if (!body?.couple_id || !body?.category) {
-      return new Response(JSON.stringify({ error: 'couple_id and category are required' }), {
+      return new Response(JSON.stringify({ message: 'couple_id and category are required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      return new Response(JSON.stringify({ message: 'Unauthorized' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
       authHeader.replace('Bearer ', '')
     )
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      return new Response(JSON.stringify({ message: 'Unauthorized' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -65,13 +65,13 @@ Deno.serve(async (req) => {
       .single()
 
     if (couple?.user_id_primary !== user.id && couple?.user_id_partner !== user.id) {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+      return new Response(JSON.stringify({ message: 'Forbidden' }), {
         status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     if (!couple?.city) {
-      return new Response(JSON.stringify({ error: 'Please set your city in your profile first before getting vendor suggestions.' }), {
+      return new Response(JSON.stringify({ message: 'Please set your city in your profile first before getting vendor suggestions.' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
       : 'No vibe profile specified'
 
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 1024,
       messages: [{
         role: 'user',
@@ -141,7 +141,7 @@ Respond with ONLY valid JSON in this exact format, no markdown:
     })
   } catch (err) {
     console.error('vendor-shortlist error:', err)
-    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), {
+    return new Response(JSON.stringify({ message: err instanceof Error ? err.message : String(err) }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }

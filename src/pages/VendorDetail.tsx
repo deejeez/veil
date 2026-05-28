@@ -187,7 +187,17 @@ export default function VendorDetail() {
         body: { couple_id: couple.id, category },
       })
       if (fnError) {
-        const msg = (data as { error?: string } | null)?.error || fnError.message || "Couldn't generate suggestions"
+        let msg = "Couldn't generate suggestions"
+        try {
+          // Supabase SDK v2: FunctionsHttpError stores the Response on .context
+          const errBody = await (fnError as { context?: Response }).context?.json?.()
+          msg = (errBody as { message?: string; error?: string })?.message
+            || (errBody as { message?: string; error?: string })?.error
+            || fnError.message
+            || msg
+        } catch {
+          msg = fnError.message || msg
+        }
         setShortlistError(msg)
         return
       }
