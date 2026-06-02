@@ -121,7 +121,7 @@ export default function OnboardingStep1() {
           When's the big day?
         </h1>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '15px', color: 'var(--color-text-secondary)', margin: '0 0 36px 0' }}>
-          We'll build your planning timeline around your date.
+          Everything starts here. Your date drives your timeline, vendor availability, and what we'll nudge you about.
         </p>
 
         {/* Exact date */}

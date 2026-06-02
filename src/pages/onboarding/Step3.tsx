@@ -98,15 +98,15 @@ export default function OnboardingStep3() {
           Step 3 of 3
         </p>
         <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '32px', fontWeight: 400, color: 'var(--color-text-primary)', margin: '0 0 8px 0', lineHeight: 1.2 }}>
-          A few more details
+          Almost there
         </h1>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '15px', color: 'var(--color-text-secondary)', margin: '0 0 36px 0' }}>
-          Optional — you can always update these in Settings.
+          These help us give you smarter recommendations. You can always change them later.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '32px' }}>
           <div>
-            <label style={labelStyle}>Approximate guest count</label>
+            <label style={labelStyle}>How many guests (roughly)</label>
             <input
               type="number"
               placeholder="e.g. 150"
@@ -164,7 +164,7 @@ export default function OnboardingStep3() {
             opacity: saving ? 0.6 : 1,
           }}
         >
-          {saving ? 'Saving...' : 'Start Planning →'}
+          {saving ? 'Saving...' : "Let's Go →"}
         </button>
 
         <div style={{ textAlign: 'center' }}>

@@ -50,7 +50,7 @@ export default function PaymentSuccess() {
           color: 'var(--color-text-primary)',
           marginBottom: '12px',
         }}>
-          Welcome to Veil
+          You're in!
         </h1>
 
         <p style={{
@@ -60,7 +60,7 @@ export default function PaymentSuccess() {
           lineHeight: 1.7,
           marginBottom: '40px',
         }}>
-          Payment confirmed. Let's get your planner set up — takes about two minutes.
+          Let's set up your wedding planner. Just a couple of quick questions so we can start helping right away.
         </p>
 
         <Button onClick={() => navigate('/onboarding/1')} style={{ width: '100%' }}>
