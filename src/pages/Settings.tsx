@@ -6,6 +6,15 @@ import { supabase } from '../lib/supabase'
 import { getCoupleForUser, updateCouple } from '../lib/couple'
 import type { Couple } from '../types/database'
 
+const BUDGET_RANGES = [
+  { value: 'under_50k',  label: 'Under $50,000' },
+  { value: '50k_100k',   label: '$50,000 – $100,000' },
+  { value: '100k_150k',  label: '$100,000 – $150,000' },
+  { value: '150k_200k',  label: '$150,000 – $200,000' },
+  { value: '200k_300k',  label: '$200,000 – $300,000' },
+  { value: 'over_300k',  label: 'Over $300,000' },
+] as const
+
 export default function Settings() {
   const navigate = useNavigate()
   const [couple, setCouple] = useState<Couple | null>(null)
@@ -29,6 +38,8 @@ export default function Settings() {
     city: '',
     state: '',
     budget_total: '',
+    guest_count: '',
+    budget_range: '',
     family_a_name: '',
     family_b_name: '',
   })
@@ -48,6 +59,8 @@ export default function Settings() {
         city: c.city ?? '',
         state: c.state ?? '',
         budget_total: c.budget_total != null ? c.budget_total.toLocaleString() : '',
+        guest_count: c.guest_count != null ? String(c.guest_count) : '',
+        budget_range: c.budget_range ?? '',
         family_a_name: c.family_a_name ?? '',
         family_b_name: c.family_b_name ?? '',
       })
@@ -71,6 +84,8 @@ export default function Settings() {
         city: form.city || null,
         state: form.state || null,
         budget_total: form.budget_total ? Number(form.budget_total.replace(/,/g, '')) : null,
+        guest_count: form.guest_count ? Number(form.guest_count) : null,
+        budget_range: form.budget_range || null,
         family_a_name: form.family_a_name || null,
         family_b_name: form.family_b_name || null,
       })
@@ -134,7 +149,7 @@ export default function Settings() {
           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '14px' }}>
             First names shown on your dashboard — "Marco & Sarah"
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[12px]">
             <div>
               <label style={labelStyle}>Your first name</label>
               <input
@@ -199,11 +214,20 @@ export default function Settings() {
 
         {/* Wedding details */}
         <div style={{ border: '1px solid var(--color-border)', borderRadius: '12px', padding: '18px 20px', background: '#fff' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '14px' }}>
-            Wedding Details
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              Wedding Details
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/onboarding/1')}
+              style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--color-accent)', cursor: 'pointer', fontFamily: 'var(--font-body)', padding: 0, fontWeight: 500 }}
+            >
+              Re-run Setup →
+            </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[12px]">
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={labelStyle}>Venue Name</label>
               <input
@@ -254,6 +278,33 @@ export default function Settings() {
                 style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
               />
             </div>
+
+            <div>
+              <label style={labelStyle}>Approximate Guest Count</label>
+              <input
+                type="number"
+                value={form.guest_count}
+                onChange={e => setForm(f => ({ ...f, guest_count: e.target.value }))}
+                placeholder="e.g. 150"
+                min="1"
+                max="2000"
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Total Budget Range</label>
+              <select
+                value={form.budget_range}
+                onChange={e => setForm(f => ({ ...f, budget_range: e.target.value }))}
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+              >
+                <option value="">Select a range...</option>
+                {BUDGET_RANGES.map(r => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -266,7 +317,7 @@ export default function Settings() {
             Name each side of the family. These labels appear when recording payments.
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[12px]" style={{ marginBottom: '16px' }}>
             <div>
               <label style={labelStyle}>Family A</label>
               <input

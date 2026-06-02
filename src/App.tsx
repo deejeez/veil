@@ -15,10 +15,12 @@ import Timeline from './pages/Timeline'
 import Todos from './pages/Todos'
 import Settings from './pages/Settings'
 import GuestList from './pages/GuestList'
+import PaymentSuccess from './pages/PaymentSuccess'
 import AcceptInvite from './pages/AcceptInvite'
 import Demo from './pages/Demo'
 import AuthGuard from './components/AuthGuard'
 import PaywallGuard from './components/PaywallGuard'
+import OnboardingGuard from './components/OnboardingGuard'
 
 export default function App() {
   return (
@@ -27,19 +29,20 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/paywall" element={<AuthGuard><Paywall /></AuthGuard>} />
-        <Route path="/onboarding/1" element={<AuthGuard><OnboardingStep1 /></AuthGuard>} />
-        <Route path="/onboarding/2" element={<AuthGuard><OnboardingStep2 /></AuthGuard>} />
-        <Route path="/onboarding/3" element={<AuthGuard><OnboardingStep3 /></AuthGuard>} />
-        <Route path="/" element={<AuthGuard><PaywallGuard><Dashboard /></PaywallGuard></AuthGuard>} />
-        <Route path="/vendors" element={<AuthGuard><PaywallGuard><Vendors /></PaywallGuard></AuthGuard>} />
-        <Route path="/vendors/:category" element={<AuthGuard><PaywallGuard><VendorDetail /></PaywallGuard></AuthGuard>} />
-        <Route path="/venue" element={<AuthGuard><PaywallGuard><Venue /></PaywallGuard></AuthGuard>} />
-        <Route path="/guests" element={<AuthGuard><PaywallGuard><GuestList /></PaywallGuard></AuthGuard>} />
-        <Route path="/budget" element={<AuthGuard><PaywallGuard><Budget /></PaywallGuard></AuthGuard>} />
-        <Route path="/finances" element={<AuthGuard><PaywallGuard><Finances /></PaywallGuard></AuthGuard>} />
-        <Route path="/timeline" element={<AuthGuard><PaywallGuard><Timeline /></PaywallGuard></AuthGuard>} />
-        <Route path="/todos" element={<AuthGuard><PaywallGuard><Todos /></PaywallGuard></AuthGuard>} />
-        <Route path="/settings" element={<AuthGuard><PaywallGuard><Settings /></PaywallGuard></AuthGuard>} />
+        <Route path="/onboarding/1" element={<AuthGuard><PaywallGuard><OnboardingStep1 /></PaywallGuard></AuthGuard>} />
+        <Route path="/onboarding/2" element={<AuthGuard><PaywallGuard><OnboardingStep2 /></PaywallGuard></AuthGuard>} />
+        <Route path="/onboarding/3" element={<AuthGuard><PaywallGuard><OnboardingStep3 /></PaywallGuard></AuthGuard>} />
+        <Route path="/payment-success" element={<AuthGuard><PaymentSuccess /></AuthGuard>} />
+        <Route path="/" element={<AuthGuard><PaywallGuard><OnboardingGuard><Dashboard /></OnboardingGuard></PaywallGuard></AuthGuard>} />
+        <Route path="/vendors" element={<AuthGuard><PaywallGuard><OnboardingGuard><Vendors /></OnboardingGuard></PaywallGuard></AuthGuard>} />
+        <Route path="/vendors/:category" element={<AuthGuard><PaywallGuard><OnboardingGuard><VendorDetail /></OnboardingGuard></PaywallGuard></AuthGuard>} />
+        <Route path="/venue" element={<AuthGuard><PaywallGuard><OnboardingGuard><Venue /></OnboardingGuard></PaywallGuard></AuthGuard>} />
+        <Route path="/guests" element={<AuthGuard><PaywallGuard><OnboardingGuard><GuestList /></OnboardingGuard></PaywallGuard></AuthGuard>} />
+        <Route path="/budget" element={<AuthGuard><PaywallGuard><OnboardingGuard><Budget /></OnboardingGuard></PaywallGuard></AuthGuard>} />
+        <Route path="/finances" element={<AuthGuard><PaywallGuard><OnboardingGuard><Finances /></OnboardingGuard></PaywallGuard></AuthGuard>} />
+        <Route path="/timeline" element={<AuthGuard><PaywallGuard><OnboardingGuard><Timeline /></OnboardingGuard></PaywallGuard></AuthGuard>} />
+        <Route path="/todos" element={<AuthGuard><PaywallGuard><OnboardingGuard><Todos /></OnboardingGuard></PaywallGuard></AuthGuard>} />
+        <Route path="/settings" element={<AuthGuard><PaywallGuard><OnboardingGuard><Settings /></OnboardingGuard></PaywallGuard></AuthGuard>} />
         <Route path="/demo" element={<Demo />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
         <Route path="*" element={<Navigate to="/" replace />} />

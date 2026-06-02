@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { MultiSegmentRing } from '../components/MultiSegmentRing'
+import AiAdvisorCard from '../components/AiAdvisorCard'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, seedDefaultVendorCategories } from '../lib/vendors'
@@ -125,8 +126,9 @@ function generateActionCards(
   // Venue
   if (has('venue') && !isBooked('venue')) {
     const inProg = isInProgress('venue')
+    const coldStart = localStorage.getItem('veil_onboarding_booked') === '[]'
     cards.push({
-      priority: days < 300 ? 'urgent' : days < 450 ? 'important' : 'suggested',
+      priority: days < 300 ? 'urgent' : days < 450 ? 'important' : coldStart ? 'important' : 'suggested',
       title: inProg ? 'Lock in your venue' : 'Start your venue search',
       context: days < 270
         ? 'At this stage, venue availability is tight. If you have candidates, book now.'
@@ -477,6 +479,9 @@ export default function Dashboard() {
   const [partnerEmail, setPartnerEmail]   = useState('')
   const [inviting, setInviting]           = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState(false)
+  const [setupDismissed, setSetupDismissed] = useState(
+    () => localStorage.getItem('veil_setup_card_dismissed') === '1'
+  )
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -603,17 +608,61 @@ export default function Dashboard() {
             {daysUntil} days to go
           </p>
         )}
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5, maxWidth: '560px' }}>
-          {contextualStatus}
-        </p>
+        <AiAdvisorCard text={contextualStatus} />
       </div>
+
+      {/* ── Setup card ─────────────────────────────────────────────── */}
+      {couple && !setupDismissed && (!couple.guest_count || !couple.budget_range) && (
+        <div style={{
+          background: '#FBF6F0',
+          border: '1px solid var(--color-border)',
+          borderLeft: '4px solid var(--color-accent)',
+          borderRadius: '10px',
+          padding: '14px 18px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+        }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px 0' }}>
+              Complete your setup
+            </p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>
+              Still missing:{' '}
+              {[
+                !couple.guest_count && 'guest count',
+                !couple.budget_range && 'budget range',
+              ].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/settings')}
+            style={{
+              fontFamily: 'var(--font-body)', fontSize: '12px', fontWeight: 600,
+              color: 'var(--color-accent)', background: 'rgba(200,169,110,0.12)',
+              border: '1px solid rgba(200,169,110,0.3)', borderRadius: '8px',
+              padding: '6px 14px', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            Complete Setup →
+          </button>
+          <button
+            onClick={() => { setSetupDismissed(true); localStorage.setItem('veil_setup_card_dismissed', '1') }}
+            style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', fontSize: '18px', cursor: 'pointer', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* ── Action cards ───────────────────────────────────────────── */}
       <div style={{ marginBottom: '20px' }}>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '16px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 12px 0' }}>
           This week
         </p>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div className="flex flex-col gap-3 sm:flex-row">
           {actionCards.map((card, i) => (
             <ActionCardView key={i} card={card} navigate={navigate} />
           ))}
@@ -621,7 +670,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Compact stats row ──────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+      <div className="grid grid-cols-2 sm:flex gap-[10px]" style={{ marginBottom: '20px' }}>
         <CompactStatCard
           label="Budget"
           value={couple?.budget_total ? `$${(couple.budget_total / 1000).toFixed(0)}K` : '—'}
@@ -653,7 +702,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Budget breakdown + upcoming payments ───────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '14px', marginBottom: '20px' }}>
+      <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] gap-[14px]" style={{ marginBottom: '20px' }}>
         <BudgetBreakdownCard vendors={vendors} categoryLabels={categoryLabels} />
         <UpcomingPaymentsCard payments={payments} navigate={navigate} />
       </div>

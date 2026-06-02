@@ -1,15 +1,23 @@
-import { type CSSProperties, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { getCoupleForUser, updateCouple } from '../../lib/couple'
-import { type VibeProfile } from '../../types/database'
-import Button from '../../components/Button'
+import { getCoupleForUser } from '../../lib/couple'
+import { upsertVendor } from '../../lib/vendors'
 
-const VIBE_WORDS = ['moody', 'airy', 'classic', 'wild', 'intimate', 'grand', 'playful', 'timeless', 'bold', 'soft']
+const VENDOR_TILES = [
+  { category: 'venue',          emoji: '🏛️',  label: 'Venue' },
+  { category: 'photographer',   emoji: '📷',  label: 'Photographer' },
+  { category: 'videographer',   emoji: '🎬',  label: 'Videographer' },
+  { category: 'caterer',        emoji: '🍽️',  label: 'Caterer' },
+  { category: 'florist',        emoji: '💐',  label: 'Florist' },
+  { category: 'band_dj',        emoji: '🎶',  label: 'DJ / Band' },
+  { category: 'wedding_planner',emoji: '📋',  label: 'Wedding Planner' },
+  { category: 'officiant',      emoji: '💍',  label: 'Officiant' },
+] as const
 
 function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
   return (
-    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '32px' }}>
+    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '40px' }}>
       {[1, 2, 3].map(n => (
         <div
           key={n}
@@ -27,151 +35,199 @@ function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
 }
 
 export default function OnboardingStep2() {
-  const [aesthetic, setAesthetic] = useState<VibeProfile['aesthetic']>('romantic')
-  const [formality, setFormality] = useState<VibeProfile['formality']>('cocktail')
-  const [setting, setSetting] = useState<VibeProfile['setting']>('ballroom')
-  const [vibeWords, setVibeWords] = useState<string[]>([])
-  const [musicStyle, setMusicStyle] = useState<VibeProfile['music_style']>('live_band')
-  const [priority, setPriority] = useState<VibeProfile['priority']>('photography')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
+  const [coupleId, setCoupleId] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [saving, setSaving] = useState(false)
 
-  function toggleVibeWord(word: string) {
-    setVibeWords(prev =>
-      prev.includes(word)
-        ? prev.filter(w => w !== word)
-        : prev.length < 3 ? [...prev, word] : prev
-    )
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const couple = await getCoupleForUser(user.id)
+      if (!couple) return
+      setCoupleId(couple.id)
+    }
+    load()
+  }, [])
+
+  function toggle(category: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(category)) next.delete(category)
+      else next.add(category)
+      return next
+    })
   }
 
-  const selectStyle = (value: string, selected: string): CSSProperties => ({
-    padding: '10px 16px',
-    border: value === selected ? '1.5px solid var(--color-accent)' : '1.5px solid var(--color-border)',
-    borderRadius: '10px',
-    background: value === selected ? 'rgba(200,169,110,0.12)' : 'var(--color-surface)',
-    color: value === selected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-    fontFamily: 'var(--font-body)',
-    fontSize: '14px',
-    cursor: 'pointer',
-    fontWeight: value === selected ? 500 : 400,
-    transition: 'all 0.12s',
-    width: 'auto',
-    boxSizing: 'border-box' as const,
-  })
-
-  async function handleSubmit() {
-    if (vibeWords.length < 3) { setError('Pick 3 vibe words'); return }
-    setError(null)
-    setLoading(true)
+  async function handleNext() {
+    if (!coupleId || saving) return
+    setSaving(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not signed in')
-      const couple = await getCoupleForUser(user.id)
-      if (!couple) throw new Error('Couple not found')
-
-      const vibeProfile: VibeProfile = { aesthetic, formality, setting, vibe_words: vibeWords, music_style: musicStyle, priority }
-      await updateCouple(couple.id, { vibe_profile: vibeProfile })
+      // Create booked vendor records for selected tiles
+      const selectedCategories = Array.from(selected)
+      await Promise.all(
+        selectedCategories.map(category => {
+          const tile = VENDOR_TILES.find(t => t.category === category)
+          return upsertVendor({
+            couple_id: coupleId,
+            category,
+            name: tile?.label ?? null,
+            status: 'booked',
+          })
+        })
+      )
+      // Store selected categories in localStorage for dashboard cold-start
+      localStorage.setItem('veil_onboarding_booked', JSON.stringify(selectedCategories))
       navigate('/onboarding/3')
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : ((err as { message?: string }).message ?? 'Failed to save'))
+    } catch {
+      alert('Something went wrong. Please try again.')
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
-  const labelStyle: CSSProperties = {
-    fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.1em',
-    textTransform: 'uppercase', color: 'var(--color-text-secondary)',
-    display: 'block', marginBottom: '8px', marginTop: '20px',
+  async function handleSkip() {
+    localStorage.setItem('veil_onboarding_booked', JSON.stringify([]))
+    navigate('/onboarding/3')
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', padding: '48px 24px' }}>
-      <div style={{ maxWidth: '580px', margin: '0 auto' }}>
-        <p style={{
-          fontFamily: 'var(--font-heading)',
-          fontSize: '20px',
-          letterSpacing: '0.08em',
-          color: 'var(--color-accent)',
-          margin: '0 0 32px 0',
-          lineHeight: 1,
-        }}>
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--color-bg)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '40px 24px',
+    }}>
+      {/* Logo */}
+      <div style={{ position: 'fixed', top: 24, left: 28 }}>
+        <span style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', color: 'var(--color-accent)', letterSpacing: '0.02em' }}>
           Veil
-        </p>
+        </span>
+      </div>
 
+      <div style={{ width: '100%', maxWidth: '520px' }}>
         <StepIndicator current={2} />
 
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', margin: '0 0 8px 0' }}>
           Step 2 of 3
         </p>
-        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '34px', marginBottom: '4px', fontWeight: 400 }}>
-          Your vibe
-        </h2>
-        <p style={{ color: 'var(--color-text-secondary)', fontSize: '14px', marginBottom: '24px' }}>
-          This shapes every AI recommendation you get.
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '32px', fontWeight: 400, color: 'var(--color-text-primary)', margin: '0 0 8px 0', lineHeight: 1.2 }}>
+          What have you already locked in?
+        </h1>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '15px', color: 'var(--color-text-secondary)', margin: '0 0 32px 0' }}>
+          Select everything you've already booked. We'll focus your planning on what's left.
         </p>
 
-        {error && <p style={{ color: '#C4785C', fontSize: '13px', marginBottom: '16px' }}>{error}</p>}
-
-        <label style={labelStyle}>Aesthetic</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-          {(['romantic', 'modern', 'rustic', 'industrial', 'maximalist', 'minimalist'] as const).map(a => (
-            <button key={a} onClick={() => setAesthetic(a)} style={selectStyle(a, aesthetic)}>
-              {a.charAt(0).toUpperCase() + a.slice(1)}
-            </button>
-          ))}
+        {/* Tile grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '12px',
+          marginBottom: '32px',
+        }}>
+          {VENDOR_TILES.map(tile => {
+            const isSelected = selected.has(tile.category)
+            return (
+              <button
+                key={tile.category}
+                type="button"
+                onClick={() => toggle(tile.category)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '20px 12px',
+                  borderRadius: '12px',
+                  border: `2px solid ${isSelected ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                  background: isSelected ? 'rgba(184,146,106,0.08)' : 'var(--color-surface)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  position: 'relative',
+                  fontFamily: 'var(--font-body)',
+                }}
+              >
+                {/* Checkmark badge */}
+                {isSelected && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    background: 'var(--color-accent)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                )}
+                <span style={{ fontSize: '28px', lineHeight: 1 }}>{tile.emoji}</span>
+                <span style={{
+                  fontSize: '13px',
+                  fontWeight: isSelected ? 600 : 400,
+                  color: isSelected ? 'var(--color-accent)' : 'var(--color-text-primary)',
+                  textAlign: 'center',
+                  lineHeight: 1.3,
+                }}>
+                  {tile.label}
+                </span>
+              </button>
+            )
+          })}
         </div>
 
-        <label style={labelStyle}>Formality</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-          {(['black_tie', 'cocktail', 'garden_party', 'casual'] as const).map(f => (
-            <button key={f} onClick={() => setFormality(f)} style={selectStyle(f, formality)}>
-              {f.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-            </button>
-          ))}
-        </div>
+        {/* CTA */}
+        <button
+          type="button"
+          onClick={handleNext}
+          disabled={saving}
+          style={{
+            width: '100%',
+            padding: '16px',
+            borderRadius: '12px',
+            border: 'none',
+            background: 'var(--color-accent)',
+            color: '#fff',
+            fontSize: '15px',
+            fontWeight: 600,
+            fontFamily: 'var(--font-body)',
+            cursor: 'pointer',
+            marginBottom: '16px',
+            transition: 'opacity 0.15s',
+            opacity: saving ? 0.6 : 1,
+          }}
+        >
+          {saving ? 'Saving...' : 'Next →'}
+        </button>
 
-        <label style={labelStyle}>Setting</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-          {(['urban_venue', 'countryside', 'beach', 'ballroom', 'restaurant'] as const).map(s => (
-            <button key={s} onClick={() => setSetting(s)} style={selectStyle(s, setting)}>
-              {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-            </button>
-          ))}
+        <div style={{ textAlign: 'center' }}>
+          <button
+            type="button"
+            onClick={handleSkip}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-text-muted)',
+              fontSize: '13px',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-body)',
+              textDecoration: 'underline',
+              padding: '4px 8px',
+            }}
+          >
+            Nothing booked yet — skip for now
+          </button>
         </div>
-
-        <label style={labelStyle}>Vibe Words — pick 3 ({vibeWords.length}/3)</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-          {VIBE_WORDS.map(word => (
-            <button key={word} onClick={() => toggleVibeWord(word)}
-              style={selectStyle(word, vibeWords.includes(word) ? word : '')}>
-              {word}
-            </button>
-          ))}
-        </div>
-
-        <label style={labelStyle}>Music Style</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-          {(['live_band', 'dj', 'acoustic', 'classical', 'mixed'] as const).map(m => (
-            <button key={m} onClick={() => setMusicStyle(m)} style={selectStyle(m, musicStyle)}>
-              {m.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-            </button>
-          ))}
-        </div>
-
-        <label style={labelStyle}>What matters most</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-          {(['food', 'photography', 'flowers', 'music', 'decor'] as const).map(p => (
-            <button key={p} onClick={() => setPriority(p)} style={selectStyle(p, priority)}>
-              {p.charAt(0).toUpperCase() + p.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        <Button onClick={handleSubmit} disabled={loading} style={{ marginTop: '32px', width: '100%' }}>
-          {loading ? 'Saving...' : 'Continue'}
-        </Button>
       </div>
     </div>
   )

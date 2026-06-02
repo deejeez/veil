@@ -28,6 +28,11 @@ export type Couple = {
   family_b_name: string | null
   name_primary: string | null
   name_partner: string | null
+  onboarding_complete: boolean
+  guest_count: number | null
+  target_season: 'spring' | 'summer' | 'fall' | 'winter' | null
+  target_year: number | null
+  budget_range: string | null
 }
 
 export type Vendor = {
