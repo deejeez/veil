@@ -11,6 +11,7 @@ import type { AiReview, AiReviewFlag, Payment } from '../types/database'
 import { track } from '../lib/analytics'
 import { getPaymentsForVendor, insertPayment, markPaymentPaid, deletePayment } from '../lib/payments'
 import { getVendorNotes, addVendorNote, deleteVendorNote } from '../lib/vendorNotes'
+import GlowBorder from '../components/GlowBorder'
 
 // ─── Design helpers ───────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ export default function VendorDetail() {
   const [editForm, setEditForm] = useState<Partial<Vendor>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [shortlist, setShortlist] = useState<{ name: string; address: string; website?: string; reason: string }[]>([])
+  const [shortlist, setShortlist] = useState<{ name: string; address: string; website?: string; style?: string; price_range?: string; why_fit?: string }[]>([])
   const [shortlistLoading, setShortlistLoading] = useState(false)
   const [shortlistError, setShortlistError] = useState<string | null>(null)
   const [shortlistExpanded, setShortlistExpanded] = useState(false)
@@ -65,6 +66,20 @@ export default function VendorDetail() {
   const [newVendorPayment, setNewVendorPayment] = useState({ label: '', amount: '', due_date: '', paid_by: 'couple' })
   const [savingVendorPayment, setSavingVendorPayment] = useState(false)
   const [categoryLabel, setCategoryLabel] = useState<string>(category ?? '')
+  const [suggestedHistory, setSuggestedHistory] = useState<string[]>([])
+  const [toast, setToast] = useState<{ message: string; vendorId: string } | null>(null)
+  const [toastVisible, setToastVisible] = useState(false)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function showToast(message: string, vendorId: string) {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setToast({ message, vendorId })
+    setToastVisible(true)
+    toastTimerRef.current = setTimeout(() => {
+      setToastVisible(false)
+      setTimeout(() => setToast(null), 300)
+    }, 5000)
+  }
 
   async function load() {
     try {
@@ -183,8 +198,14 @@ export default function VendorDetail() {
     setShortlistLoading(true)
     setShortlistError(null)
     try {
+      const excludeNames = vendors.map(v => v.name)
       const { data, error: fnError } = await supabase.functions.invoke('vendor-shortlist', {
-        body: { couple_id: couple.id, category },
+        body: {
+          couple_id: couple.id,
+          category,
+          exclude_names: excludeNames,
+          previously_suggested: suggestedHistory,
+        },
       })
       if (fnError) {
         let msg = "Couldn't generate suggestions"
@@ -201,12 +222,13 @@ export default function VendorDetail() {
         setShortlistError(msg)
         return
       }
-      const vendors = (data as { vendors?: typeof shortlist })?.vendors ?? []
-      if (vendors.length === 0) {
+      const newVendors = (data as { vendors?: typeof shortlist })?.vendors ?? []
+      if (newVendors.length === 0) {
         setShortlistError('No suggestions found for your location. Make sure your city is set in your profile.')
         return
       }
-      setShortlist(vendors)
+      setSuggestedHistory(prev => [...prev, ...newVendors.map(v => v.name)])
+      setShortlist(newVendors)
       setShortlistExpanded(true)
       track('shortlist_generated', { category })
     } catch (err: unknown) {
@@ -341,11 +363,11 @@ export default function VendorDetail() {
 
   // ─── Derived ─────────────────────────────────────────────────────────────────
 
-  const booked    = vendors.filter(v => v.status === 'booked')
-  const inProgress = vendors.filter(v => ['researching', 'shortlisted', 'meeting_scheduled'].includes(v.status))
-  const notStarted = vendors.filter(v => v.status === 'not_started')
-  const eliminated = vendors.filter(v => v.status === 'eliminated')
-  const visible   = vendors.filter(v => v.status !== 'eliminated')
+  const booked    = vendors.filter(v => v.status === 'booked' && v.name)
+  const inProgress = vendors.filter(v => ['researching', 'shortlisted', 'meeting_scheduled'].includes(v.status) && v.name)
+  const notStarted = vendors.filter(v => v.status === 'not_started' && v.name)
+  const eliminated = vendors.filter(v => v.status === 'eliminated' && v.name)
+  const visible   = vendors.filter(v => v.status !== 'eliminated' && v.name)
 
   const familyAName = couple?.family_a_name || 'Family A'
   const familyBName = couple?.family_b_name || 'Family B'
@@ -402,7 +424,7 @@ export default function VendorDetail() {
 
         {addingPaymentFor === vendor.id ? (
           <div style={{ marginTop: '8px', padding: '10px 12px', border: '1px solid var(--color-border)', borderRadius: '8px', background: '#fff' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]" style={{ marginBottom: '10px' }}>
               <div>
                 <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Label</label>
                 <input placeholder="Deposit" value={newVendorPayment.label} onChange={e => setNewVendorPayment(f => ({ ...f, label: e.target.value }))} style={{ display: 'block', fontSize: '12px' }} />
@@ -634,6 +656,42 @@ export default function VendorDetail() {
 
   return (
     <AppShell>
+      <style>{`
+        @keyframes shimmerSweep {
+          0% { left: -75%; }
+          100% { left: 125%; }
+        }
+        @keyframes aiLabelShimmer {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+        .ai-shortlist-btn {
+          position: relative;
+          overflow: hidden;
+        }
+        .ai-shortlist-btn::after {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -75%;
+          width: 50%;
+          height: 200%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+          transform: skewX(-20deg);
+          pointer-events: none;
+        }
+        .ai-shortlist-btn:not(:disabled):hover::after {
+          animation: shimmerSweep 0.6s ease-out;
+        }
+        .ai-label-shimmer {
+          background: linear-gradient(90deg, #B8926A, #C4785C, #D4A574, #B8926A);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: aiLabelShimmer 4s ease infinite;
+        }
+      `}</style>
       {/* Back */}
       <button
         onClick={() => navigate('/vendors')}
@@ -677,29 +735,32 @@ export default function VendorDetail() {
         </button>
       </div>
 
-      {/* AI Shortlist CTA — dark card, prominent */}
-      <div style={{ borderRadius: '12px', background: 'linear-gradient(135deg, #2c2825 0%, #3d3330 100%)', padding: '14px 18px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '3px', fontWeight: 600 }}>
-            AI Advisor
+      {/* AI Shortlist CTA */}
+      <GlowBorder style={{ marginBottom: '16px' }}>
+        <div style={{ position: 'relative', zIndex: 1, borderRadius: '12px', background: '#F5F1EC', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ flex: 1 }}>
+            <div className="ai-label-shimmer" style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '3px', fontWeight: 600 }}>
+              AI Advisor
+            </div>
+            <div style={{ fontSize: '13px', color: '#2C2825', fontWeight: 500, lineHeight: 1.4 }}>
+              {shortlistLoading
+                ? 'Finding the best vendors in your area...'
+                : shortlist.length > 0
+                  ? `${shortlist.length} suggestions ready — ranked for your vibe`
+                  : 'Get 4–6 vendors ranked against your wedding vibe profile'}
+            </div>
+            {shortlistError && <div style={{ fontSize: '12px', color: '#C4785C', marginTop: '4px' }}>{shortlistError}</div>}
           </div>
-          <div style={{ fontSize: '13px', color: '#fff', fontWeight: 500, lineHeight: 1.4 }}>
-            {shortlistLoading
-              ? 'Finding the best vendors in your area...'
-              : shortlist.length > 0
-                ? `${shortlist.length} suggestions ready — ranked for your vibe`
-                : 'Get 4–6 vendors ranked against your wedding vibe profile'}
-          </div>
-          {shortlistError && <div style={{ fontSize: '12px', color: '#fca5a5', marginTop: '4px' }}>{shortlistError}</div>}
+          <button
+            className="ai-shortlist-btn"
+            onClick={handleGetShortlist}
+            disabled={shortlistLoading}
+            style={{ fontSize: '12px', fontWeight: 600, padding: '7px 16px', borderRadius: '8px', background: 'var(--color-accent)', color: '#fff', border: 'none', cursor: shortlistLoading ? 'default' : 'pointer', flexShrink: 0, opacity: shortlistLoading ? 0.7 : 1 }}
+          >
+            {shortlistLoading ? 'Finding...' : shortlist.length > 0 ? 'Refresh' : 'Get Shortlist'}
+          </button>
         </div>
-        <button
-          onClick={handleGetShortlist}
-          disabled={shortlistLoading}
-          style={{ fontSize: '12px', fontWeight: 600, padding: '7px 16px', borderRadius: '8px', background: 'var(--color-accent)', color: '#fff', border: 'none', cursor: shortlistLoading ? 'default' : 'pointer', flexShrink: 0, opacity: shortlistLoading ? 0.7 : 1 }}
-        >
-          {shortlistLoading ? 'Finding...' : shortlist.length > 0 ? 'Refresh' : 'Get Shortlist'}
-        </button>
-      </div>
+      </GlowBorder>
 
       {/* Shortlist results (collapsible) */}
       {shortlist.length > 0 && (
@@ -712,56 +773,75 @@ export default function VendorDetail() {
           </button>
           {shortlistExpanded && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {shortlist.map((v, i) => (
-                <div key={i} style={{ padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: '8px', background: 'var(--color-bg)', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+              {shortlist.map((v, i) => {
+                const isAdded = vendors.some(vd => vd.name === v.name)
+                return (
+                <div key={i} style={{ padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: '8px', background: isAdded ? 'rgba(123, 143, 107, 0.06)' : 'var(--color-bg)', display: 'flex', gap: '12px', alignItems: 'flex-start', transition: 'background 300ms' }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#2c2825', marginBottom: '2px' }}>{v.name}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '3px' }}>{v.address}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>{v.reason}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#2c2825', marginBottom: '1px' }}>{v.name}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>{v.address}</div>
+                    {v.style && (
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginBottom: '2px' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>Style:</span> {v.style}
+                      </div>
+                    )}
+                    {v.price_range && (
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginBottom: '2px' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>Est. range:</span> {v.price_range}
+                      </div>
+                    )}
+                    {v.why_fit && (
+                      <div style={{ fontSize: '11px', color: '#7a6358', fontStyle: 'italic', marginBottom: '4px' }}>{v.why_fit}</div>
+                    )}
+                    {v.website && (
+                      <a href={v.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--color-accent)' }}>
+                        {v.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                      </a>
+                    )}
                   </div>
                   <button
+                    disabled={isAdded}
                     onClick={async () => {
                       if (!couple) return
                       try {
-                        const vendor = await upsertVendor({ couple_id: couple.id, category: category!, name: v.name, website: v.website, status: 'shortlisted' })
+                        const notesLines = [
+                          v.style ? `Style: ${v.style}` : '',
+                          v.price_range ? `Est. range: ${v.price_range}` : '',
+                          v.why_fit ? `AI note: ${v.why_fit}` : '',
+                        ].filter(Boolean)
+                        const vendor = await upsertVendor({
+                          couple_id: couple.id,
+                          category: category!,
+                          name: v.name,
+                          website: v.website,
+                          status: 'shortlisted',
+                          notes: notesLines.length > 0 ? notesLines.join('\n') : null,
+                        })
                         setVendors(prev => [...prev, vendor])
+                        showToast(`${v.name} added to your ${categoryLabel} list`, vendor.id)
                       } catch {
                         alert('Failed to add vendor.')
                       }
                     }}
-                    style={{ fontSize: '12px', color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: '6px', padding: '4px 12px', background: 'none', cursor: 'pointer', flexShrink: 0 }}
+                    style={{ fontSize: '12px', color: isAdded ? '#7B8F6B' : 'var(--color-accent)', border: `1px solid ${isAdded ? '#7B8F6B' : 'var(--color-accent)'}`, borderRadius: '6px', padding: '4px 12px', background: 'none', cursor: isAdded ? 'default' : 'pointer', flexShrink: 0, transition: 'color 200ms, border-color 200ms' }}
                   >
-                    Add →
+                    {isAdded ? '✓ Added' : 'Add →'}
                   </button>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
       )}
 
-      {/* Empty state — 3 warm cards */}
+      {/* Empty state — add vendor */}
       {visible.length === 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-          {/* Card 1 — AI Recommendations */}
-          <div style={{ background: '#FBF6F0', border: '1px solid var(--color-border)', borderLeft: '4px solid #B8926A', padding: '16px 18px', borderRadius: '8px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#B8926A', marginBottom: '5px' }}>✦ Get AI Recommendations</div>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 12px 0' }}>
-              Find the best {categoryLabel} vendors in your area, ranked for your vibe profile.
-            </p>
-            <Button
-              onClick={handleGetShortlist}
-              disabled={shortlistLoading}
-              style={{ fontSize: '12px', padding: '6px 16px', opacity: shortlistLoading ? 0.7 : 1 }}
-            >
-              {shortlistLoading ? 'Finding...' : 'Find Vendors'}
-            </Button>
-          </div>
-
-          {/* Card 2 — Add a Vendor */}
+          {/* Add a Vendor */}
           <div style={{ background: '#F8F5F1', border: '1px solid var(--color-border)', borderLeft: '4px solid #D4CFC8', padding: '16px 18px', borderRadius: '8px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '5px' }}>+ Add a Vendor</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-[8px]" style={{ marginBottom: '10px' }}>
               <input
                 id="empty-vendor-name"
                 placeholder="Vendor name"
@@ -797,37 +877,6 @@ export default function VendorDetail() {
             >
               Save Vendor
             </Button>
-          </div>
-
-          {/* Card 3 — Upload a Proposal */}
-          <div style={{ background: '#F8F5F1', border: '1px solid var(--color-border)', borderLeft: '4px solid #D4CFC8', padding: '16px 18px', borderRadius: '8px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '5px' }}>📄 Upload a Proposal</div>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 12px 0' }}>
-              Upload a proposal to keep everything in one place.
-            </p>
-            <label>
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx"
-                style={{ display: 'none' }}
-                disabled={uploadingContract || !couple}
-                onChange={async e => {
-                  const f = e.target.files?.[0]
-                  if (!f || !couple) return
-                  // Create a placeholder vendor if none exist
-                  let vendorId = vendors[0]?.id
-                  if (!vendorId) {
-                    const v = await upsertVendor({ couple_id: couple.id, category: category!, status: 'researching' })
-                    setVendors([v])
-                    vendorId = v.id
-                  }
-                  await handleDocumentUpload(vendorId, f, 'proposal')
-                }}
-              />
-              <span style={{ display: 'inline-block', fontSize: '12px', padding: '6px 16px', borderRadius: '7px', border: '1.5px solid var(--color-accent)', color: 'var(--color-accent)', cursor: uploadingContract ? 'default' : 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600, opacity: uploadingContract ? 0.6 : 1 }}>
-                {uploadingContract ? 'Uploading...' : 'Choose File'}
-              </span>
-            </label>
           </div>
         </div>
       )}
@@ -887,7 +936,7 @@ export default function VendorDetail() {
                 <div style={{ padding: '14px 16px', borderTop: '1px solid var(--color-border)', background: '#F5F1EC' }}>
                   {isEditing ? (
                     /* Edit form */
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]" style={{ marginBottom: '12px' }}>
                       <div>
                         <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Name</label>
                         <input style={{ display: 'block' }} value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
@@ -929,7 +978,7 @@ export default function VendorDetail() {
                     /* Details view */
                     <>
                       {(vendor.contact_email || vendor.contact_phone || vendor.website || vendor.booked_amount != null) && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: '12px' }}>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-[16px] gap-y-[8px]" style={{ marginBottom: '12px' }}>
                           {vendor.contact_email && (
                             <div>
                               <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '2px' }}>Email</div>
@@ -964,17 +1013,16 @@ export default function VendorDetail() {
                     </>
                   )}
 
-                  {/* Booked extras: payment schedule + documents + notes */}
-                  {vendor.status === 'booked' && !isEditing && (
+                  {/* Payment schedule (booked only) */}
+                  {vendor.status === 'booked' && !isEditing && renderPaymentSchedule(vendor)}
+
+                  {/* Documents + notes for all vendors */}
+                  {!isEditing && (
                     <>
-                      {renderPaymentSchedule(vendor)}
                       {renderDocumentsSection(vendor)}
                       {renderNotesSection(vendor)}
                     </>
                   )}
-
-                  {/* Notes for non-booked vendors too */}
-                  {vendor.status !== 'booked' && !isEditing && renderNotesSection(vendor)}
 
                   {/* Action row */}
                   {!isEditing && (
@@ -1051,6 +1099,29 @@ export default function VendorDetail() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+      {/* Toast notification */}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: `translateX(-50%) translateY(${toastVisible ? '0' : '16px'})`, opacity: toastVisible ? 1 : 0, transition: 'opacity 300ms, transform 300ms', background: '#2C2825', color: 'white', borderRadius: '8px', padding: '12px 24px', fontSize: '13px', fontFamily: 'var(--font-body)', boxShadow: '0 4px 16px rgba(0,0,0,0.25)', display: 'flex', gap: '14px', alignItems: 'center', zIndex: 1000, whiteSpace: 'nowrap' }}>
+          <span>{toast.message}</span>
+          <button
+            onClick={async () => {
+              if (!toast) return
+              try {
+                await deleteVendor(toast.vendorId)
+                setVendors(prev => prev.filter(v => v.id !== toast.vendorId))
+              } catch {
+                // undo failed silently
+              }
+              if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+              setToastVisible(false)
+              setTimeout(() => setToast(null), 300)
+            }}
+            style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', background: 'none', border: 'none', cursor: 'pointer', padding: '0', textDecoration: 'underline', fontFamily: 'var(--font-body)' }}
+          >
+            Undo
+          </button>
         </div>
       )}
     </AppShell>

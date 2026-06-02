@@ -1,11 +1,11 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState, useRef, type CSSProperties } from 'react'
 import AppShell from '../components/AppShell'
 import Card from '../components/Card'
 import Button from '../components/Button'
 import SectionLabel from '../components/SectionLabel'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
-import { getTasksForCouple, insertTask, toggleTask, deleteTask } from '../lib/tasks'
+import { getTasksForCouple, insertTask, toggleTask, deleteTask, updateTask } from '../lib/tasks'
 import type { Couple, Task } from '../types/database'
 
 const TASK_CATEGORIES = ['ceremony', 'venue', 'catering', 'vendors', 'guests', 'attire', 'decor', 'admin', 'honeymoon', 'other']
@@ -57,6 +57,11 @@ export default function Todos() {
     assigned_to: 'couple',
     category: '',
   })
+
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState({ title: '', due_date: '', assigned_to: '', category: '' })
+  const [editSaving, setEditSaving] = useState(false)
+  const editTitleRef = useRef<HTMLInputElement>(null)
 
   const inputStyle: CSSProperties = { display: 'block' }
 
@@ -114,6 +119,43 @@ export default function Todos() {
       setTasks(prev => prev.filter(t => t.id !== taskId))
     } catch {
       alert('Failed to delete task. Please try again.')
+    }
+  }
+
+  function startEdit(task: Task) {
+    setEditingId(task.id)
+    setEditDraft({
+      title: task.title,
+      due_date: task.due_date ?? '',
+      assigned_to: task.assigned_to ?? 'couple',
+      category: task.category ?? '',
+    })
+    setTimeout(() => editTitleRef.current?.focus(), 0)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+  }
+
+  async function handleSaveEdit(taskId: string) {
+    if (!editDraft.title.trim()) return
+    setEditSaving(true)
+    try {
+      await updateTask(taskId, {
+        title: editDraft.title.trim(),
+        due_date: editDraft.due_date || null,
+        assigned_to: editDraft.assigned_to || 'couple',
+        category: editDraft.category || null,
+      })
+      setTasks(prev => prev.map(t => t.id === taskId
+        ? { ...t, title: editDraft.title.trim(), due_date: editDraft.due_date || null, assigned_to: editDraft.assigned_to || 'couple', category: editDraft.category || null }
+        : t
+      ))
+      setEditingId(null)
+    } catch {
+      alert('Failed to save. Please try again.')
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -184,6 +226,63 @@ export default function Todos() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '20px' }}>
         {filtered.map(task => {
           const isOverdue = !task.completed && task.due_date && task.due_date < today
+          const isEditing = editingId === task.id
+
+          if (isEditing) {
+            return (
+              <div
+                key={task.id}
+                style={{
+                  padding: '12px 14px',
+                  borderBottom: '1px solid var(--color-border)',
+                  background: 'rgba(184,146,106,0.04)',
+                  borderRadius: '8px',
+                  marginBottom: '2px',
+                }}
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]" style={{ marginBottom: '8px' }}>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <input
+                      ref={editTitleRef}
+                      value={editDraft.title}
+                      onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))}
+                      onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(task.id); if (e.key === 'Escape') cancelEdit() }}
+                      style={{ display: 'block', width: '100%', fontWeight: 500 }}
+                      placeholder="Task name"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Due Date</label>
+                    <input type="date" value={editDraft.due_date} onChange={e => setEditDraft(d => ({ ...d, due_date: e.target.value }))} style={{ display: 'block', width: '100%' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Assigned To</label>
+                    <select value={editDraft.assigned_to} onChange={e => setEditDraft(d => ({ ...d, assigned_to: e.target.value }))} style={{ display: 'block', width: '100%' }}>
+                      <option value="couple">Both of us</option>
+                      {couple?.name_primary && <option value={couple.name_primary}>{couple.name_primary}</option>}
+                      {couple?.name_partner && <option value={couple.name_partner}>{couple.name_partner}</option>}
+                    </select>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Category</label>
+                    <select value={editDraft.category} onChange={e => setEditDraft(d => ({ ...d, category: e.target.value }))} style={{ display: 'block', width: '100%' }}>
+                      <option value="">— None —</option>
+                      {TASK_CATEGORIES.map(c => (
+                        <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Button variant="secondary" onClick={cancelEdit}>Cancel</Button>
+                  <Button onClick={() => handleSaveEdit(task.id)} disabled={editSaving || !editDraft.title.trim()}>
+                    {editSaving ? 'Saving...' : 'Save'}
+                  </Button>
+                </div>
+              </div>
+            )
+          }
+
           return (
             <div
               key={task.id}
@@ -213,8 +312,12 @@ export default function Todos() {
                 {task.completed ? '✓' : ''}
               </button>
 
-              {/* Content */}
-              <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Content — click to edit */}
+              <div
+                style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+                onClick={() => !task.completed && startEdit(task)}
+                title={task.completed ? '' : 'Click to edit'}
+              >
                 <p style={{
                   fontFamily: 'var(--font-body)',
                   fontSize: '14px',
@@ -274,7 +377,7 @@ export default function Todos() {
       {showAddForm ? (
         <Card style={{ marginTop: '8px' }}>
           <SectionLabel>New Task</SectionLabel>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[12px]" style={{ marginBottom: '12px' }}>
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Task</label>
               <input

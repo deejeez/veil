@@ -363,7 +363,7 @@ export default function Budget() {
       )}
 
       {/* Top section: stat cards (2×2) + donut chart */}
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '20px', marginBottom: '28px' }}>
+      <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] gap-[20px]" style={{ marginBottom: '28px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           {[
             { label: 'Total Budget', value: effectiveBudget > 0 ? `$${(effectiveBudget / 1000).toFixed(0)}K` : '—' },
@@ -385,8 +385,9 @@ export default function Budget() {
         />
       </div>
 
-      <Card>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: '8px', padding: '0 0 8px 0', borderBottom: '1px solid var(--color-border)', marginBottom: '8px' }}>
+      <Card style={{ overflow: 'hidden' }}>
+        <div className="table-scroll-container">
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: '8px', padding: '0 0 8px 0', borderBottom: '1px solid var(--color-border)', marginBottom: '8px', minWidth: '420px' }}>
           {['Category', 'Budgeted', 'Booked', 'Paid', 'Remaining'].map(h => (
             <p key={h} style={{ fontFamily: 'var(--font-body)', fontSize: '9px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', margin: 0 }}>{h}</p>
           ))}
@@ -405,7 +406,7 @@ export default function Budget() {
               style={{
                 display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: '8px',
                 padding: '10px 0', borderBottom: '1px solid var(--color-bg)',
-                alignItems: 'center',
+                alignItems: 'center', minWidth: '420px',
                 // Don't dim rows when suggestions are showing — they all look "empty" by the old definition
                 opacity: isEmpty && !showSuggestions ? 0.5 : 1,
               }}
@@ -504,6 +505,7 @@ export default function Budget() {
             </div>
           )
         })}
+        </div>{/* end table-scroll-container */}
       </Card>
     </AppShell>
   )

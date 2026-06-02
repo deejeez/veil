@@ -177,6 +177,7 @@ export default function RightPanel() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [vendorCategories, setVendorCategories] = useState<VendorCategoryConfig[]>([])
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const [guestCount, setGuestCount] = useState(0)
   const [healthExpanded, setHealthExpanded] = useState(false)
 
   if (pathname === '/settings') return null
@@ -197,16 +198,18 @@ export default function RightPanel() {
       if (!c) return
       setCouple(c)
 
-      const [p, t, cats, vends] = await Promise.all([
+      const [p, t, cats, vends, guestRes] = await Promise.all([
         getPaymentsForCouple(c.id),
         getTasksForCouple(c.id),
         getCategoriesForCouple(c.id),
         getVendorsForCouple(c.id),
+        supabase.from('guests').select('*', { count: 'exact', head: true }).eq('couple_id', c.id),
       ])
       setPayments(p)
       setTasks(t)
       setVendorCategories(cats)
       setVendors(vends)
+      setGuestCount(guestRes.count ?? 0)
     }
     load()
   }, [pathname])
@@ -430,13 +433,15 @@ export default function RightPanel() {
     const phasesCompleted = phaseIdx
     const totalPhases = TIMELINE_PHASES_PANEL.length
 
-    const nextTasks: string[] = []
-    for (let i = phaseIdx; i < TIMELINE_PHASES_PANEL.length && nextTasks.length < 3; i++) {
-      for (const t of TIMELINE_PHASES_PANEL[i].tasks) {
-        nextTasks.push(t)
-        if (nextTasks.length === 3) break
-      }
-    }
+    const milestones = [
+      { label: 'Budget set', done: (couple?.budget_total ?? 0) > 0 },
+      { label: 'Date chosen', done: !!couple?.wedding_date },
+      { label: 'Venue secured', done: vendors.some(v => v.category === 'venue' && v.status === 'booked') || !!couple?.venue_name },
+      { label: 'Guest list started', done: guestCount > 0 },
+      { label: 'Photographer booked', done: vendors.some(v => v.category === 'photographer' && v.status === 'booked') },
+      { label: 'Caterer booked', done: vendors.some(v => v.category === 'caterer' && v.status === 'booked') },
+    ]
+    const doneMilestones = milestones.filter(m => m.done)
 
     return (
       <div style={PANEL_STYLE}>
@@ -463,11 +468,18 @@ export default function RightPanel() {
         <Divider />
 
         <div>
-          <p style={LABEL_STYLE}>Next Up</p>
-          {nextTasks.map((task, i) => (
-            <div key={i} style={{ display: 'flex', gap: '9px', alignItems: 'flex-start', marginBottom: '10px' }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-accent)', flexShrink: 0, marginTop: '5px' }} />
-              <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-primary)', lineHeight: 1.4 }}>{task}</span>
+          <p style={LABEL_STYLE}>Milestones</p>
+          {doneMilestones.length === 0 ? (
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
+              Complete your first milestone to see progress here.
+            </p>
+          ) : doneMilestones.map((m, i) => (
+            <div key={i} style={{ display: 'flex', gap: '9px', alignItems: 'center', marginBottom: '10px' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                <circle cx="12" cy="12" r="10" fill="rgba(123,143,107,0.15)" />
+                <path d="M8 12l3 3 5-5" stroke="#7B8F6B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: '#7B8F6B', lineHeight: 1.4, fontWeight: 500 }}>{m.label}</span>
             </div>
           ))}
         </div>

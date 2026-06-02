@@ -73,3 +73,127 @@ input::placeholder, textarea::placeholder {
 .page-fade-in {
   animation: fadeInPage 300ms ease both;
 }
+
+/* ── Sidebar responsive (tablet icon-only, 768–1023px only) ────────────────── */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .sidebar-responsive {
+    width: 64px !important;
+    padding: 24px 8px !important;
+  }
+  .sidebar-label {
+    display: none !important;
+  }
+  .sidebar-logo-text {
+    display: none !important;
+  }
+  .sidebar-logo-icon {
+    margin: 0 auto !important;
+  }
+  .sidebar-nav-item {
+    justify-content: center !important;
+    padding: 10px !important;
+    border-radius: 10px !important;
+    border-left: none !important;
+  }
+  .sidebar-nav-item.active-nav {
+    border-left: none !important;
+    border-radius: 10px !important;
+  }
+}
+
+/* ── Mobile overlay sidebar ─────────────────────────────────────────────────── */
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(44, 40, 37, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+/* ── Horizontal scroll containers for tables on mobile ─────────────────────── */
+
+.table-scroll-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Missing Tailwind v4 base utilities ──────────────────────────────────────── */
+
+.gap-3    { gap: 0.75rem; }
+.flex-row { flex-direction: row; }
+.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* ── Responsive grid/flex overrides (Tailwind v4 variant generation fix) ────── */
+
+/* sm: breakpoint (640px+) */
+@media (min-width: 640px) {
+  .sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sm\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sm\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .sm\:flex        { display: flex; }
+  .sm\:flex-row    { flex-direction: row; }
+}
+
+/* md: breakpoint (768px+) */
+@media (min-width: 768px) {
+  .md\:grid-cols-\[3fr_2fr\] { grid-template-columns: 3fr 2fr; }
+}
+
+/* lg: breakpoint (1024px+) */
+@media (min-width: 1024px) {
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ── Responsive visibility helpers (bypasses Tailwind v4 variant generation) ── */
+
+/* Visible on mobile (<768px), hidden on tablet/desktop */
+.mobile-only {
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .mobile-only {
+    display: none !important;
+  }
+}
+
+/* Hidden on mobile, visible as block on tablet/desktop (≥768px) */
+.desktop-only {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .desktop-only {
+    display: block !important;
+  }
+}
+
+/* Hidden on mobile/tablet, visible as block on xl desktop (≥1280px) */
+.desktop-xl-only {
+  display: none;
+}
+
+@media (min-width: 1280px) {
+  .desktop-xl-only {
+    display: block !important;
+  }
+}
+
+/* ── Mobile top nav ─────────────────────────────────────────────────────────── */
+
+.mobile-top-nav {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--color-sidebar);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  height: 56px;
+  box-sizing: border-box;
+}

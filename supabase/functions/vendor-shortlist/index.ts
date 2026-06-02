@@ -35,7 +35,10 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-    const { couple_id, category } = body
+    const { couple_id, category, exclude_names, previously_suggested } = body
+    const excludeNames: string[] = Array.isArray(exclude_names) ? exclude_names : []
+    const prevSuggested: string[] = Array.isArray(previously_suggested) ? previously_suggested : []
+    const allExcluded = [...new Set([...excludeNames, ...prevSuggested])]
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -60,7 +63,7 @@ Deno.serve(async (req) => {
 
     const { data: couple } = await supabase
       .from('couples')
-      .select('city, state, vibe_profile, user_id_primary, user_id_partner')
+      .select('city, state, vibe_profile, user_id_primary, user_id_partner, wedding_date')
       .eq('id', couple_id)
       .single()
 
@@ -78,6 +81,17 @@ Deno.serve(async (req) => {
 
     const categoryLabel = CATEGORY_LABEL[category] ?? `wedding ${category}`
     const location = [couple.city, couple.state].filter(Boolean).join(', ')
+
+    const weddingContext = (() => {
+      if (!couple.wedding_date) return 'wedding date not set'
+      const d = new Date(couple.wedding_date + 'T12:00:00')
+      const month = d.getMonth() + 1
+      const season = month >= 3 && month <= 5 ? 'spring'
+        : month >= 6 && month <= 8 ? 'summer'
+        : month >= 9 && month <= 11 ? 'fall'
+        : 'winter'
+      return `${season} ${d.getFullYear()} wedding (${d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})`
+    })()
 
     const vibeDesc = couple.vibe_profile
       ? [
@@ -99,11 +113,10 @@ Deno.serve(async (req) => {
 
 Location: ${location}
 Looking for: ${categoryLabel}
+Wedding: ${weddingContext}
 Couple's vibe: ${vibeDesc}
 
-Suggest 5 real, well-reviewed ${categoryLabel}s in or near ${location} that match this couple's style. Use your knowledge of real businesses that actually exist in this city.
-
-For each vendor, write one sentence explaining why they specifically match this couple's vibe and aesthetic.
+Suggest 5 real, well-reviewed ${categoryLabel}s in or near ${location} that match this couple's style and wedding season. Use your knowledge of real businesses that actually exist in this city.${allExcluded.length > 0 ? `\n\nDo NOT suggest any of these vendors (already added or previously shown): ${allExcluded.join(', ')}. Return 5 completely different suggestions.` : ''}
 
 Respond with ONLY valid JSON in this exact format, no markdown:
 {
@@ -112,7 +125,9 @@ Respond with ONLY valid JSON in this exact format, no markdown:
       "name": "Actual Business Name",
       "address": "City, State (or full address if known)",
       "website": "https://website.com or empty string if unknown",
-      "reason": "One sentence about why this matches their specific vibe."
+      "style": "2-4 style descriptors matching their aesthetic, e.g. Garden-romantic, lush and textured",
+      "price_range": "Estimated range for this city and wedding type, e.g. $12K–$20K for NYC",
+      "why_fit": "One sentence: why this vendor fits this couple's specific vibe and season"
     }
   ]
 }`,
@@ -134,7 +149,7 @@ Respond with ONLY valid JSON in this exact format, no markdown:
       await supabase.from('ai_insights').insert({
         couple_id,
         type: 'vendor_shortlist',
-        content: `AI shortlist for ${category} in ${location}: ${(result.vendors ?? []).map((v: { name: string }) => v.name).join(', ')}`,
+        content: `AI shortlist for ${category} in ${location} (${weddingContext}): ${(result.vendors ?? []).map((v: { name: string }) => v.name).join(', ')}`,
       })
     } catch {} // non-critical logging, don't fail the request
 

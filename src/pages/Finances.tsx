@@ -201,7 +201,8 @@ export default function Finances() {
             <div>
               <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Payment Calendar</div>
               <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '14px 16px', background: '#fff' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px' }}>
+                <div className="table-scroll-container">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px', minWidth: '360px' }}>
                   {months.map(({ key, label, isWedding }) => {
                     const monthPayments = paymentsByMonth[key] || []
                     const total = monthPayments.reduce((s, p) => s + p.amount, 0)
@@ -235,6 +236,7 @@ export default function Finances() {
                     )
                   })}
                 </div>
+                </div>{/* end table-scroll-container */}
                 {!hasAnyPayments && (
                   <div style={{ marginTop: '12px', padding: '10px 12px', background: '#F8F5F1', borderRadius: '6px' }}>
                     <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '6px' }}>What to expect</div>
@@ -284,7 +286,7 @@ export default function Finances() {
         {Object.keys(payerGroups).length > 0 && (
           <div>
             <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>By Family</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]">
               {Object.entries(payerGroups).map(([payer, items]) => {
                 const groupTotal = items.reduce((sum, p) => sum + p.amount, 0)
                 const label = paidByLabel(payer)
@@ -383,7 +385,7 @@ export default function Finances() {
         {showAddForm ? (
           <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '14px 16px', background: '#fff' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px' }}>Add Payment</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]" style={{ marginBottom: '12px' }}>
               <div>
                 <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Label</label>
                 <input placeholder="Deposit" value={newPayment.label} onChange={e => setNewPayment(f => ({ ...f, label: e.target.value }))} style={{ display: 'block' }} />

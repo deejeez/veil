@@ -286,7 +286,7 @@ export default function GuestList() {
       )}
 
       {/* Headcount dashboard */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '24px' }}>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-[14px]" style={{ marginBottom: '24px' }}>
         <Card style={{ padding: '18px 20px' }}>
           <SectionLabel>Total Guests</SectionLabel>
           <p style={{ fontFamily: 'var(--font-body)', fontSize: '28px', fontWeight: 700, margin: 0 }}>{totalHeadcount}</p>
@@ -339,8 +339,9 @@ export default function GuestList() {
 
       {/* Guest table */}
       <Card style={{ padding: '0', overflow: 'hidden', marginBottom: '16px' }}>
+        <div className="table-scroll-container" style={{ minWidth: 0 }}>
         {/* Table header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 80px 80px 40px 40px 70px 36px', gap: '8px', padding: '10px 16px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 80px 80px 40px 40px 70px 36px', gap: '8px', padding: '10px 16px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg)', minWidth: '520px' }}>
           {['Name', 'Household', 'Side', 'Tier', '+1s', 'Kids', 'Count', ''].map(h => (
             <p key={h} style={{ fontFamily: 'var(--font-body)', fontSize: '9px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', margin: 0 }}>{h}</p>
           ))}
@@ -363,6 +364,7 @@ export default function GuestList() {
                   alignItems: 'center',
                   borderBottom: idx < filtered.length - 1 ? '1px solid var(--color-border)' : 'none',
                   background: idx % 2 === 0 ? 'var(--color-surface)' : 'var(--color-bg)',
+                  minWidth: '520px',
                 }}
               >
                 <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: '#2c2825', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name}</p>
@@ -394,13 +396,14 @@ export default function GuestList() {
             ))}
           </div>
         )}
+        </div>{/* end table-scroll-container */}
       </Card>
 
       {/* Add guest form */}
       {showAddForm && (
         <Card style={{ marginBottom: '16px' }}>
           <SectionLabel>Add Guest</SectionLabel>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-[12px]" style={{ marginBottom: '14px' }}>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '4px' }}>Name *</label>
               <input

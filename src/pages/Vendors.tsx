@@ -332,7 +332,7 @@ export default function Vendors() {
       </div>
 
       {/* 3-column vendor grid sorted by urgency */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '7px' }}>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-[7px]">
         {sortedVendors.map(({ category, label, state, subLabel, nextAction, activeCount: cnt, isOverdue, urgencyText }) => {
           const isHovered = hoveredCategory === category
           const borderColor = isOverdue

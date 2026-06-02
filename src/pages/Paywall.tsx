@@ -10,6 +10,19 @@ export default function Paywall() {
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
 
+  // If already paid (not a fresh Stripe return), redirect to home
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('success') === '1') return
+    async function checkAlreadyPaid() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const couple = await getCoupleForUser(user.id)
+      if (couple?.paid) navigate('/')
+    }
+    checkAlreadyPaid()
+  }, [navigate])
+
   useEffect(() => {
     // Poll for paid status after returning from Stripe (for up to 30s)
     const params = new URLSearchParams(window.location.search)
@@ -22,7 +35,7 @@ export default function Paywall() {
         const couple = await getCoupleForUser(user.id)
         if (couple?.paid) {
           clearInterval(interval)
-          navigate('/onboarding/2')
+          navigate('/payment-success')
         }
         if (attempts >= 6) {
           clearInterval(interval)
