@@ -6,15 +6,6 @@ import { supabase } from '../lib/supabase'
 import { getCoupleForUser, updateCouple } from '../lib/couple'
 import type { Couple } from '../types/database'
 
-const BUDGET_RANGES = [
-  { value: 'under_50k',  label: 'Under $50,000' },
-  { value: '50k_100k',   label: '$50,000 – $100,000' },
-  { value: '100k_150k',  label: '$100,000 – $150,000' },
-  { value: '150k_200k',  label: '$150,000 – $200,000' },
-  { value: '200k_300k',  label: '$200,000 – $300,000' },
-  { value: 'over_300k',  label: 'Over $300,000' },
-] as const
-
 export default function Settings() {
   const navigate = useNavigate()
   const [couple, setCouple] = useState<Couple | null>(null)
@@ -39,7 +30,6 @@ export default function Settings() {
     state: '',
     budget_total: '',
     guest_count: '',
-    budget_range: '',
     family_a_name: '',
     family_b_name: '',
   })
@@ -60,7 +50,6 @@ export default function Settings() {
         state: c.state ?? '',
         budget_total: c.budget_total != null ? c.budget_total.toLocaleString() : '',
         guest_count: c.guest_count != null ? String(c.guest_count) : '',
-        budget_range: c.budget_range ?? '',
         family_a_name: c.family_a_name ?? '',
         family_b_name: c.family_b_name ?? '',
       })
@@ -85,7 +74,6 @@ export default function Settings() {
         state: form.state || null,
         budget_total: form.budget_total ? Number(form.budget_total.replace(/,/g, '')) : null,
         guest_count: form.guest_count ? Number(form.guest_count) : null,
-        budget_range: form.budget_range || null,
         family_a_name: form.family_a_name || null,
         family_b_name: form.family_b_name || null,
       })
@@ -292,19 +280,6 @@ export default function Settings() {
               />
             </div>
 
-            <div>
-              <label style={labelStyle}>Total Budget Range</label>
-              <select
-                value={form.budget_range}
-                onChange={e => setForm(f => ({ ...f, budget_range: e.target.value }))}
-                style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
-              >
-                <option value="">Select a range...</option>
-                {BUDGET_RANGES.map(r => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
-            </div>
           </div>
         </div>
 

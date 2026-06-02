@@ -4,12 +4,23 @@ import AppShell from '../components/AppShell'
 import { MultiSegmentRing } from '../components/MultiSegmentRing'
 import AiAdvisorCard from '../components/AiAdvisorCard'
 import { supabase } from '../lib/supabase'
-import { getCoupleForUser } from '../lib/couple'
+import { getCoupleForUser, updateCouple } from '../lib/couple'
 import { getVendorsForCouple, seedDefaultVendorCategories } from '../lib/vendors'
 import { getPaymentsForCouple, getUpcomingPayments } from '../lib/payments'
 import { getTasksForCouple } from '../lib/tasks'
 import { type Couple, type Vendor, type Payment, type Task } from '../types/database'
 import { getCategoriesForCouple } from '../lib/categories'
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function deriveBudgetRange(total: number): string {
+  if (total < 25000)  return 'under_25k'
+  if (total < 50000)  return '25k_50k'
+  if (total < 100000) return '50k_100k'
+  if (total < 150000) return '100k_150k'
+  if (total < 250000) return '150k_250k'
+  return 'over_250k'
+}
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -113,7 +124,7 @@ function generateActionCards(
   }
 
   // Budget not set
-  if (!couple.budget_total) {
+  if (!couple.budget_total && !couple.budget_range) {
     cards.push({
       priority: days < 365 ? 'urgent' : 'important',
       title: 'Set your wedding budget',
@@ -494,6 +505,12 @@ export default function Dashboard() {
         if (!user) { setLoading(false); return }
         const c = await getCoupleForUser(user.id)
         if (!c) { setLoading(false); return }
+        // Back-fill budget_range from budget_total for pre-onboarding-redesign users
+        if (c.budget_total && !c.budget_range) {
+          const derived = deriveBudgetRange(c.budget_total)
+          updateCouple(c.id, { budget_range: derived }).catch(() => {})
+          c.budget_range = derived
+        }
         setCouple(c)
         const cats = await getCategoriesForCouple(c.id)
         const labels: Record<string, string> = {}
@@ -615,7 +632,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Setup card ─────────────────────────────────────────────── */}
-      {couple && !setupDismissed && (!couple.guest_count || !couple.budget_range) && (
+      {couple && !setupDismissed && (!couple.guest_count || (!couple.budget_total && !couple.budget_range)) && (
         <div style={{
           background: '#FBF6F0',
           border: '1px solid var(--color-border)',
@@ -635,7 +652,7 @@ export default function Dashboard() {
               Still missing:{' '}
               {[
                 !couple.guest_count && 'guest count',
-                !couple.budget_range && 'budget range',
+                (!couple.budget_total && !couple.budget_range) && 'budget',
               ].filter(Boolean).join(' · ')}
             </p>
           </div>
