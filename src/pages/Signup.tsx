@@ -25,7 +25,7 @@ export default function Signup() {
       })
       if (insertError) throw insertError
 
-      navigate('/onboarding/1')
+      navigate('/paywall')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : ((err as { message?: string }).message ?? 'Signup failed'))
     } finally {

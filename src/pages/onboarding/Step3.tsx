@@ -4,12 +4,12 @@ import { supabase } from '../../lib/supabase'
 import { getCoupleForUser, updateCouple } from '../../lib/couple'
 
 const BUDGET_RANGES = [
-  { value: 'under_50k',    label: 'Under $50,000' },
+  { value: 'under_25k',    label: 'Under $25,000' },
+  { value: '25k_50k',      label: '$25,000 – $50,000' },
   { value: '50k_100k',     label: '$50,000 – $100,000' },
   { value: '100k_150k',    label: '$100,000 – $150,000' },
-  { value: '150k_200k',    label: '$150,000 – $200,000' },
-  { value: '200k_300k',    label: '$200,000 – $300,000' },
-  { value: 'over_300k',    label: 'Over $300,000' },
+  { value: '150k_250k',    label: '$150,000 – $250,000' },
+  { value: 'over_250k',    label: 'Over $250,000' },
 ] as const
 
 function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
@@ -136,7 +136,7 @@ export default function OnboardingStep3() {
             <label style={labelStyle}>City / Region</label>
             <input
               type="text"
-              placeholder="e.g. New York, NY"
+              placeholder="e.g. New York City, Nashville"
               value={city}
               onChange={e => setCity(e.target.value)}
               style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}

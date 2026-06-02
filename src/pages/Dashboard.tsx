@@ -482,6 +482,9 @@ export default function Dashboard() {
   const [setupDismissed, setSetupDismissed] = useState(
     () => localStorage.getItem('veil_setup_card_dismissed') === '1'
   )
+  const [dateDismissed, setDateDismissed] = useState(
+    () => localStorage.getItem('veil_date_nudge_dismissed') === '1'
+  )
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -649,6 +652,48 @@ export default function Dashboard() {
           </button>
           <button
             onClick={() => { setSetupDismissed(true); localStorage.setItem('veil_setup_card_dismissed', '1') }}
+            style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', fontSize: '18px', cursor: 'pointer', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* ── Lock in date nudge ─────────────────────────────────────── */}
+      {couple && couple.target_season && !dateDismissed && (
+        <div style={{
+          background: '#FBF6F0',
+          border: '1px solid var(--color-border)',
+          borderLeft: '4px solid var(--color-accent)',
+          borderRadius: '10px',
+          padding: '14px 18px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+        }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px 0' }}>
+              Lock in your exact date
+            </p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>
+              You're planning for {couple.target_season} {couple.target_year ?? ''}. Add an exact date to sharpen your timeline and vendor availability windows.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/settings')}
+            style={{
+              fontFamily: 'var(--font-body)', fontSize: '12px', fontWeight: 600,
+              color: 'var(--color-accent)', background: 'rgba(200,169,110,0.12)',
+              border: '1px solid rgba(200,169,110,0.3)', borderRadius: '8px',
+              padding: '6px 14px', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            Add Date →
+          </button>
+          <button
+            onClick={() => { setDateDismissed(true); localStorage.setItem('veil_date_nudge_dismissed', '1') }}
             style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', fontSize: '18px', cursor: 'pointer', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
             aria-label="Dismiss"
           >
