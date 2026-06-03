@@ -15,6 +15,11 @@ export default function Settings() {
   const [partnerEmail, setPartnerEmail] = useState('')
   const [inviting, setInviting] = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -38,6 +43,7 @@ export default function Settings() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+      setUserEmail(user.email ?? null)
       const c = await getCoupleForUser(user.id)
       if (!c) return
       setCouple(c)
@@ -109,6 +115,32 @@ export default function Settings() {
     }
   }
 
+  async function handleDeleteAccount() {
+    if (!couple) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      // Delete child tables first, then couple row
+      const tables = ['ai_insights', 'payments', 'guests', 'vendors', 'budget_categories', 'contracts'] as const
+      for (const table of tables) {
+        const { error } = await supabase.from(table).delete().eq('couple_id', couple.id)
+        if (error) console.warn(`Failed to delete from ${table}:`, error.message)
+      }
+      // Delete couple row
+      const { error: coupleError } = await supabase.from('couples').delete().eq('id', couple.id)
+      if (coupleError) throw coupleError
+      // Delete auth user via edge function
+      const { error: fnError } = await supabase.functions.invoke('delete-account')
+      if (fnError) console.warn('Auth user deletion failed:', fnError)
+      // Sign out and redirect
+      await supabase.auth.signOut()
+      window.location.href = 'https://getwed.ai'
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+      setDeleting(false)
+    }
+  }
+
   const chipLabel = (key: 'couple' | 'family_a' | 'family_b') => {
     if (key === 'couple') return 'Couple'
     if (key === 'family_a') return form.family_a_name || 'Family A'
@@ -127,6 +159,37 @@ export default function Settings() {
         <div>
           <div style={{ fontSize: '22px', fontWeight: 400, fontFamily: 'var(--font-heading)', color: 'var(--color-text-primary)', marginBottom: '3px' }}>Settings</div>
           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Manage your wedding details and preferences</div>
+        </div>
+
+        {/* Account row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '16px', borderBottom: '1px solid var(--color-border)' }}>
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
+              Account
+            </div>
+            <div style={{ fontSize: '14px', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)' }}>
+              {userEmail ?? '...'}
+            </div>
+          </div>
+          <button
+            onClick={handleLogout}
+            style={{
+              background: 'none',
+              border: '1.5px solid var(--color-border)',
+              borderRadius: '8px',
+              padding: '7px 16px',
+              fontSize: '13px',
+              color: 'var(--color-text-secondary)',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-body)',
+              fontWeight: 500,
+              transition: 'background 0.15s ease',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#F5F1EC')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            Log Out
+          </button>
         </div>
 
         {/* Couple names */}
@@ -355,33 +418,121 @@ export default function Settings() {
           )}
         </div>
 
-        {/* Account */}
-        <div style={{ border: '1px solid var(--color-border)', borderRadius: '12px', padding: '18px 20px', background: '#fff' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
-            Account
+        {/* Danger Zone */}
+        <div style={{ marginTop: '24px', borderTop: '1px solid var(--color-border)', paddingTop: '24px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: '#C4785C', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>
+            Danger Zone
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '14px' }}>
-            Sign out of your account on this device.
-          </div>
+          <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', margin: '0 0 14px 0', lineHeight: 1.5 }}>
+            Permanently delete your account and all your wedding planning data. This cannot be undone.
+          </p>
           <button
-            onClick={handleLogout}
+            onClick={() => { setShowDeleteModal(true); setDeleteConfirmText(''); setDeleteError(null) }}
             style={{
               background: 'none',
-              border: '1px solid #D9C8B8',
+              border: '1.5px solid #C4785C',
               borderRadius: '8px',
-              padding: '8px 16px',
+              padding: '8px 20px',
               fontSize: '13px',
-              color: '#8B4A3A',
+              color: '#C4785C',
               cursor: 'pointer',
               fontFamily: 'var(--font-body)',
-              fontWeight: 500,
+              fontWeight: 600,
+              transition: 'background 0.15s ease, color 0.15s ease',
             }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#C4785C'; e.currentTarget.style.color = '#fff' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#C4785C' }}
           >
-            Sign out
+            Delete My Account
           </button>
         </div>
 
       </div>
+
+      {/* Delete confirmation modal */}
+      {showDeleteModal && (
+        <div
+          onClick={() => { if (!deleting) setShowDeleteModal(false) }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(44,40,37,0.5)', backdropFilter: 'blur(2px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '24px',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: '440px',
+              background: '#fff', borderRadius: '14px',
+              border: '1px solid var(--color-border)',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
+              padding: '32px',
+            }}
+          >
+            <h3 style={{
+              fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: 400,
+              color: 'var(--color-text-primary)', margin: '0 0 8px 0',
+            }}>
+              Are you sure?
+            </h3>
+            <p style={{
+              fontFamily: 'var(--font-body)', fontSize: '13px', lineHeight: 1.6,
+              color: 'var(--color-text-secondary)', margin: '0 0 20px 0',
+            }}>
+              This will permanently delete your account, all your wedding data, vendor information, budget, payments, and guest list. This action cannot be undone.
+            </p>
+
+            {deleteError && (
+              <div style={{ background: 'rgba(196,120,92,0.06)', border: '1px solid rgba(196,120,92,0.2)', borderRadius: '8px', padding: '10px 12px', marginBottom: '16px' }}>
+                <p style={{ color: '#C4785C', fontSize: '12px', margin: 0, fontFamily: 'var(--font-body)' }}>{deleteError}</p>
+              </div>
+            )}
+
+            <label style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', display: 'block', marginBottom: '6px' }}>
+              Type <strong style={{ color: 'var(--color-text-primary)' }}>DELETE</strong> to confirm
+            </label>
+            <input
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              placeholder="DELETE"
+              disabled={deleting}
+              autoFocus
+              style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginBottom: '20px' }}
+            />
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                style={{
+                  padding: '9px 20px', borderRadius: '8px',
+                  border: '1.5px solid var(--color-border)', background: 'none',
+                  fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)',
+                  cursor: deleting ? 'default' : 'pointer', fontFamily: 'var(--font-body)',
+                  opacity: deleting ? 0.5 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText !== 'DELETE' || deleting}
+                style={{
+                  padding: '9px 20px', borderRadius: '8px', border: 'none',
+                  background: deleteConfirmText === 'DELETE' && !deleting ? '#C4785C' : '#D4CFC8',
+                  fontSize: '13px', fontWeight: 600, color: '#fff',
+                  cursor: deleteConfirmText === 'DELETE' && !deleting ? 'pointer' : 'default',
+                  fontFamily: 'var(--font-body)',
+                  transition: 'background 0.15s ease',
+                }}
+              >
+                {deleting ? 'Deleting...' : 'Delete Everything'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   )
 }
