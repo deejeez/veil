@@ -52,7 +52,7 @@ export default function AiAdvisorCard({ text, loading = false }: AiAdvisorCardPr
             margin: 0,
           }}
         >
-          {loading ? 'Thinking...' : (text ?? 'Add your wedding details to get started.')}
+          {loading ? 'Thinking...' : (text ?? 'Add your wedding date to get personalized planning guidance.')}
         </p>
       </div>
     </GlowBorder>

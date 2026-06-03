@@ -51,26 +51,31 @@ function getContextualStatus(
   bookedCount: number,
   totalCategories: number,
   overdueCount: number,
+  city?: string | null,
 ): string {
-  if (daysUntil === null) return 'Add your wedding date in Settings to get personalized planning guidance.'
+  if (daysUntil === null) return 'Add your wedding date to get personalized planning guidance. Once we know your date and city, we can tell you exactly what to focus on.'
   if (daysUntil < 0)  return 'Your wedding day has passed. Congratulations!'
-  if (daysUntil <= 30)  return 'Almost there! Focus on confirmations and enjoy the moment.'
+  if (daysUntil <= 30)  return 'Almost there! Focus on final confirmations and enjoy the moment.'
   if (daysUntil <= 90)  return 'Final stretch. Confirm all vendor bookings and lock in your day-of timeline.'
   if (daysUntil <= 180) {
-    if (overdueCount > 0) return `${overdueCount} task${overdueCount > 1 ? 's' : ''} need your attention. Stay on top of the details now.`
+    if (overdueCount > 0) return `${overdueCount} task${overdueCount > 1 ? 's' : ''} need${overdueCount === 1 ? 's' : ''} your attention. Stay on top of the details now.`
     const left = totalCategories - bookedCount
     return left > 0
-      ? `Final stretch. ${left} vendor ${left === 1 ? 'category' : 'categories'} still need attention.`
-      : 'Final stretch. Vendors are locked in — focus on the details now.'
+      ? `Final stretch. ${left} vendor ${left === 1 ? 'category' : 'categories'} still need${left === 1 ? 's' : ''} attention.`
+      : 'Final stretch. Vendors are locked in, focus on the details now.'
   }
   if (daysUntil <= 365) {
     const left = totalCategories - bookedCount
+    const months = Math.round(daysUntil / 30.44)
+    const loc = city ? ` ${city}` : ''
     return left > 0
-      ? `You're in the booking window. ${left} of ${totalCategories} vendor categories still need attention.`
-      : "You're in the booking window — and your vendors are looking great."
+      ? `You're ${months} months out${loc ? ` from your${loc} wedding` : ''}. ${left} of ${totalCategories} vendor categories still need attention.`
+      : `You're ${months} months out${loc ? ` from your${loc} wedding` : ''}, and your vendors are looking great.`
   }
-  if (bookedCount === 0) return "You have plenty of time. Lock in your venue and photographer first."
-  return "You're in great shape. Focus on locking in your top vendors this month."
+  const months = Math.round(daysUntil / 30.44)
+  const loc = city ? ` in ${city}` : ''
+  if (bookedCount === 0) return `You're ${months} months out${loc}. Lock in your venue and photographer first.`
+  return `You're ${months} months out${loc} with ${bookedCount} vendor${bookedCount > 1 ? 's' : ''} booked. Focus on locking in your top picks this month.`
 }
 
 function generateActionCards(
@@ -596,7 +601,7 @@ export default function Dashboard() {
   }
 
   const actionCards     = generateActionCards(daysUntil, couple, vendors, categorySlugs, categoryLabels, tasks, payments)
-  const contextualStatus = getContextualStatus(daysUntil, bookedCatCount, totalCategories, overdueTasks.length)
+  const contextualStatus = getContextualStatus(daysUntil, bookedCatCount, totalCategories, overdueTasks.length, couple?.city)
 
   // Vendor categories needing attention (not started)
   const needsAttention  = categorySlugs.filter(s => (vendorStatusBySlug[s] ?? 'not_started') === 'not_started')

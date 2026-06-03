@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import Login from './pages/Login'
-import Signup from './pages/Signup'
+import Auth from './pages/Auth'
+import ResetPassword from './pages/ResetPassword'
 import Paywall from './pages/Paywall'
 import OnboardingStep1 from './pages/onboarding/Step1'
 import OnboardingStep2 from './pages/onboarding/Step2'
@@ -26,8 +26,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+        <Route path="/login" element={<Auth />} />
+        <Route path="/signup" element={<Auth />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/paywall" element={<AuthGuard><Paywall /></AuthGuard>} />
         <Route path="/onboarding/1" element={<AuthGuard><PaywallGuard><OnboardingStep1 /></PaywallGuard></AuthGuard>} />
         <Route path="/onboarding/2" element={<AuthGuard><PaywallGuard><OnboardingStep2 /></PaywallGuard></AuthGuard>} />

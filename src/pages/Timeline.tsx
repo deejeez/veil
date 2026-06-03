@@ -353,7 +353,7 @@ export default function Timeline() {
       saveCachedAssessment(data, fingerprint)
       track('timeline_checked', { overall_status: data.overall_status })
     } catch {
-      if (!silent) setAiError("Couldn't generate AI analysis — try again")
+      if (!silent) setAiError("Couldn't generate AI analysis. Try again.")
     } finally {
       if (!silent) setAiLoading(false)
     }
@@ -385,9 +385,78 @@ export default function Timeline() {
 
   return (
     <AppShell>
-      <div style={{ maxWidth: '660px' }}>
+      {/* Scoped styles for two-column layout */}
+      <style>{`
+        .timeline-columns {
+          display: grid;
+          grid-template-columns: 3fr 2fr;
+          gap: 24px;
+          align-items: start;
+        }
+        .timeline-col {
+          max-height: calc(100vh - 160px);
+          overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: #D4CFC8 transparent;
+        }
+        .timeline-col::-webkit-scrollbar {
+          width: 4px;
+        }
+        .timeline-col::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .timeline-col::-webkit-scrollbar-thumb {
+          background: #D4CFC8;
+          border-radius: 4px;
+        }
+        .timeline-col::-webkit-scrollbar-thumb:hover {
+          background: #A89F95;
+        }
+        @keyframes tl-shimmer {
+          0% { opacity: 0.4; }
+          50% { opacity: 0.7; }
+          100% { opacity: 0.4; }
+        }
+        @keyframes tl-dots {
+          0%, 20% { content: ''; }
+          40% { content: '.'; }
+          60% { content: '..'; }
+          80%, 100% { content: '...'; }
+        }
+        .tl-loading-dots::after {
+          content: '';
+          animation: tl-dots 1.4s steps(1, end) infinite;
+        }
+        .tl-skel-bar {
+          background: #EDE8E1;
+          border-radius: 6px;
+          animation: tl-shimmer 1.6s ease-in-out infinite;
+        }
+        .tl-fade-in {
+          animation: tl-fadein 0.3s ease forwards;
+        }
+        @keyframes tl-fadein {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @media (max-width: 768px) {
+          .timeline-columns {
+            grid-template-columns: 1fr;
+          }
+          .timeline-col {
+            max-height: none;
+            overflow-y: visible;
+          }
+        }
+        @media (min-width: 769px) and (max-width: 1024px) {
+          .timeline-columns {
+            grid-template-columns: 55fr 45fr;
+          }
+        }
+      `}</style>
 
-        {/* Header */}
+      <div>
+        {/* Header — full width above both columns */}
         <div style={{ marginBottom: '20px' }}>
           <div style={{ fontSize: '22px', fontWeight: 400, fontFamily: 'var(--font-heading)', color: 'var(--color-text-primary)', marginBottom: '3px' }}>
             Planning Timeline
@@ -399,231 +468,273 @@ export default function Timeline() {
           </div>
         </div>
 
-        {/* AI Assessment — always visible, auto-loaded */}
-        <GlowBorder style={{ marginBottom: '24px' }}>
-          <div style={{ position: 'relative', zIndex: 1, borderRadius: '12px', background: '#F5F1EC', padding: '16px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: result ? '10px' : 0, gap: '12px' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{
-                  fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase',
-                  color: '#B8926A', margin: '0 0 4px 0', fontFamily: 'var(--font-body)', fontWeight: 600,
-                }}>
-                  AI Advisor
-                </p>
+        {/* Two-column layout */}
+        <div className="timeline-columns">
 
-                {aiLoading && !result && (
-                  <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', margin: 0 }}>
-                    Analyzing your timeline...
-                  </p>
-                )}
+          {/* LEFT COLUMN: AI Assessment */}
+          <div className="timeline-col" style={{ paddingRight: '12px' }}>
 
-                {!aiLoading && !result && !aiError && (
-                  <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', margin: 0 }}>
-                    {couple ? 'Preparing your personalized assessment...' : 'Add your wedding details in Settings to get started.'}
-                  </p>
-                )}
-
-                {result && (
-                  <>
-                    {/* Status pill */}
-                    <div style={{
-                      display: 'inline-flex', alignItems: 'center',
-                      padding: '3px 10px', borderRadius: '20px', marginBottom: '8px',
-                      border: `1.5px solid ${STATUS_COLORS[result.overall_status]}`,
-                      background: `${STATUS_COLORS[result.overall_status]}18`,
-                    }}>
-                      <span style={{
-                        fontFamily: 'var(--font-body)', fontSize: '10px',
-                        letterSpacing: '0.1em', textTransform: 'uppercase',
-                        color: STATUS_COLORS[result.overall_status], fontWeight: 700,
-                      }}>
-                        {result.overall_status}
-                      </span>
-                    </div>
-
-                    {/* Summary */}
+            {/* AI Advisor card */}
+            <GlowBorder style={{ marginBottom: '16px' }}>
+              <div style={{
+                position: 'relative', zIndex: 1, borderRadius: '12px', background: '#F5F1EC', padding: '16px 18px',
+                animation: (aiLoading && !result) ? 'tl-shimmer 2s ease-in-out infinite' : 'none',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: result ? '10px' : 0, gap: '12px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{
-                      fontFamily: 'var(--font-heading)', fontSize: '13.5px',
-                      fontStyle: 'italic', lineHeight: 1.65, margin: 0,
-                      color: 'var(--color-text-primary)',
+                      fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase',
+                      color: '#B8926A', margin: '0 0 4px 0', fontFamily: 'var(--font-body)', fontWeight: 600,
                     }}>
-                      {result.summary}
+                      AI Advisor
                     </p>
-                  </>
-                )}
 
-                {aiError && (
-                  <p style={{ color: '#C4785C', fontFamily: 'var(--font-body)', fontSize: '12px', margin: '4px 0 0 0' }}>
-                    {aiError}
-                  </p>
-                )}
-              </div>
-
-              {/* Refresh button — subtle */}
-              {(result || aiError) && (
-                <button
-                  onClick={handleRefresh}
-                  disabled={aiLoading || !couple}
-                  style={{
-                    flexShrink: 0,
-                    fontSize: '11px', fontWeight: 600, padding: '5px 12px',
-                    borderRadius: '7px', border: '1px solid rgba(184,146,106,0.3)',
-                    background: 'transparent', color: '#B8926A',
-                    cursor: aiLoading || !couple ? 'default' : 'pointer',
-                    opacity: aiLoading || !couple ? 0.5 : 1,
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {aiLoading ? '...' : 'Refresh'}
-                </button>
-              )}
-            </div>
-          </div>
-        </GlowBorder>
-
-        {/* AI Analysis details */}
-        {result && (
-          <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-
-            {/* URGENT */}
-            {result.urgent.length > 0 && (
-              <Card style={{ borderColor: 'rgba(196,120,92,0.25)', padding: '14px 16px' }}>
-                <SectionLabel>Urgent — Next 4 Weeks</SectionLabel>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-                  {result.urgent.map((item, i) => {
-                    const link = resolveItemLink(item.item)
-                    return (
-                      <div
-                        key={i}
-                        onClick={() => link && navigate(link)}
-                        style={{
-                          padding: '8px 0',
-                          borderBottom: i < result.urgent.length - 1 ? '1px solid var(--color-bg)' : 'none',
-                          cursor: link ? 'pointer' : 'default',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
-                          <div style={{ flex: 1 }}>
-                            <p style={{
-                              fontFamily: 'var(--font-body)', fontSize: '13px',
-                              fontWeight: 600, color: '#C4785C', margin: '0 0 2px 0',
-                            }}>
-                              {item.item}
-                            </p>
-                            <p style={{
-                              fontFamily: 'var(--font-body)', fontSize: '12px',
-                              color: 'var(--color-text-secondary)', margin: 0,
-                            }}>
-                              {item.reason}
-                            </p>
-                          </div>
-                          {link && (
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#C4785C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px', opacity: 0.7 }}>
-                              <path d="M5 12h14M12 5l7 7-7 7" />
-                            </svg>
-                          )}
-                        </div>
+                    {aiLoading && !result && (
+                      <div>
+                        <p style={{ fontSize: '13px', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', margin: '0 0 3px 0', fontWeight: 500 }}>
+                          <span className="tl-loading-dots">Analyzing your planning progress</span>
+                        </p>
+                        <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)', margin: 0 }}>
+                          This usually takes about 5 seconds
+                        </p>
                       </div>
-                    )
-                  })}
-                </div>
-              </Card>
-            )}
+                    )}
 
-            {/* WATCH LIST */}
-            {result.watch_list.length > 0 && (
-              <Card style={{ padding: '14px 16px' }}>
-                <SectionLabel>Watch List</SectionLabel>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-                  {result.watch_list.map((item, i) => {
-                    const link = resolveItemLink(item.item)
-                    return (
-                      <div
-                        key={i}
-                        onClick={() => link && navigate(link)}
-                        style={{
-                          padding: '6px 0',
-                          borderBottom: i < result.watch_list.length - 1 ? '1px solid var(--color-bg)' : 'none',
-                          cursor: link ? 'pointer' : 'default',
-                          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px',
-                        }}
-                      >
-                        <div style={{ flex: 1 }}>
-                          <p style={{
-                            fontFamily: 'var(--font-body)', fontSize: '13px',
-                            color: 'var(--color-text-primary)', margin: '0 0 2px 0',
-                          }}>
-                            {item.item}
+                    {!aiLoading && !result && !aiError && (
+                      <div>
+                        <p style={{ fontSize: '13px', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', margin: '0 0 3px 0', fontWeight: 500 }}>
+                          {couple ? "Are you on track? We'll check your vendors, budget, and payments against your wedding date." : 'Add your wedding date in Settings to get a personalized health check.'}
+                        </p>
+                        {couple && (
+                          <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', margin: 0 }}>
+                            Get a personalized health check with specific next steps.
                           </p>
-                          <p style={{
-                            fontFamily: 'var(--font-body)', fontSize: '11px',
-                            color: 'var(--color-text-secondary)', margin: 0,
-                          }}>
-                            {item.when}
-                          </p>
-                        </div>
-                        {link && (
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '3px', opacity: 0.6 }}>
-                            <path d="M5 12h14M12 5l7 7-7 7" />
-                          </svg>
                         )}
                       </div>
-                    )
-                  })}
+                    )}
+
+                    {result && (
+                      <>
+                        {/* Status pill */}
+                        <div style={{
+                          display: 'inline-flex', alignItems: 'center',
+                          padding: '3px 10px', borderRadius: '20px', marginBottom: '8px',
+                          border: `1.5px solid ${STATUS_COLORS[result.overall_status]}`,
+                          background: `${STATUS_COLORS[result.overall_status]}18`,
+                        }}>
+                          <span style={{
+                            fontFamily: 'var(--font-body)', fontSize: '10px',
+                            letterSpacing: '0.1em', textTransform: 'uppercase',
+                            color: STATUS_COLORS[result.overall_status], fontWeight: 700,
+                          }}>
+                            {result.overall_status}
+                          </span>
+                        </div>
+
+                        {/* Summary */}
+                        <p style={{
+                          fontFamily: 'var(--font-heading)', fontSize: '13.5px',
+                          fontStyle: 'italic', lineHeight: 1.65, margin: 0,
+                          color: 'var(--color-text-primary)',
+                        }}>
+                          {result.summary}
+                        </p>
+                      </>
+                    )}
+
+                    {aiError && (
+                      <p style={{ color: '#C4785C', fontFamily: 'var(--font-body)', fontSize: '12px', margin: '4px 0 0 0' }}>
+                        {aiError}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Refresh button */}
+                  {(result || aiError) && (
+                    <button
+                      onClick={handleRefresh}
+                      disabled={aiLoading || !couple}
+                      style={{
+                        flexShrink: 0,
+                        fontSize: '11px', fontWeight: 600, padding: '5px 12px',
+                        borderRadius: '7px', border: '1px solid rgba(184,146,106,0.3)',
+                        background: 'transparent', color: '#B8926A',
+                        cursor: aiLoading || !couple ? 'default' : 'pointer',
+                        opacity: aiLoading || !couple ? 0.5 : 1,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {aiLoading ? '...' : 'Refresh'}
+                    </button>
+                  )}
                 </div>
-              </Card>
+              </div>
+            </GlowBorder>
+
+            {/* Skeleton loading cards */}
+            {aiLoading && !result && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{
+                    padding: '14px 16px',
+                    borderRadius: '12px',
+                    background: '#fff',
+                    boxShadow: '0 1px 3px rgba(140,120,100,0.08), 0 4px 12px rgba(140,120,100,0.05)',
+                    animationDelay: `${i * 0.2}s`,
+                  }}>
+                    <div className="tl-skel-bar" style={{ width: '80px', height: '10px', marginBottom: '10px', animationDelay: `${i * 0.2}s` }} />
+                    <div className="tl-skel-bar" style={{ width: `${65 - i * 10}%`, height: '13px', marginBottom: '8px', animationDelay: `${i * 0.2 + 0.1}s` }} />
+                    <div className="tl-skel-bar" style={{ width: '90%', height: '11px', animationDelay: `${i * 0.2 + 0.2}s` }} />
+                  </div>
+                ))}
+              </div>
             )}
 
-            {/* ON TRACK */}
-            {result.on_track.length > 0 && (
-              <Card style={{ padding: '14px 16px' }}>
-                <SectionLabel>On Track</SectionLabel>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {result.on_track.map((item, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                      <span style={{ color: '#7B8F6B', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>✓</span>
-                      <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: '#7B8F6B', lineHeight: 1.4 }}>
-                        {item}
-                      </span>
+            {/* AI Analysis details */}
+            {result && (
+              <div className="tl-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                {/* URGENT */}
+                {result.urgent.length > 0 && (
+                  <Card style={{ borderColor: 'rgba(196,120,92,0.25)', padding: '14px 16px' }}>
+                    <SectionLabel>Urgent, Next 4 Weeks</SectionLabel>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                      {result.urgent.map((item, i) => {
+                        const link = resolveItemLink(item.item)
+                        return (
+                          <div
+                            key={i}
+                            onClick={() => link && navigate(link)}
+                            style={{
+                              padding: '8px 0',
+                              borderBottom: i < result.urgent.length - 1 ? '1px solid var(--color-bg)' : 'none',
+                              cursor: link ? 'pointer' : 'default',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+                              <div style={{ flex: 1 }}>
+                                <p style={{
+                                  fontFamily: 'var(--font-body)', fontSize: '13px',
+                                  fontWeight: 600, color: '#C4785C', margin: '0 0 2px 0',
+                                }}>
+                                  {item.item}
+                                </p>
+                                <p style={{
+                                  fontFamily: 'var(--font-body)', fontSize: '12px',
+                                  color: 'var(--color-text-secondary)', margin: 0,
+                                }}>
+                                  {item.reason}
+                                </p>
+                              </div>
+                              {link && (
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#C4785C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px', opacity: 0.7 }}>
+                                  <path d="M5 12h14M12 5l7 7-7 7" />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
-                  ))}
-                </div>
-              </Card>
+                  </Card>
+                )}
+
+                {/* WATCH LIST */}
+                {result.watch_list.length > 0 && (
+                  <Card style={{ padding: '14px 16px' }}>
+                    <SectionLabel>Watch List</SectionLabel>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                      {result.watch_list.map((item, i) => {
+                        const link = resolveItemLink(item.item)
+                        return (
+                          <div
+                            key={i}
+                            onClick={() => link && navigate(link)}
+                            style={{
+                              padding: '6px 0',
+                              borderBottom: i < result.watch_list.length - 1 ? '1px solid var(--color-bg)' : 'none',
+                              cursor: link ? 'pointer' : 'default',
+                              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px',
+                            }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <p style={{
+                                fontFamily: 'var(--font-body)', fontSize: '13px',
+                                color: 'var(--color-text-primary)', margin: '0 0 2px 0',
+                              }}>
+                                {item.item}
+                              </p>
+                              <p style={{
+                                fontFamily: 'var(--font-body)', fontSize: '11px',
+                                color: 'var(--color-text-secondary)', margin: 0,
+                              }}>
+                                {item.when}
+                              </p>
+                            </div>
+                            {link && (
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '3px', opacity: 0.6 }}>
+                                <path d="M5 12h14M12 5l7 7-7 7" />
+                              </svg>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </Card>
+                )}
+
+                {/* ON TRACK */}
+                {result.on_track.length > 0 && (
+                  <Card style={{ padding: '14px 16px' }}>
+                    <SectionLabel>On Track</SectionLabel>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {result.on_track.map((item, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                          <span style={{ color: '#7B8F6B', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>✓</span>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: '#7B8F6B', lineHeight: 1.4 }}>
+                            {item}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+              </div>
             )}
           </div>
-        )}
 
-        {/* Phase Progress Map */}
-        <div style={{ marginBottom: '8px' }}>
-          <p style={{
-            fontFamily: 'var(--font-body)', fontSize: '10px', fontWeight: 600,
-            letterSpacing: '0.1em', textTransform: 'uppercase',
-            color: 'var(--color-text-secondary)', margin: '0 0 10px 0',
-          }}>
-            Phase Progress
-          </p>
+          {/* RIGHT COLUMN: Phase Progress */}
+          <div className="timeline-col" style={{ borderLeft: '1px solid #EDE8E1', paddingLeft: '24px' }}>
+            <p style={{
+              fontFamily: 'var(--font-body)', fontSize: '10px', fontWeight: 600,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              color: 'var(--color-text-secondary)', margin: '0 0 10px 0',
+            }}>
+              Phase Progress
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {phases.map((phase, phaseIdx) => {
+                const isCurrent = phase.id === currentPhaseId
+                const isPast = currentPhaseIdx > phaseIdx
+                const isExpanded = expandedPhases.has(phase.id)
+
+                return (
+                  <PhaseCard
+                    key={phase.id}
+                    phase={phase}
+                    isCurrent={isCurrent}
+                    isPast={isPast}
+                    weddingDate={weddingDate}
+                    expanded={isExpanded}
+                    onToggle={() => togglePhase(phase.id)}
+                  />
+                )
+              })}
+            </div>
+          </div>
+
         </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {phases.map((phase, phaseIdx) => {
-            const isCurrent = phase.id === currentPhaseId
-            const isPast = currentPhaseIdx > phaseIdx
-            const isExpanded = expandedPhases.has(phase.id)
-
-            return (
-              <PhaseCard
-                key={phase.id}
-                phase={phase}
-                isCurrent={isCurrent}
-                isPast={isPast}
-                weddingDate={weddingDate}
-                expanded={isExpanded}
-                onToggle={() => togglePhase(phase.id)}
-              />
-            )
-          })}
-        </div>
-
       </div>
     </AppShell>
   )

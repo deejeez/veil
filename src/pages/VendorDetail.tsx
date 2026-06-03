@@ -552,7 +552,7 @@ export default function VendorDetail() {
               onClick={() => contractInputRefs.current[`${vendor.id}-contract`]?.click()}
               style={{ display: 'inline-block', fontSize: '12px', padding: '5px 14px', borderRadius: '7px', background: 'var(--color-accent)', color: '#fff', cursor: uploadingContract ? 'default' : 'pointer', opacity: uploadingContract ? 0.6 : 1, fontFamily: 'var(--font-body)', fontWeight: 600 }}
             >
-              {uploadingContract ? 'Uploading...' : '+ Upload Contract'}
+              {uploadingContract ? 'Uploading...' : 'Upload Contract'}
             </span>
           </label>
           <label>
@@ -744,11 +744,16 @@ export default function VendorDetail() {
             </div>
             <div style={{ fontSize: '13px', color: '#2C2825', fontWeight: 500, lineHeight: 1.4 }}>
               {shortlistLoading
-                ? 'Finding the best vendors in your area...'
+                ? `Searching for ${categoryLabel.toLowerCase()} ${couple?.city ? `in ${couple.city}` : 'for your wedding'}...`
                 : shortlist.length > 0
-                  ? `${shortlist.length} suggestions ready — ranked for your vibe`
-                  : 'Get 4–6 vendors ranked against your wedding vibe profile'}
+                  ? `${shortlist.length} ${categoryLabel.toLowerCase()} recommendations for your ${couple?.city ? `${couple.city} ` : ''}wedding`
+                  : `Find ${categoryLabel.toLowerCase()} ${couple?.city ? `in ${couple.city} ` : ''}that fit your style and budget`}
             </div>
+            {!shortlistLoading && shortlist.length === 0 && (
+              <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                Based on your vibe, budget, and wedding date. Takes about 10 seconds.
+              </div>
+            )}
             {shortlistError && <div style={{ fontSize: '12px', color: '#C4785C', marginTop: '4px' }}>{shortlistError}</div>}
           </div>
           <button
@@ -757,7 +762,7 @@ export default function VendorDetail() {
             disabled={shortlistLoading}
             style={{ fontSize: '12px', fontWeight: 600, padding: '7px 16px', borderRadius: '8px', background: 'var(--color-accent)', color: '#fff', border: 'none', cursor: shortlistLoading ? 'default' : 'pointer', flexShrink: 0, opacity: shortlistLoading ? 0.7 : 1 }}
           >
-            {shortlistLoading ? 'Finding...' : shortlist.length > 0 ? 'Refresh' : 'Get Shortlist'}
+            {shortlistLoading ? 'Finding...' : shortlist.length > 0 ? 'Refresh' : 'Get Recommendations'}
           </button>
         </div>
       </GlowBorder>

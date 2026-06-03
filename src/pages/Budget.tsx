@@ -304,10 +304,10 @@ export default function Budget() {
         }}>
           <div style={{ flex: 1 }}>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: '#2c2825', margin: '0 0 2px 0' }}>
-              ✦ Suggested allocations for a ${(NYC_TOTAL / 1000).toFixed(0)}K NYC wedding.
+              Not sure how to split your budget? Here's a starting point based on NYC averages.
             </p>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', margin: 0 }}>
-              Adjust to match your priorities.
+              These are typical allocations for a ${(NYC_TOTAL / 1000).toFixed(0)}K wedding in NYC. Adjust to match your priorities.
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
@@ -338,12 +338,10 @@ export default function Budget() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
             <div>
               <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px 0' }}>
-                Here's a typical budget breakdown for a{' '}
-                {couple?.budget_total ? `$${(couple.budget_total / 1000).toFixed(0)}K` : ''}{' '}
-                wedding{couple?.city ? ` in ${couple.city}` : ''}
+                Not sure how to split your budget? Here's a starting point{couple?.city ? ` based on ${couple.city} averages` : ''}.
               </p>
               <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', margin: 0 }}>
-                Starting points based on typical averages. Accept any row or apply all at once — adjust to match your priorities.
+                These are typical allocations for a{couple?.budget_total ? ` $${(couple.budget_total / 1000).toFixed(0)}K` : ''} wedding{couple?.city ? ` in ${couple.city}` : ''}. Adjust to match your priorities.
               </p>
             </div>
             <button
