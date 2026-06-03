@@ -20,7 +20,7 @@ import {
 import type { Couple } from '../types/database'
 
 type TimelineResult = {
-  overall_status: 'On Track' | 'At Risk' | 'Behind'
+  overall_status: 'On Track' | 'Needs Attention' | 'Behind'
   summary: string
   urgent: { item: string; reason: string }[]
   on_track: string[]
@@ -29,7 +29,7 @@ type TimelineResult = {
 
 const STATUS_COLORS: Record<string, string> = {
   'On Track': '#7B8F6B',
-  'At Risk': '#B8926A',
+  'Needs Attention': '#B8926A',
   'Behind': '#C4785C',
 }
 

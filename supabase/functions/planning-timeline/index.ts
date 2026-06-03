@@ -41,9 +41,12 @@ Deno.serve(async (req) => {
       })
     }
 
-    const [{ data: couple }, { data: vendors }] = await Promise.all([
+    const [{ data: couple }, { data: vendors }, { data: budgetCategories }, { data: payments }, { data: guests }] = await Promise.all([
       supabase.from('couples').select('*, user_id_primary, user_id_partner, paid').eq('id', couple_id).single(),
-      supabase.from('vendors').select('category, status, name').eq('couple_id', couple_id),
+      supabase.from('vendors').select('category, status, name, booked_amount').eq('couple_id', couple_id),
+      supabase.from('budget_categories').select('category, budgeted').eq('couple_id', couple_id),
+      supabase.from('payments').select('label, amount, due_date, paid_date').eq('couple_id', couple_id),
+      supabase.from('guests').select('id, plus_ones, kids').eq('couple_id', couple_id),
     ])
 
     if (couple?.user_id_primary !== user.id && couple?.user_id_partner !== user.id) {
@@ -66,6 +69,14 @@ Deno.serve(async (req) => {
       `${v.category}: ${v.status}${v.name ? ` (${v.name})` : ''}`
     ).join('\n')
 
+    const totalCommitted = (vendors ?? []).reduce((s: number, v: any) => s + (v.booked_amount ?? 0), 0)
+    const totalBudgeted = (budgetCategories ?? []).reduce((s: number, b: any) => s + (b.budgeted ?? 0), 0)
+    const today = new Date().toISOString().split('T')[0]
+    const overduePayments = (payments ?? []).filter((p: any) => !p.paid_date && p.due_date && p.due_date < today)
+    const overdueAmount = overduePayments.reduce((s: number, p: any) => s + (p.amount ?? 0), 0)
+    const paidCount = (payments ?? []).filter((p: any) => p.paid_date).length
+    const totalGuests = (guests ?? []).reduce((s: number, g: any) => s + 1 + (g.plus_ones ?? 0) + (g.kids ?? 0), 0)
+
     const vibeDesc = couple.vibe_profile
       ? `Aesthetic: ${couple.vibe_profile.aesthetic}, Formality: ${couple.vibe_profile.formality}, Setting: ${couple.vibe_profile.setting}, Priority: ${couple.vibe_profile.priority}`
       : 'No vibe profile'
@@ -84,6 +95,14 @@ Vibe: ${vibeDesc}
 Vendor status:
 ${vendorSummary || 'No vendors added yet'}
 
+Budget: ${couple.budget_total ? `${couple.budget_total.toLocaleString()} total` : 'No budget set'}
+Committed to booked vendors: ${totalCommitted.toLocaleString()}
+Budgeted across categories: ${totalBudgeted.toLocaleString()}
+
+Payments: ${(payments ?? []).length} total, ${paidCount} paid, ${overduePayments.length} overdue (${overdueAmount.toLocaleString()} overdue)
+
+Guests: ${totalGuests} estimated
+
 Respond in this exact JSON format:
 {
   "overall_status": "On Track",
@@ -97,7 +116,7 @@ Respond in this exact JSON format:
   ]
 }
 
-overall_status must be exactly one of: "On Track", "At Risk", "Behind"`,
+overall_status must be exactly one of: "On Track", "Needs Attention", "Behind"`,
       }],
     })
 

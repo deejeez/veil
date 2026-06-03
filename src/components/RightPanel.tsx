@@ -56,11 +56,11 @@ function computeHealthScore(
   let expectedBooked = 0
   if (daysUntil !== null) {
     const months = daysUntil / 30.44
-    if (months >= 12) expectedBooked = 2
-    else if (months >= 9) expectedBooked = 5
-    else if (months >= 6) expectedBooked = 8
-    else if (months >= 3) expectedBooked = 11
-    else if (months >= 0) expectedBooked = Math.max(Math.min(totalCategories, 13), totalCategories - 1)
+    if (months >= 12) expectedBooked = Math.round(totalCategories * 0.15)
+    else if (months >= 9) expectedBooked = Math.round(totalCategories * 0.35)
+    else if (months >= 6) expectedBooked = Math.round(totalCategories * 0.6)
+    else if (months >= 3) expectedBooked = Math.round(totalCategories * 0.8)
+    else if (months >= 0) expectedBooked = Math.max(totalCategories - 1, Math.round(totalCategories * 0.95))
     else expectedBooked = totalCategories
   }
 
@@ -94,20 +94,21 @@ function computeHealthScore(
   }
   factors.push({ label: 'Budget', status: budgetStatus, detail: budgetDetail })
 
-  // 3. Payments factor
+  // 3. Payments factor — weighted by dollar amount
   const today = new Date().toISOString().split('T')[0]
   const overduePayments = payments.filter(p => !p.paid_date && p.due_date && p.due_date < today)
+  const overdueAmount = overduePayments.reduce((sum, p) => sum + (p.amount ?? 0), 0)
   let paymentStatus: FactorStatus
   let paymentDetail: string
   if (overduePayments.length === 0) {
     paymentStatus = 'good'
     paymentDetail = 'All on time'
-  } else if (overduePayments.length <= 2) {
-    paymentStatus = 'warning'
-    paymentDetail = `${overduePayments.length} payment${overduePayments.length > 1 ? 's' : ''} overdue`
-  } else {
+  } else if (overdueAmount >= 5000 || overduePayments.length >= 3) {
     paymentStatus = 'bad'
-    paymentDetail = `${overduePayments.length} payments overdue`
+    paymentDetail = `${overdueAmount.toLocaleString()} overdue across ${overduePayments.length} payment${overduePayments.length > 1 ? 's' : ''}`
+  } else {
+    paymentStatus = 'warning'
+    paymentDetail = `${overdueAmount.toLocaleString()} overdue (${overduePayments.length} payment${overduePayments.length > 1 ? 's' : ''})`
   }
   factors.push({ label: 'Payments', status: paymentStatus, detail: paymentDetail })
 
