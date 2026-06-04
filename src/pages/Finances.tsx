@@ -16,6 +16,8 @@ export default function Finances() {
   const [newPayment, setNewPayment] = useState({ label: '', amount: '', due_date: '', paid_by: 'couple', vendor_id: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
+  const [hoveredMonth, setHoveredMonth] = useState<string | null>(null)
 
   async function load() {
     try {
@@ -70,6 +72,8 @@ export default function Finances() {
   }
 
   const today = new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const totalBudget = couple?.budget_total ?? 0
   const totalPaid = payments.filter(p => p.paid_date).reduce((sum, p) => sum + p.amount, 0)
   const unpaid = payments.filter(p => !p.paid_date)
@@ -112,6 +116,69 @@ export default function Finances() {
 
   const formatDue = (date: string) =>
     new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+  // ─── Calendar data ─────────────────────────────────────────────────────────
+  const weddingDate = couple?.wedding_date ? new Date(couple.wedding_date + 'T00:00:00') : null
+  const months: Array<{ year: number; month: number; key: string; label: string; isWedding: boolean; isCurrent: boolean }> = []
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    const y = d.getFullYear()
+    const m = d.getMonth()
+    const isWedding = weddingDate ? (y === weddingDate.getFullYear() && m === weddingDate.getMonth()) : false
+    const key = `${y}-${String(m + 1).padStart(2, '0')}`
+    months.push({
+      year: y, month: m + 1, key,
+      label: d.toLocaleDateString('en-US', { month: 'short' }),
+      isWedding, isCurrent: key === currentMonthKey,
+    })
+  }
+
+  const paymentsByMonth: Record<string, Payment[]> = {}
+  payments.forEach(p => {
+    if (p.due_date) {
+      const k = p.due_date.substring(0, 7)
+      if (!paymentsByMonth[k]) paymentsByMonth[k] = []
+      paymentsByMonth[k].push(p)
+    }
+  })
+  const hasAnyPayments = payments.some(p => p.due_date)
+
+  // ─── Summary stat bar data ─────────────────────────────────────────────────
+  const thisMonthPayments = paymentsByMonth[currentMonthKey] ?? []
+  const thisMonthUnpaid = thisMonthPayments.filter(p => !p.paid_date)
+  const dueThisMonth = thisMonthUnpaid.reduce((s, p) => s + p.amount, 0)
+  const thisMonthHasOverdue = thisMonthPayments.some(p => isOverdue(p))
+  const thisMonthAllPaid = thisMonthPayments.length > 0 && thisMonthUnpaid.length === 0
+
+  // Next 3 months (excluding current)
+  const next3MonthKeys: string[] = []
+  for (let i = 1; i <= 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    next3MonthKeys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+  const dueNext3 = next3MonthKeys.reduce((sum, k) => {
+    const mp = paymentsByMonth[k] ?? []
+    return sum + mp.filter(p => !p.paid_date).reduce((s, p) => s + p.amount, 0)
+  }, 0)
+
+  const totalRemainingAll = unpaid.reduce((sum, p) => sum + p.amount, 0)
+
+  // ─── Filtered payments for schedule ────────────────────────────────────────
+  const selectedMonthLabel = selectedMonth
+    ? new Date(selectedMonth + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : null
+
+  const filteredPayments = selectedMonth
+    ? payments.filter(p => p.due_date?.substring(0, 7) === selectedMonth)
+    : unpaid
+
+  const filteredSorted = [...filteredPayments].sort((a, b) => {
+    if (!a.due_date) return 1
+    if (!b.due_date) return -1
+    return a.due_date > b.due_date ? 1 : -1
+  })
+
+  const noDatePayments = selectedMonth ? payments.filter(p => !p.due_date) : []
 
   if (loading) return <AppShell><p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p></AppShell>
 
@@ -170,97 +237,171 @@ export default function Finances() {
           </div>
         </div>
 
-        {/* 12-month payment calendar */}
-        {(() => {
-          const weddingDate = couple?.wedding_date ? new Date(couple.wedding_date + 'T00:00:00') : null
-          const now = new Date()
-          const months: Array<{ year: number; month: number; key: string; label: string; isWedding: boolean }> = []
-          for (let i = 0; i < 12; i++) {
-            const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
-            const y = d.getFullYear()
-            const m = d.getMonth()
-            const isWedding = weddingDate ? (y === weddingDate.getFullYear() && m === weddingDate.getMonth()) : false
-            months.push({
-              year: y,
-              month: m + 1,
-              key: `${y}-${String(m + 1).padStart(2, '0')}`,
-              label: d.toLocaleDateString('en-US', { month: 'short' }),
-              isWedding,
-            })
-          }
-          const paymentsByMonth: Record<string, Payment[]> = {}
-          payments.forEach(p => {
-            if (p.due_date) {
-              const k = p.due_date.substring(0, 7)
-              if (!paymentsByMonth[k]) paymentsByMonth[k] = []
-              paymentsByMonth[k].push(p)
-            }
-          })
-          const hasAnyPayments = payments.some(p => p.due_date)
-          return (
-            <div>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Payment Calendar</div>
-              <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '14px 16px', background: '#fff' }}>
-                <div className="table-scroll-container">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px', minWidth: '360px' }}>
-                  {months.map(({ key, label, isWedding }) => {
-                    const monthPayments = paymentsByMonth[key] || []
-                    const total = monthPayments.reduce((s, p) => s + p.amount, 0)
-                    const hasPaid = monthPayments.some(p => p.paid_date)
-                    const hasOv = monthPayments.some(p => isOverdue(p))
-                    return (
-                      <div key={key} style={{
-                        padding: '7px 5px',
-                        borderRadius: '6px',
-                        background: isWedding ? 'rgba(184,146,106,0.08)' : monthPayments.length > 0 ? '#FAFAF8' : 'transparent',
-                        border: isWedding ? '1px solid rgba(184,146,106,0.25)' : monthPayments.length > 0 ? '1px solid var(--color-border)' : '1px solid transparent',
-                        textAlign: 'center',
-                      }}>
-                        <div style={{ fontSize: '10px', fontWeight: isWedding ? 700 : 500, color: isWedding ? 'var(--color-accent)' : 'var(--color-text-muted)', marginBottom: '3px' }}>
-                          {label}
-                        </div>
-                        {isWedding && <div style={{ fontSize: '8px', color: 'var(--color-accent)', marginBottom: '3px', fontWeight: 700 }}>Wedding</div>}
-                        {monthPayments.length > 0 ? (
-                          <div>
-                            <div style={{ fontSize: '11px', fontWeight: 700, color: hasOv ? '#C4785C' : hasPaid ? '#7B8F6B' : 'var(--color-text-primary)' }}>
-                              {total >= 1000 ? `$${(total / 1000).toFixed(0)}K` : `$${total}`}
-                            </div>
-                            <div style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>{monthPayments.length}x</div>
-                          </div>
-                        ) : (
-                          <div style={{ height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <div style={{ width: '14px', height: '1px', background: isWedding ? 'rgba(184,146,106,0.3)' : '#E8E4DF' }} />
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-                </div>{/* end table-scroll-container */}
-                {!hasAnyPayments && (
-                  <div style={{ marginTop: '12px', padding: '10px 12px', background: '#F8F5F1', borderRadius: '6px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '6px' }}>What to expect</div>
-                    {[
-                      { label: 'Deposits', timing: '9–12 months out' },
-                      { label: 'Mid-payments', timing: '3–6 months out' },
-                      { label: 'Final payments', timing: '2–4 weeks before' },
-                    ].map(({ label, timing }) => (
-                      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '4px' }}>
-                        <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--color-accent)', flexShrink: 0 }} />
-                        <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                          <strong>{label}</strong> — {timing}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+        {/* Payment summary stat cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+          {/* Due This Month */}
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px 14px', background: '#fff', textAlign: 'center' }}>
+            <div style={{
+              fontSize: '20px', fontWeight: 700, fontFamily: 'var(--font-mono, var(--font-body))', lineHeight: 1.2,
+              color: thisMonthAllPaid ? '#7B8F6B' : thisMonthHasOverdue ? '#C4785C' : dueThisMonth > 0 ? 'var(--color-accent)' : 'var(--color-text-primary)',
+            }}>
+              ${dueThisMonth.toLocaleString()}
             </div>
-          )
-        })()}
+            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              {thisMonthAllPaid ? 'All clear' : 'Due This Month'}
+            </div>
+          </div>
+
+          {/* Due Next 3 Months */}
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px 14px', background: '#fff', textAlign: 'center' }}>
+            <div style={{ fontSize: '20px', fontWeight: 700, fontFamily: 'var(--font-mono, var(--font-body))', lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
+              ${dueNext3.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Next 3 Months
+            </div>
+          </div>
+
+          {/* Total Remaining */}
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px 14px', background: '#fff', textAlign: 'center' }}>
+            <div style={{ fontSize: '20px', fontWeight: 700, fontFamily: 'var(--font-mono, var(--font-body))', lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
+              ${totalRemainingAll.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Total Remaining
+            </div>
+          </div>
+        </div>
+
+        {/* 12-month payment calendar */}
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Payment Calendar</div>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '14px 16px', background: '#fff' }}>
+            <div className="table-scroll-container">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px', minWidth: '360px' }}>
+              {months.map(({ key, label, isWedding, isCurrent }) => {
+                const monthPayments = paymentsByMonth[key] || []
+                const total = monthPayments.reduce((s, p) => s + p.amount, 0)
+                const paidCount = monthPayments.filter(p => p.paid_date).length
+                const overdueCount = monthPayments.filter(p => isOverdue(p)).length
+                const pendingCount = monthPayments.filter(p => !p.paid_date && !isOverdue(p)).length
+                const isSelected = selectedMonth === key
+                const isHovered = hoveredMonth === key
+                const hasPayments = monthPayments.length > 0
+
+                return (
+                  <div
+                    key={key}
+                    onClick={() => {
+                      if (hasPayments) setSelectedMonth(isSelected ? null : key)
+                    }}
+                    onMouseEnter={() => setHoveredMonth(key)}
+                    onMouseLeave={() => setHoveredMonth(null)}
+                    style={{
+                      padding: '7px 5px',
+                      borderRadius: '6px',
+                      background: isSelected ? 'rgba(184,146,106,0.12)' :
+                        isHovered && hasPayments ? 'rgba(184,146,106,0.06)' :
+                        isWedding ? 'rgba(184,146,106,0.08)' :
+                        hasPayments ? '#FAFAF8' : 'transparent',
+                      border: isSelected ? '1.5px solid var(--color-accent)' :
+                        isHovered && hasPayments ? '1px solid rgba(184,146,106,0.15)' :
+                        isWedding ? '1px solid rgba(184,146,106,0.25)' :
+                        hasPayments ? '1px solid var(--color-border)' : '1px solid transparent',
+                      textAlign: 'center',
+                      cursor: hasPayments ? 'pointer' : 'default',
+                      transition: 'all 0.15s ease',
+                      position: 'relative',
+                    }}
+                  >
+                    {/* Quick-add on hover (desktop only) */}
+                    {isHovered && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const firstOfMonth = `${key}-01`
+                          setNewPayment(f => ({ ...f, due_date: firstOfMonth }))
+                          setShowAddForm(true)
+                        }}
+                        style={{
+                          position: 'absolute', top: '2px', right: '3px',
+                          fontSize: '10px', color: 'var(--color-text-muted)', background: 'none',
+                          border: 'none', cursor: 'pointer', padding: '0 2px', lineHeight: 1,
+                        }}
+                      >+</button>
+                    )}
+
+                    <div style={{ fontSize: '10px', fontWeight: isWedding || isCurrent ? 700 : 500, color: isWedding ? 'var(--color-accent)' : 'var(--color-text-muted)', marginBottom: '1px' }}>
+                      {label}
+                    </div>
+                    {/* Current month gold dot */}
+                    {isCurrent && (
+                      <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--color-accent)', margin: '0 auto 2px' }} />
+                    )}
+                    {isWedding && <div style={{ fontSize: '8px', color: 'var(--color-accent)', marginBottom: '3px', fontWeight: 700 }}>Wedding</div>}
+                    {hasPayments ? (
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: overdueCount > 0 ? '#C4785C' : paidCount === monthPayments.length ? '#7B8F6B' : 'var(--color-text-primary)' }}>
+                          {total >= 1000 ? `$${(total / 1000).toFixed(0)}K` : `$${total}`}
+                        </div>
+                        {/* Status dots */}
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '2px', marginTop: '2px' }}>
+                          {paidCount > 0 && <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#7B8F6B' }} />}
+                          {pendingCount > 0 && <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--color-accent)' }} />}
+                          {overdueCount > 0 && <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#C4785C' }} />}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: '14px', height: '1px', background: isWedding ? 'rgba(184,146,106,0.3)' : '#E8E4DF' }} />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            </div>{/* end table-scroll-container */}
+            {!hasAnyPayments && (
+              <div style={{ marginTop: '12px', padding: '10px 12px', background: '#F8F5F1', borderRadius: '6px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '6px' }}>What to expect</div>
+                {[
+                  { label: 'Deposits', timing: '9\u201312 months out' },
+                  { label: 'Mid-payments', timing: '3\u20136 months out' },
+                  { label: 'Final payments', timing: '2\u20134 weeks before' },
+                ].map(({ label, timing }) => (
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '4px' }}>
+                    <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--color-accent)', flexShrink: 0 }} />
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                      <strong>{label}</strong> — {timing}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Filter bar */}
+        {selectedMonth && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: 'rgba(184,146,106,0.06)', border: '1px solid rgba(184,146,106,0.15)',
+            borderRadius: '8px', padding: '8px 14px',
+          }}>
+            <div style={{ fontSize: '13px', color: 'var(--color-text-primary)' }}>
+              Showing <strong style={{ color: 'var(--color-accent)' }}>{filteredPayments.length} payment{filteredPayments.length !== 1 ? 's' : ''}</strong> in <strong style={{ color: 'var(--color-accent)' }}>{selectedMonthLabel}</strong>
+            </div>
+            <button
+              onClick={() => setSelectedMonth(null)}
+              style={{ fontSize: '12px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0' }}
+            >
+              × Clear
+            </button>
+          </div>
+        )}
 
         {/* Alert banner — overdue or due within 30 days */}
-        {alertPayment && (
+        {!selectedMonth && alertPayment && (
           <div style={{ border: '1px solid rgba(196,120,92,0.30)', borderRadius: '8px', padding: '12px 14px', background: 'rgba(196,120,92,0.06)', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
             <div style={{ fontSize: '15px', flexShrink: 0, marginTop: '1px' }}>⚠️</div>
             <div style={{ flex: 1 }}>
@@ -283,7 +424,7 @@ export default function Finances() {
         )}
 
         {/* By Family */}
-        {Object.keys(payerGroups).length > 0 && (
+        {!selectedMonth && Object.keys(payerGroups).length > 0 && (
           <div>
             <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>By Family</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]">
@@ -317,53 +458,63 @@ export default function Finances() {
         <div>
           <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Payment Schedule</div>
           <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
-            {unpaid.length === 0 ? (
+            {filteredSorted.length === 0 ? (
               <div style={{ padding: '16px', fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-                No upcoming payments.
+                {selectedMonth ? `No payments due in ${selectedMonthLabel}.` : 'No upcoming payments.'}
               </div>
             ) : (
-              [...unpaid]
-                .sort((a, b) => {
-                  if (!a.due_date) return 1
-                  if (!b.due_date) return -1
-                  return a.due_date > b.due_date ? 1 : -1
-                })
-                .map((p, i, arr) => {
-                  const overdue = isOverdue(p)
-                  const dueSoon = isDueSoon(p)
-                  const vendor = vendors.find(v => v.id === p.vendor_id)
-                  const daysUntilDue = p.due_date ? getDaysUntil(p.due_date) : null
-                  const rowBg = overdue ? '#FDF5F1' : dueSoon ? '#FBF5ED' : '#fff'
-                  const borderCol = overdue ? '#F5EBE6' : dueSoon ? '#F0E8DB' : 'var(--color-border)'
-                  const amtColor = overdue ? '#C4785C' : dueSoon ? '#C4785C' : 'var(--color-text-primary)'
+              filteredSorted.map((p, i, arr) => {
+                const isPaid = !!p.paid_date
+                const overdue = isOverdue(p)
+                const dueSoon = isDueSoon(p)
+                const vendor = vendors.find(v => v.id === p.vendor_id)
+                const daysUntilDue = p.due_date ? getDaysUntil(p.due_date) : null
+                const rowBg = isPaid ? '#FAFDF8' : overdue ? '#FDF5F1' : dueSoon ? '#FBF5ED' : '#fff'
+                const borderCol = isPaid ? '#E0EBD8' : overdue ? '#F5EBE6' : dueSoon ? '#F0E8DB' : 'var(--color-border)'
+                const amtColor = isPaid ? '#7B8F6B' : overdue ? '#C4785C' : dueSoon ? '#C4785C' : 'var(--color-text-primary)'
 
-                  return (
-                    <div
-                      key={p.id}
-                      style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderBottom: i < arr.length - 1 ? `1px solid ${borderCol}` : 'none', background: rowBg }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{p.label}</span>
-                          {overdue && <span style={{ fontSize: '10px', color: '#C4785C', fontWeight: 600, background: '#FAE8E2', padding: '1px 6px', borderRadius: '5px' }}>Overdue</span>}
-                          {dueSoon && daysUntilDue !== null && (
-                            <span style={{ fontSize: '10px', color: '#9B7040', fontWeight: 600, background: '#F5EDDF', padding: '1px 6px', borderRadius: '5px' }}>
-                              {daysUntilDue}d
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>
-                          {vendor?.name ?? paidByLabel(p.paid_by)}{p.due_date ? ` · Due ${formatDue(p.due_date)}` : ''}
-                        </div>
+                return (
+                  <div
+                    key={p.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px',
+                      borderBottom: i < arr.length - 1 ? `1px solid ${borderCol}` : 'none',
+                      background: rowBg,
+                      borderLeft: isPaid ? '3px solid #7B8F6B' : 'none',
+                      opacity: isPaid ? 0.75 : 1,
+                      transition: 'opacity 0.2s, background 0.2s',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{
+                          fontSize: '12px', fontWeight: 600,
+                          color: isPaid ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
+                          textDecoration: isPaid ? 'line-through' : 'none',
+                        }}>{p.label}</span>
+                        {isPaid && <span style={{ fontSize: '10px', color: '#7B8F6B', fontWeight: 600, background: '#E8F0E4', padding: '1px 6px', borderRadius: '5px' }}>Paid</span>}
+                        {overdue && <span style={{ fontSize: '10px', color: '#C4785C', fontWeight: 600, background: '#FAE8E2', padding: '1px 6px', borderRadius: '5px' }}>Overdue</span>}
+                        {dueSoon && daysUntilDue !== null && (
+                          <span style={{ fontSize: '10px', color: '#9B7040', fontWeight: 600, background: '#F5EDDF', padding: '1px 6px', borderRadius: '5px' }}>
+                            {daysUntilDue}d
+                          </span>
+                        )}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                        <span style={{ fontSize: '14px', fontWeight: 700, color: amtColor }}>${p.amount.toLocaleString()}</span>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>
+                        {vendor?.name ?? paidByLabel(p.paid_by)}{p.due_date ? ` · Due ${formatDue(p.due_date)}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      <span style={{ fontSize: '14px', fontWeight: 700, color: amtColor, textDecoration: isPaid ? 'line-through' : 'none' }}>${p.amount.toLocaleString()}</span>
+                      {!isPaid && (
                         <button
                           onClick={() => handleMarkPaid(p.id)}
                           style={{ fontSize: '10px', border: `1px solid ${overdue ? '#C4785C' : 'var(--color-border)'}`, borderRadius: '6px', padding: '3px 8px', color: overdue ? '#C4785C' : 'var(--color-text-muted)', background: 'none', cursor: 'pointer', fontWeight: overdue ? 600 : 400 }}
                         >
                           Pay
                         </button>
+                      )}
+                      {!isPaid && (
                         <button
                           onClick={async () => {
                             if (confirm('Remove this payment?')) {
@@ -373,12 +524,19 @@ export default function Finances() {
                           }}
                           style={{ fontSize: '11px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}
                         >✕</button>
-                      </div>
+                      )}
                     </div>
-                  )
-                })
+                  </div>
+                )
+              })
             )}
           </div>
+          {/* No-date payment note when filtering */}
+          {selectedMonth && noDatePayments.length > 0 && (
+            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '6px', textAlign: 'center' }}>
+              {noDatePayments.length} payment{noDatePayments.length !== 1 ? 's have' : ' has'} no due date
+            </div>
+          )}
         </div>
 
         {/* Add payment */}

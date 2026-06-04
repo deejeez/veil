@@ -25,3 +25,8 @@ export async function deleteVendorNote(id: string): Promise<void> {
   const { error } = await supabase.from('vendor_notes').delete().eq('id', id)
   if (error) throw error
 }
+
+export async function toggleVendorNotePin(id: string, pinned: boolean): Promise<void> {
+  const { error } = await supabase.from('vendor_notes').update({ pinned }).eq('id', id)
+  if (error) throw error
+}

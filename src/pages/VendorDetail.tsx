@@ -10,7 +10,8 @@ import { getCategoriesForCouple } from '../lib/categories'
 import type { AiReview, AiReviewFlag, Payment } from '../types/database'
 import { track } from '../lib/analytics'
 import { getPaymentsForVendor, insertPayment, markPaymentPaid, deletePayment } from '../lib/payments'
-import { getVendorNotes, addVendorNote, deleteVendorNote } from '../lib/vendorNotes'
+import { getVendorNotes, addVendorNote, deleteVendorNote, toggleVendorNotePin } from '../lib/vendorNotes'
+import type { VendorNoteType } from '../types/database'
 import GlowBorder from '../components/GlowBorder'
 
 // ─── Design helpers ───────────────────────────────────────────────────────────
@@ -58,6 +59,7 @@ export default function VendorDetail() {
   const [expandedFlag, setExpandedFlag] = useState<string | null>(null)
   const [notes, setNotes] = useState<Record<string, VendorNote[]>>({})
   const [noteText, setNoteText] = useState<Record<string, string>>({})
+  const [noteType, setNoteType] = useState<Record<string, VendorNoteType>>({})
   const [savingNote, setSavingNote] = useState<string | null>(null)
   const contractInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const [noteModal, setNoteModal] = useState<{ vendorId: string; status: VendorStatus; note: string } | null>(null)
@@ -70,6 +72,9 @@ export default function VendorDetail() {
   const [toast, setToast] = useState<{ message: string; vendorId: string } | null>(null)
   const [toastVisible, setToastVisible] = useState(false)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [comparing, setComparing] = useState(false)
+  const [comparedVendorIds, setComparedVendorIds] = useState<string[]>([])
+  const [swapDropdownOpen, setSwapDropdownOpen] = useState(false)
 
   function showToast(message: string, vendorId: string) {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
@@ -299,13 +304,30 @@ export default function VendorDetail() {
     if (!text) return
     setSavingNote(vendorId)
     try {
-      const note = await addVendorNote({ couple_id: couple.id, vendor_id: vendorId, text })
+      const type = noteType[vendorId] ?? 'note'
+      const note = await addVendorNote({ couple_id: couple.id, vendor_id: vendorId, text, type, pinned: false })
       setNotes(prev => ({ ...prev, [vendorId]: [note, ...(prev[vendorId] ?? [])] }))
       setNoteText(prev => ({ ...prev, [vendorId]: '' }))
     } catch {
       alert('Failed to add note. Please try again.')
     } finally {
       setSavingNote(null)
+    }
+  }
+
+  async function handleTogglePin(vendorId: string, noteId: string) {
+    const vendorNotes = notes[vendorId] ?? []
+    const note = vendorNotes.find(n => n.id === noteId)
+    if (!note) return
+    const newPinned = !note.pinned
+    try {
+      await toggleVendorNotePin(noteId, newPinned)
+      setNotes(prev => ({
+        ...prev,
+        [vendorId]: (prev[vendorId] ?? []).map(n => n.id === noteId ? { ...n, pinned: newPinned } : n),
+      }))
+    } catch {
+      alert('Failed to update pin. Please try again.')
     }
   }
 
@@ -601,51 +623,183 @@ export default function VendorDetail() {
     )
   }
 
-  // ─── Notes section sub-render ─────────────────────────────────────────────────
+  // ─── Communication Log sub-render ───────────────────────────────────────────
+
+  const NOTE_TYPE_CONFIG: Record<VendorNoteType, { label: string; border: string; bg: string; color: string; placeholder: string; icon: React.ReactNode }> = {
+    note: {
+      label: 'Note', border: 'var(--color-border)', bg: '#F5F1EC', color: 'var(--color-text-muted)',
+      placeholder: 'Add a note...',
+      icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>,
+    },
+    call: {
+      label: 'Call', border: '#8FA3B8', bg: '#E2EAF0', color: '#5A7A8F',
+      placeholder: 'What was discussed?',
+      icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
+    },
+    quote: {
+      label: 'Quote', border: '#7B8F6B', bg: '#E8F0E4', color: '#5A7A4A',
+      placeholder: 'Quote details and amount...',
+      icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+    },
+  }
 
   function renderNotesSection(vendor: Vendor) {
     const vendorNotes = notes[vendor.id] ?? []
     const text = noteText[vendor.id] ?? ''
+    const currentType = noteType[vendor.id] ?? 'note'
     const isSaving = savingNote === vendor.id
+    const cfg = NOTE_TYPE_CONFIG[currentType]
+
+    // Sort: pinned first, then by date descending
+    const sorted = [...vendorNotes].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1
+      if (!a.pinned && b.pinned) return 1
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
+
+    // Group by month (only for 5+ entries)
+    const useGrouping = sorted.length >= 5
+    const groups: { label: string; notes: VendorNote[] }[] = []
+    if (useGrouping) {
+      const pinned = sorted.filter(n => n.pinned)
+      const unpinned = sorted.filter(n => !n.pinned)
+      if (pinned.length > 0) {
+        groups.push({ label: 'PINNED', notes: pinned })
+      }
+      const monthMap = new Map<string, VendorNote[]>()
+      unpinned.forEach(n => {
+        const d = new Date(n.created_at)
+        const key = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()
+        if (!monthMap.has(key)) monthMap.set(key, [])
+        monthMap.get(key)!.push(n)
+      })
+      monthMap.forEach((notes, label) => groups.push({ label, notes }))
+    }
+
+    function renderNoteCard(note: VendorNote) {
+      const nCfg = NOTE_TYPE_CONFIG[note.type ?? 'note'] ?? NOTE_TYPE_CONFIG.note
+      return (
+        <div key={note.id} style={{ display: 'flex', gap: '10px', padding: '10px 12px', borderRadius: '8px', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderLeft: `3px solid ${nCfg.border}`, position: 'relative' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+              <span style={{ fontSize: '9px', padding: '2px 6px', borderRadius: '4px', background: nCfg.bg, color: nCfg.color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                {nCfg.label}
+              </span>
+              {note.pinned && (
+                <span style={{ fontSize: '9px', padding: '2px 6px', borderRadius: '4px', background: 'rgba(184,146,106,0.10)', color: 'var(--color-accent)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Pinned
+                </span>
+              )}
+            </div>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: '#2c2825', margin: '0 0 4px 0', lineHeight: 1.5, wordBreak: 'break-word' }}>{note.text}</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-muted)', margin: 0 }}>
+              {new Date(note.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {new Date(note.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            </p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0, alignSelf: 'flex-start' }}>
+            <button
+              onClick={() => handleTogglePin(vendor.id, note.id)}
+              title={note.pinned ? 'Unpin' : 'Pin'}
+              style={{ fontSize: '13px', color: note.pinned ? 'var(--color-accent)' : 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill={note.pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 17v5"/><path d="M9 2h6l-1 7h4l-8 8V9H6l3-7z"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => handleDeleteNote(vendor.id, note.id)}
+              style={{ fontSize: '14px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
+            >×</button>
+          </div>
+        </div>
+      )
+    }
 
     return (
       <div style={{ marginTop: '14px' }}>
-        <div style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: '10px', fontWeight: 700 }}>
-          Notes
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <div style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700 }}>
+            Communication Log
+          </div>
+          {vendorNotes.length > 0 && (
+            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>
+              {vendorNotes.length} {vendorNotes.length === 1 ? 'entry' : 'entries'}
+            </div>
+          )}
         </div>
+
+        {/* Type selector pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+          {(Object.keys(NOTE_TYPE_CONFIG) as VendorNoteType[]).map(type => {
+            const tc = NOTE_TYPE_CONFIG[type]
+            const active = currentType === type
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setNoteType(prev => ({ ...prev, [vendor.id]: type }))}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  fontSize: '12px', fontWeight: 600, padding: '4px 10px', borderRadius: '6px',
+                  background: active ? 'rgba(184,146,106,0.10)' : '#F5F1EC',
+                  color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                  border: active ? '1px solid rgba(184,146,106,0.25)' : '1px solid transparent',
+                  cursor: 'pointer', fontFamily: 'var(--font-body)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center' }}>{tc.icon}</span>
+                {tc.label}
+              </button>
+            )
+          })}
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={() => handleAddNote(vendor.id)}
+            disabled={isSaving || !text.trim()}
+            style={{ fontSize: '12px', padding: '5px 14px', borderRadius: '7px', background: isSaving || !text.trim() ? '#D4CFC8' : 'var(--color-accent)', color: '#fff', border: 'none', cursor: isSaving || !text.trim() ? 'default' : 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600 }}
+          >
+            {isSaving ? 'Adding...' : 'Add'}
+          </button>
+        </div>
+
+        {/* Input */}
         <textarea
           rows={3}
-          placeholder="Add a note..."
+          placeholder={cfg.placeholder}
           value={text}
           onChange={e => setNoteText(prev => ({ ...prev, [vendor.id]: e.target.value }))}
-          style={{ display: 'block', width: '100%', fontFamily: 'var(--font-body)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box', marginBottom: '8px' }}
+          style={{ display: 'block', width: '100%', fontFamily: 'var(--font-body)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box', marginBottom: vendorNotes.length > 0 ? '12px' : '4px' }}
         />
-        <button
-          onClick={() => handleAddNote(vendor.id)}
-          disabled={isSaving || !text.trim()}
-          style={{ fontSize: '12px', padding: '5px 14px', borderRadius: '7px', background: isSaving || !text.trim() ? '#D4CFC8' : 'var(--color-accent)', color: '#fff', border: 'none', cursor: isSaving || !text.trim() ? 'default' : 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600, marginBottom: vendorNotes.length > 0 ? '12px' : 0 }}
-        >
-          {isSaving ? 'Adding...' : 'Add Note'}
-        </button>
 
-        {vendorNotes.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {vendorNotes.map(note => (
-              <div key={note.id} style={{ display: 'flex', gap: '10px', padding: '10px 12px', borderRadius: '8px', background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: '#2c2825', margin: '0 0 4px 0', lineHeight: 1.5 }}>{note.text}</p>
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-muted)', margin: 0 }}>
-                    {new Date(note.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {new Date(note.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleDeleteNote(vendor.id, note.id)}
-                  style={{ fontSize: '14px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0, alignSelf: 'flex-start' }}
-                >×</button>
-              </div>
-            ))}
+        {/* Empty hint */}
+        {vendorNotes.length === 0 && (
+          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
+            Track calls, emails, meetings, and quotes with this vendor
           </div>
         )}
+
+        {/* Note entries */}
+        {vendorNotes.length > 0 && !useGrouping && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {sorted.map(note => renderNoteCard(note))}
+          </div>
+        )}
+
+        {/* Grouped entries */}
+        {useGrouping && groups.map(group => (
+          <div key={group.label} style={{ marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
+                {group.label}
+              </span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--color-border)' }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {group.notes.map(note => renderNoteCard(note))}
+            </div>
+          </div>
+        ))}
       </div>
     )
   }
@@ -727,14 +881,393 @@ export default function VendorDetail() {
             )}
           </div>
         </div>
-        <button
-          onClick={handleAddVendor}
-          style={{ fontSize: '13px', color: 'var(--color-accent)', border: '1.5px solid var(--color-accent)', borderRadius: '8px', padding: '6px 16px', background: 'none', cursor: 'pointer', flexShrink: 0, fontFamily: 'var(--font-body)' }}
-        >
-          + Add Vendor
-        </button>
+        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+          {visible.length >= 2 && !comparing && (
+            <button
+              onClick={() => {
+                const maxCols = window.innerWidth >= 1400 ? 4 : 3
+                setComparedVendorIds(visible.slice(0, maxCols).map(v => v.id))
+                setComparing(true)
+              }}
+              style={{ fontSize: '13px', color: 'var(--color-text-primary)', border: '1.5px solid var(--color-border)', borderRadius: '8px', padding: '6px 16px', background: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 500 }}
+            >
+              Compare
+            </button>
+          )}
+          <button
+            onClick={handleAddVendor}
+            style={{ fontSize: '13px', color: 'var(--color-accent)', border: '1.5px solid var(--color-accent)', borderRadius: '8px', padding: '6px 16px', background: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+          >
+            + Add Vendor
+          </button>
+        </div>
       </div>
 
+      {/* ══════ COMPARISON VIEW ══════ */}
+      {comparing && (() => {
+        const compared = comparedVendorIds.map(id => vendors.find(v => v.id === id)).filter(Boolean) as Vendor[]
+        if (compared.length < 2) { setComparing(false); return null }
+        const maxCols = typeof window !== 'undefined' && window.innerWidth >= 1400 ? 4 : 3
+        const canSwap = visible.length > maxCols
+
+        function handleBookFromCompare(vendorId: string) {
+          setNoteModal({ vendorId, status: 'booked' as VendorStatus, note: '' })
+        }
+
+        const CompareRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)' }}>
+            <div style={{ width: '100px', flexShrink: 0, padding: '10px 12px', fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', background: '#FAFAF8', display: 'flex', alignItems: 'flex-start' }}>
+              {label}
+            </div>
+            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${compared.length}, 1fr)` }}>
+              {children}
+            </div>
+          </div>
+        )
+
+        const Cell = ({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) => (
+          <div style={{ padding: '10px 12px', borderLeft: '1px solid var(--color-border)', fontSize: '13px', color: 'var(--color-text-primary)', ...style }}>
+            {children}
+          </div>
+        )
+
+        const Em = () => <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+
+        // Mobile stacked layout
+        const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+
+        return (
+          <div>
+            {/* Back + controls */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <button
+                onClick={() => setComparing(false)}
+                style={{ fontSize: '12px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)' }}
+              >
+                ← Back to list
+              </button>
+              {canSwap && (
+                <div style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => setSwapDropdownOpen(!swapDropdownOpen)}
+                    style={{ fontSize: '12px', color: 'var(--color-accent)', background: 'none', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+                  >
+                    Change vendors ▾
+                  </button>
+                  {swapDropdownOpen && (
+                    <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '4px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', zIndex: 50, minWidth: '180px', padding: '4px' }}>
+                      {visible.map(v => {
+                        const included = comparedVendorIds.includes(v.id)
+                        return (
+                          <button
+                            key={v.id}
+                            onClick={() => {
+                              if (included) {
+                                if (comparedVendorIds.length <= 2) return
+                                setComparedVendorIds(prev => prev.filter(id => id !== v.id))
+                              } else {
+                                if (comparedVendorIds.length >= maxCols) {
+                                  setComparedVendorIds(prev => [...prev.slice(1), v.id])
+                                } else {
+                                  setComparedVendorIds(prev => [...prev, v.id])
+                                }
+                              }
+                            }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                              padding: '8px 10px', border: 'none', borderRadius: '6px',
+                              background: included ? 'rgba(184,146,106,0.08)' : 'transparent',
+                              cursor: included && comparedVendorIds.length <= 2 ? 'default' : 'pointer',
+                              fontSize: '12px', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)',
+                              textAlign: 'left',
+                            }}
+                          >
+                            <span style={{ width: '14px', fontSize: '11px', color: included ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
+                              {included ? '✓' : ''}
+                            </span>
+                            {v.name || 'Unnamed'}
+                          </button>
+                        )
+                      })}
+                      <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
+                      <button
+                        onClick={() => setSwapDropdownOpen(false)}
+                        style={{ width: '100%', padding: '6px 10px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--color-text-muted)', textAlign: 'center', fontFamily: 'var(--font-body)' }}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Comparing label pills */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', alignSelf: 'center' }}>Comparing:</span>
+              {compared.map(v => (
+                <span key={v.id} style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '20px', background: 'rgba(184,146,106,0.10)', color: 'var(--color-accent)', fontWeight: 600 }}>
+                  {v.name || 'Unnamed'}
+                </span>
+              ))}
+            </div>
+
+            {/* ── Mobile: stacked layout ── */}
+            {isMobile ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {compared.map(vendor => {
+                  const cfg = STATUS_CONFIG[vendor.status] ?? STATUS_CONFIG.not_started
+                  const vNotes = notes[vendor.id] ?? []
+                  const vPayments = vendorPayments[vendor.id] ?? []
+                  const vDocs = contracts.filter(c => c.vendor_id === vendor.id)
+                  const paidTotal = vPayments.filter(p => p.paid_date).reduce((s, p) => s + p.amount, 0)
+                  const dueTotal = vPayments.filter(p => !p.paid_date).reduce((s, p) => s + p.amount, 0)
+
+                  return (
+                    <div key={vendor.id} style={{ border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
+                      {/* Sticky name header */}
+                      <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#fff', borderBottom: '1px solid var(--color-border)', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: avColor(vendor.name || ''), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: '#fff' }}>{initials(vendor.name || 'UN')}</span>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#2c2825' }}>{vendor.name || 'Unnamed'}</div>
+                        </div>
+                        <span style={{ fontSize: '10px', padding: '3px 9px', borderRadius: '20px', background: cfg.bg, color: cfg.color, fontWeight: 600 }}>
+                          {cfg.label}
+                        </span>
+                      </div>
+
+                      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {/* Price */}
+                        <div>
+                          <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '2px' }}>Booked Amount</div>
+                          <div style={{ fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-heading)', color: '#2c2825' }}>
+                            {vendor.booked_amount != null ? `$${vendor.booked_amount.toLocaleString()}` : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
+                          </div>
+                        </div>
+                        {/* Contact */}
+                        {(vendor.contact_name || vendor.contact_email || vendor.contact_phone) && (
+                          <div>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '2px' }}>Contact</div>
+                            {vendor.contact_name && <div style={{ fontSize: '12px', color: '#2c2825' }}>{vendor.contact_name}</div>}
+                            {vendor.contact_email && <div style={{ fontSize: '12px', color: '#2c2825' }}>{vendor.contact_email}</div>}
+                            {vendor.contact_phone && <div style={{ fontSize: '12px', color: '#2c2825' }}>{vendor.contact_phone}</div>}
+                          </div>
+                        )}
+                        {/* Website */}
+                        {vendor.website && (
+                          <div>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '2px' }}>Website</div>
+                            <a href={vendor.website} target="_blank" rel="noopener" style={{ fontSize: '12px', color: 'var(--color-accent)' }}>{vendor.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>
+                          </div>
+                        )}
+                        {/* Notes count */}
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{vNotes.length > 0 ? `${vNotes.length} note${vNotes.length !== 1 ? 's' : ''}` : 'No notes yet'}</div>
+                        {/* Payments */}
+                        {vendor.status === 'booked' && (
+                          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+                            {vPayments.length > 0 ? `$${paidTotal.toLocaleString()} paid / $${dueTotal.toLocaleString()} due` : 'No payments'}
+                          </div>
+                        )}
+                        {/* Documents */}
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                          {vDocs.length > 0 ? `${vDocs.length} document${vDocs.length !== 1 ? 's' : ''}` : 'No documents'}
+                        </div>
+                        {/* Actions */}
+                        <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--color-border)' }}>
+                          {vendor.status !== 'booked' ? (
+                            <button
+                              onClick={() => handleBookFromCompare(vendor.id)}
+                              style={{ fontSize: '12px', fontWeight: 600, padding: '6px 14px', borderRadius: '8px', background: 'var(--color-accent)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+                            >
+                              Book This One
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '11px', padding: '4px 12px', borderRadius: '6px', background: '#E8F0E4', color: '#5A7A4A', fontWeight: 600 }}>Booked</span>
+                          )}
+                          <button
+                            onClick={() => { setComparing(false); setExpandedId(vendor.id) }}
+                            style={{ fontSize: '12px', color: 'var(--color-text-primary)', border: '1.5px solid var(--color-border)', borderRadius: '8px', padding: '6px 14px', background: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 500 }}
+                          >
+                            View Details
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              /* ── Desktop: row-based comparison table ── */
+              <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
+                {/* Vendor header row */}
+                <CompareRow label="">
+                  {compared.map(vendor => {
+                    const cfg = STATUS_CONFIG[vendor.status] ?? STATUS_CONFIG.not_started
+                    return (
+                      <Cell key={vendor.id} style={{ padding: '14px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: avColor(vendor.name || ''), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{initials(vendor.name || 'UN')}</span>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '14px', fontWeight: 600, color: '#2c2825' }}>{vendor.name || 'Unnamed'}</div>
+                            {vendor.contact_name && <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>{vendor.contact_name}</div>}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: '10px', padding: '3px 9px', borderRadius: '20px', background: cfg.bg, color: cfg.color, fontWeight: 600 }}>
+                          {cfg.label}
+                        </span>
+                      </Cell>
+                    )
+                  })}
+                </CompareRow>
+
+                {/* Price row */}
+                <CompareRow label="Price">
+                  {compared.map(vendor => (
+                    <Cell key={vendor.id}>
+                      {vendor.booked_amount != null ? (
+                        <span style={{ fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-heading)', color: '#2c2825' }}>
+                          ${vendor.booked_amount.toLocaleString()}
+                        </span>
+                      ) : <Em />}
+                    </Cell>
+                  ))}
+                </CompareRow>
+
+                {/* Contact row */}
+                <CompareRow label="Contact">
+                  {compared.map(vendor => (
+                    <Cell key={vendor.id}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {vendor.contact_email ? <div style={{ fontSize: '12px' }}>{vendor.contact_email}</div> : <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>—</div>}
+                        {vendor.contact_phone ? <div style={{ fontSize: '12px' }}>{vendor.contact_phone}</div> : <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>—</div>}
+                      </div>
+                    </Cell>
+                  ))}
+                </CompareRow>
+
+                {/* Website row */}
+                <CompareRow label="Website">
+                  {compared.map(vendor => (
+                    <Cell key={vendor.id}>
+                      {vendor.website ? (
+                        <a href={vendor.website} target="_blank" rel="noopener" style={{ fontSize: '12px', color: 'var(--color-accent)', wordBreak: 'break-all' }}>
+                          {vendor.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                        </a>
+                      ) : <Em />}
+                    </Cell>
+                  ))}
+                </CompareRow>
+
+                {/* Notes row */}
+                <CompareRow label="Notes">
+                  {compared.map(vendor => {
+                    const vendorNotesText = vendor.notes
+                    return (
+                      <Cell key={vendor.id}>
+                        {vendorNotesText ? (
+                          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {vendorNotesText}
+                          </div>
+                        ) : <Em />}
+                      </Cell>
+                    )
+                  })}
+                </CompareRow>
+
+                {/* Communication Log count row */}
+                <CompareRow label="Log">
+                  {compared.map(vendor => {
+                    const vNotes = notes[vendor.id] ?? []
+                    return (
+                      <Cell key={vendor.id}>
+                        <button
+                          onClick={() => { setComparing(false); setExpandedId(vendor.id) }}
+                          style={{ fontSize: '12px', color: vNotes.length > 0 ? 'var(--color-accent)' : 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)' }}
+                        >
+                          {vNotes.length > 0 ? `${vNotes.length} note${vNotes.length !== 1 ? 's' : ''}` : 'No notes'}
+                        </button>
+                      </Cell>
+                    )
+                  })}
+                </CompareRow>
+
+                {/* Payments row (only shows if any compared vendor is booked) */}
+                {compared.some(v => v.status === 'booked') && (
+                  <CompareRow label="Payments">
+                    {compared.map(vendor => {
+                      if (vendor.status !== 'booked') return <Cell key={vendor.id}><Em /></Cell>
+                      const vPayments = vendorPayments[vendor.id] ?? []
+                      const paidTotal = vPayments.filter(p => p.paid_date).reduce((s, p) => s + p.amount, 0)
+                      const dueTotal = vPayments.filter(p => !p.paid_date).reduce((s, p) => s + p.amount, 0)
+                      return (
+                        <Cell key={vendor.id}>
+                          {vPayments.length > 0 ? (
+                            <div style={{ fontSize: '12px' }}>
+                              <span style={{ color: '#7B8F6B', fontWeight: 600 }}>${paidTotal.toLocaleString()}</span>
+                              <span style={{ color: 'var(--color-text-muted)' }}> paid</span>
+                              <br />
+                              <span style={{ color: 'var(--color-accent)', fontWeight: 600 }}>${dueTotal.toLocaleString()}</span>
+                              <span style={{ color: 'var(--color-text-muted)' }}> due</span>
+                            </div>
+                          ) : <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>No payments</span>}
+                        </Cell>
+                      )
+                    })}
+                  </CompareRow>
+                )}
+
+                {/* Documents row */}
+                <CompareRow label="Documents">
+                  {compared.map(vendor => {
+                    const vDocs = contracts.filter(c => c.vendor_id === vendor.id)
+                    return (
+                      <Cell key={vendor.id}>
+                        <span style={{ fontSize: '12px', color: vDocs.length > 0 ? 'var(--color-text-secondary)' : 'var(--color-text-muted)' }}>
+                          {vDocs.length > 0 ? `${vDocs.length} document${vDocs.length !== 1 ? 's' : ''}` : 'No documents'}
+                        </span>
+                      </Cell>
+                    )
+                  })}
+                </CompareRow>
+
+                {/* Action row */}
+                <div style={{ display: 'flex', borderTop: '1px solid var(--color-border)' }}>
+                  <div style={{ width: '100px', flexShrink: 0, background: '#FAFAF8' }} />
+                  <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${compared.length}, 1fr)` }}>
+                    {compared.map(vendor => (
+                      <div key={vendor.id} style={{ padding: '12px', borderLeft: '1px solid var(--color-border)', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {vendor.status !== 'booked' ? (
+                          <button
+                            onClick={() => handleBookFromCompare(vendor.id)}
+                            style={{ fontSize: '12px', fontWeight: 600, padding: '6px 14px', borderRadius: '8px', background: 'var(--color-accent)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+                          >
+                            Book This One
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '11px', padding: '4px 12px', borderRadius: '6px', background: '#E8F0E4', color: '#5A7A4A', fontWeight: 600, display: 'flex', alignItems: 'center' }}>Booked</span>
+                        )}
+                        <button
+                          onClick={() => { setComparing(false); setExpandedId(vendor.id) }}
+                          style={{ fontSize: '12px', color: 'var(--color-text-primary)', border: '1.5px solid var(--color-border)', borderRadius: '8px', padding: '6px 14px', background: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 500 }}
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* ══════ NORMAL LIST VIEW ══════ */}
+      {!comparing && <>
       {/* AI Shortlist CTA */}
       <GlowBorder style={{ marginBottom: '16px' }}>
         <div style={{ position: 'relative', zIndex: 1, borderRadius: '12px', background: '#F5F1EC', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -1077,6 +1610,7 @@ export default function VendorDetail() {
           </details>
         </div>
       )}
+      </>}
 
       {/* Decision note modal */}
       {noteModal && (

@@ -146,11 +146,15 @@ export type Guest = {
   created_at: string
 }
 
+export type VendorNoteType = 'note' | 'call' | 'quote'
+
 export type VendorNote = {
   id: string
   couple_id: string
   vendor_id: string
   text: string
+  type: VendorNoteType
+  pinned: boolean
   created_at: string
 }
 
