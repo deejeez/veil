@@ -65,11 +65,13 @@ function BudgetDonutCard({
   vendorCategories,
   suggestions,
   showSuggestions,
+  totalBudget,
 }: {
   rows: BudgetRow[]
   vendorCategories: VendorCategoryConfig[]
   suggestions: Record<string, number>
   showSuggestions: boolean
+  totalBudget: number
 }) {
   const segments = showSuggestions
     ? Object.entries(suggestions)
@@ -125,6 +127,11 @@ function BudgetDonutCard({
               </div>
             ))}
           </div>
+        )}
+        {!showSuggestions && totalBudget > 0 && total > totalBudget && (
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: '#C4785C', margin: '10px 0 0 0', textAlign: 'center', lineHeight: 1.4 }}>
+            Your category allocations (${(total / 1000).toFixed(0)}K) exceed your total budget (${(totalBudget / 1000).toFixed(0)}K) by ${((total - totalBudget) / 1000).toFixed(0)}K.
+          </p>
         )}
       </div>
     </Card>
@@ -367,7 +374,7 @@ export default function Budget() {
             { label: 'Total Budget', value: effectiveBudget > 0 ? `$${(effectiveBudget / 1000).toFixed(0)}K` : '—' },
             { label: 'Committed', value: `$${(totalBooked / 1000).toFixed(1)}K` },
             { label: 'Paid', value: `$${(totalPaid / 1000).toFixed(1)}K` },
-            { label: 'Remaining', value: effectiveBudget > 0 ? `$${((effectiveBudget - totalBooked) / 1000).toFixed(1)}K` : '—' },
+            { label: 'Remaining', value: totalBooked > 0 ? `$${((totalBooked - totalPaid) / 1000).toFixed(1)}K` : '—' },
           ].map(({ label, value }) => (
             <Card key={label}>
               <SectionLabel>{label}</SectionLabel>
@@ -380,6 +387,7 @@ export default function Budget() {
           vendorCategories={vendorCategories}
           suggestions={suggestions}
           showSuggestions={showSuggestions}
+          totalBudget={effectiveBudget}
         />
       </div>
 
@@ -393,7 +401,7 @@ export default function Budget() {
 
         {rows.map(row => {
           const bookedPercent = row.budgeted > 0 ? Math.min(100, Math.round((row.booked / row.budgeted) * 100)) : 0
-          const isOver = row.remaining < 0 && row.budgeted > 0
+          const isOver = row.booked > 0 && row.booked > row.budgeted && row.budgeted > 0
           const isEmpty = row.budgeted === 0 && row.booked === 0 && row.paid === 0
           const suggestion = suggestions[row.category]
           const isSaving = savingCategory === row.category
@@ -498,7 +506,7 @@ export default function Budget() {
                 {row.paid > 0 ? `$${row.paid.toLocaleString()}` : '—'}
               </p>
               <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', fontWeight: 700, color: row.remaining < 0 ? '#C4785C' : 'var(--color-text-primary)', margin: 0 }}>
-                {row.budgeted > 0 ? `$${row.remaining.toLocaleString()}` : '—'}
+                {row.booked > 0 || row.budgeted > 0 ? `$${row.remaining.toLocaleString()}` : '—'}
               </p>
             </div>
           )

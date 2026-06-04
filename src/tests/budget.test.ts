@@ -20,7 +20,8 @@ describe('computeBudgetSummary', () => {
     const result = computeBudgetSummary(budgetCategories, vendors, payments)
     expect(result[0].booked).toBe(15000)
     expect(result[0].paid).toBe(5000)
-    expect(result[0].remaining).toBe(5000)
+    // remaining = booked - paid (how much still owed)
+    expect(result[0].remaining).toBe(10000)
   })
 
   it('does not count shortlisted vendors in booked', () => {

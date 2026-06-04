@@ -14,11 +14,12 @@ import { getVendorNotes, addVendorNote, deleteVendorNote, toggleVendorNotePin } 
 import type { VendorNoteType, VendorLineItem } from '../types/database'
 import { getLineItemsForVendors, insertLineItems, deleteLineItemsForVendor, updateLineItem, deleteLineItem } from '../lib/vendorLineItems'
 import GlowBorder from '../components/GlowBorder'
+import confetti from 'canvas-confetti'
 
 // ─── Design helpers ───────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { bg: string; color: string; label: string }> = {
-  booked:            { bg: '#EFF4EC', color: '#5A7A4A', label: 'Booked' },
+  booked:            { bg: '#5A7A4A', color: '#fff', label: 'Booked' },
   shortlisted:       { bg: 'rgba(184,146,106,0.10)', color: 'var(--color-accent)', label: 'Shortlisted' },
   meeting_scheduled: { bg: '#FBF6F0', color: '#C4785C', label: 'Meeting' },
   researching:       { bg: '#F5F1EC', color: 'var(--color-text-secondary)', label: 'Researching' },
@@ -66,6 +67,14 @@ export default function VendorDetail() {
   const [savingNote, setSavingNote] = useState<string | null>(null)
   const contractInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const [noteModal, setNoteModal] = useState<{ vendorId: string; status: VendorStatus; note: string } | null>(null)
+  const [bookingModal, setBookingModal] = useState<{ vendorId: string; vendorName: string } | null>(null)
+  const [bookingForm, setBookingForm] = useState({ totalCost: '', depositAmount: '', depositDate: new Date().toISOString().split('T')[0], paidBy: 'couple', paymentMethod: '' })
+  const [bookingSaving, setBookingSaving] = useState(false)
+  const [bookingError, setBookingError] = useState<string | null>(null)
+  const [unbookModal, setUnbookModal] = useState<{ vendorId: string; vendorName: string; newStatus: VendorStatus } | null>(null)
+  const [eliminatePrompt, setEliminatePrompt] = useState<{ vendorId: string; vendorName: string } | null>(null)
+  const [lineItemsExpanded, setLineItemsExpanded] = useState<Record<string, boolean>>({})
+  const [reviewError, setReviewError] = useState<string | null>(null)
   const [vendorPayments, setVendorPayments] = useState<Record<string, Payment[]>>({})
   const [addingPaymentFor, setAddingPaymentFor] = useState<string | null>(null)
   const [newVendorPayment, setNewVendorPayment] = useState({ label: '', amount: '', due_date: '', paid_by: 'couple' })
@@ -177,8 +186,21 @@ export default function VendorDetail() {
   }
 
   async function handleStatusChange(vendorId: string, status: VendorStatus) {
-    if (status === 'booked' || status === 'eliminated') {
+    if (status === 'booked') {
+      const vendor = vendors.find(v => v.id === vendorId)
+      setBookingForm({ totalCost: vendor?.booked_amount ? String(vendor.booked_amount) : '', depositAmount: '', depositDate: new Date().toISOString().split('T')[0], paidBy: 'couple', paymentMethod: '' })
+      setBookingError(null)
+      setBookingModal({ vendorId, vendorName: vendor?.name || 'this vendor' })
+      return
+    }
+    if (status === 'eliminated') {
       setNoteModal({ vendorId, status, note: '' })
+      return
+    }
+    // Un-booking: confirm before changing away from booked
+    const vendor = vendors.find(v => v.id === vendorId)
+    if (vendor?.status === 'booked') {
+      setUnbookModal({ vendorId, vendorName: vendor.name || 'this vendor', newStatus: status })
       return
     }
     try {
@@ -199,7 +221,7 @@ export default function VendorDetail() {
         const vendor = vendors.find(v => v.id === vendorId)
         if (vendor) {
           const existingNote = vendor.notes ? vendor.notes + '\n\n' : ''
-          const label = status === 'booked' ? '✓ Booked: ' : '✕ Eliminated: '
+          const label = '✕ Eliminated: '
           await sb.from('vendors').update({ notes: existingNote + label + note }).eq('id', vendorId)
         }
       }
@@ -207,11 +229,83 @@ export default function VendorDetail() {
         ...v,
         status,
         notes: note.trim()
-          ? ((v.notes ? v.notes + '\n\n' : '') + (status === 'booked' ? '✓ Booked: ' : '✕ Eliminated: ') + note)
+          ? ((v.notes ? v.notes + '\n\n' : '') + '✕ Eliminated: ' + note)
           : v.notes
       } : v))
       setNoteModal(null)
-      if (status === 'booked') await load()
+    } catch {
+      alert('Failed to update status. Please try again.')
+    }
+  }
+
+  async function handleBookingConfirm(skipDeposit: boolean) {
+    if (!bookingModal || !couple) return
+    const { vendorId, vendorName } = bookingModal
+    const totalCost = Number(bookingForm.totalCost)
+    if (!totalCost || totalCost <= 0) {
+      setBookingError('Please enter a total contract amount.')
+      return
+    }
+    const depositAmount = skipDeposit ? 0 : Number(bookingForm.depositAmount) || 0
+    if (depositAmount > totalCost) {
+      setBookingError("Deposit can't exceed the total cost.")
+      return
+    }
+    setBookingSaving(true)
+    setBookingError(null)
+    try {
+      // 1. Set vendor status to booked and update booked_amount
+      await updateVendorStatus(vendorId, 'booked')
+      await supabase.from('vendors').update({ booked_amount: totalCost }).eq('id', vendorId)
+
+      // 2. Create deposit payment record if applicable
+      if (depositAmount > 0) {
+        await insertPayment({
+          couple_id: couple.id,
+          vendor_id: vendorId,
+          label: 'Deposit',
+          amount: depositAmount,
+          due_date: bookingForm.depositDate || null,
+          paid_date: bookingForm.depositDate || new Date().toISOString().split('T')[0],
+          paid_by: bookingForm.paidBy,
+          notes: null,
+          status: 'paid',
+          payment_method: bookingForm.paymentMethod || null,
+        })
+      }
+
+      // 3. Update local state
+      setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, status: 'booked' as VendorStatus, booked_amount: totalCost } : v))
+      setBookingModal(null)
+
+      // 4. Confetti celebration
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.3 }, colors: ['#C9A96E', '#8B9E7E', '#FAF7F2', '#FFFFFF'] })
+
+      // 5. Reload to pick up new payment data
+      await load()
+
+      // 6. Show success toast
+      showToast(`Booked! ${vendorName} is locked in.`, vendorId)
+
+      // 7. After a beat, show elimination prompt if there are other active vendors
+      const othersActive = vendors.filter(v => v.id !== vendorId && v.status !== 'eliminated' && v.status !== 'booked' && v.name)
+      if (othersActive.length > 0) {
+        setTimeout(() => setEliminatePrompt({ vendorId, vendorName }), 1500)
+      }
+    } catch {
+      setBookingError('Failed to complete booking. Please try again.')
+    } finally {
+      setBookingSaving(false)
+    }
+  }
+
+  async function handleUnbookConfirm() {
+    if (!unbookModal) return
+    const { vendorId, newStatus } = unbookModal
+    try {
+      await updateVendorStatus(vendorId, newStatus)
+      setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, status: newStatus } : v))
+      setUnbookModal(null)
     } catch {
       alert('Failed to update status. Please try again.')
     }
@@ -676,8 +770,13 @@ export default function VendorDetail() {
   const booked    = vendors.filter(v => v.status === 'booked' && v.name)
   const inProgress = vendors.filter(v => ['researching', 'shortlisted', 'meeting_scheduled'].includes(v.status) && v.name)
   const notStarted = vendors.filter(v => v.status === 'not_started' && v.name)
-  const eliminated = vendors.filter(v => v.status === 'eliminated' && v.name)
-  const visible   = vendors.filter(v => v.status !== 'eliminated' && (v.name || v.id === editingId))
+  const visible   = vendors
+    .filter(v => v.name || v.id === editingId)
+    .sort((a, b) => {
+      const order: Record<string, number> = { booked: 0, meeting_scheduled: 1, shortlisted: 1, researching: 1, not_started: 2, eliminated: 3 }
+      return (order[a.status] ?? 2) - (order[b.status] ?? 2)
+    })
+  const hasBooked = vendors.some(v => v.status === 'booked')
 
   const familyAName = couple?.family_a_name || 'Family A'
   const familyBName = couple?.family_b_name || 'Family B'
@@ -686,6 +785,44 @@ export default function VendorDetail() {
     if (key === 'family_a') return familyAName
     if (key === 'family_b') return familyBName
     return 'Couple'
+  }
+
+  // ─── Payment progress sub-render (booked only) ──────────────────────────────
+
+  function renderPaymentProgress(vendor: Vendor) {
+    if (vendor.status !== 'booked') return null
+    const payments = vendorPayments[vendor.id] ?? []
+    const contractAmount = vendor.booked_amount ?? 0
+    const paidAmount = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0)
+    const remaining = Math.max(0, contractAmount - paidAmount)
+    const pct = contractAmount > 0 ? Math.min(100, Math.round((paidAmount / contractAmount) * 100)) : 100
+
+    return (
+      <div style={{ marginTop: '14px' }}>
+        <div style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: '10px', fontWeight: 700 }}>
+          Payment Progress
+        </div>
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '10px' }}>
+          {[
+            { label: 'Contract', value: contractAmount, color: '#2c2825' },
+            { label: 'Paid', value: paidAmount, color: '#5A7A4A' },
+            { label: 'Remaining', value: remaining, color: '#7A7168' },
+          ].map(s => (
+            <div key={s.label} style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', background: '#fff', border: '1px solid var(--color-border)' }}>
+              <div style={{ fontSize: '10px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: '4px' }}>{s.label}</div>
+              <div style={{ fontSize: '15px', fontWeight: 600, fontFamily: 'var(--font-mono, "JetBrains Mono", monospace)', color: s.color }}>${s.value.toLocaleString()}</div>
+            </div>
+          ))}
+        </div>
+        {/* Progress bar */}
+        <div style={{ height: '4px', borderRadius: '2px', background: '#E8E2D8', overflow: 'hidden' }}>
+          <div style={{ height: '100%', borderRadius: '2px', background: '#7B8F6B', width: `${pct}%`, transition: 'width 0.3s ease' }} />
+        </div>
+        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+          ${paidAmount.toLocaleString()} of ${contractAmount.toLocaleString()} paid
+        </div>
+      </div>
+    )
   }
 
   // ─── Payment schedule sub-render ─────────────────────────────────────────────
@@ -789,87 +926,44 @@ export default function VendorDetail() {
     const isUploadingContract = uploadingDoc === `${vendor.id}-contract`
     const isUploadingProposal = uploadingDoc === `${vendor.id}-proposal`
 
-    function renderFileCard(filePath: string, documentType: 'contract' | 'proposal') {
-      const parts = filePath.split('/')
-      const rawName = parts[parts.length - 1] // e.g. contract_1717455600.pdf
-      const ext = getFileExt(rawName)
-      const displayName = `${documentType === 'contract' ? 'Contract' : 'Proposal'}.${ext}`
-      const isImg = isImageFile(rawName)
-      const reviewing = documentType === 'contract' && contractDoc && reviewingContractId === contractDoc.id
-
-      return (
-        <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px 16px', background: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* File icon */}
-          <div style={{ flexShrink: 0, width: '28px', height: '28px', borderRadius: '6px', background: isImg ? '#E2EAF0' : '#F5E8DC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {isImg ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5A7A8F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B6F4E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            )}
-          </div>
-          {/* File name + AI review badge */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#2c2825', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {displayName}
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
-              {ext.toUpperCase()}
-              {reviewing && <span style={{ fontStyle: 'italic' }}>Reviewing...</span>}
-              {documentType === 'contract' && contractDoc?.ai_review?.status === 'complete' && (
-                <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '20px', background: '#EFF4EC', color: '#5A7A4A', fontWeight: 600 }}>AI Reviewed</span>
-              )}
-            </div>
-          </div>
-          {/* Action buttons */}
-          <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-            <button
-              onClick={() => handleViewDocument(filePath, displayName)}
-              title="View"
-              style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)' }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-            <button
-              onClick={() => handleDownloadDocument(filePath, displayName)}
-              title="Download"
-              style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)' }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            </button>
-            <button
-              onClick={() => handleDeleteDocument(vendor.id, documentType)}
-              title="Remove"
-              style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)' }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-            </button>
-          </div>
-        </div>
-      )
-    }
-
     function renderAiReview() {
       if (!contractDoc?.ai_review || contractDoc.ai_review.status !== 'complete') return null
+      const flags = contractDoc.ai_review.flags
+      const hasFlag = flags.some(f => f.severity === 'flag')
+      const hasCaution = flags.some(f => f.severity === 'caution')
+      const ratingLabel = hasFlag ? 'Review carefully' : hasCaution ? 'Some concerns' : 'Standard terms'
+      const ratingColor = hasFlag ? '#C4785C' : hasCaution ? '#B8926A' : '#5A7A4A'
+      const ratingBg = hasFlag ? 'rgba(196,120,92,0.08)' : hasCaution ? 'rgba(184,146,106,0.08)' : 'rgba(90,122,74,0.08)'
+      const severityIcon: Record<string, React.ReactNode> = {
+        info: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5A7A4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>,
+        caution: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#B8926A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+        flag: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C4785C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+      }
       return (
         <div style={{ padding: '12px', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '8px', marginTop: '8px' }}>
+          {/* Overall rating */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '3px 10px', borderRadius: '6px', background: ratingBg, marginBottom: '10px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: ratingColor }}>{ratingLabel}</span>
+          </div>
           <p style={{ fontFamily: 'var(--font-heading)', fontSize: '13px', fontStyle: 'italic', color: '#2c2825', marginBottom: '12px', lineHeight: 1.5 }}>
             {contractDoc.ai_review.summary}
           </p>
-          {contractDoc.ai_review.flags.map((flag: AiReviewFlag, i: number) => {
+          {flags.map((flag: AiReviewFlag, i: number) => {
             const key = `${contractDoc.id}-${i}`
-            const severityColor: Record<string, string> = { flag: '#C4785C', caution: '#C4785C', info: 'var(--color-text-muted)' }
+            const severityColor: Record<string, string> = { flag: '#C4785C', caution: '#B8926A', info: 'var(--color-text-muted)' }
             return (
               <div key={i} style={{ marginBottom: '8px' }}>
                 <button
                   onClick={() => setExpandedFlag(expandedFlag === key ? null : key)}
                   style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
                 >
+                  {severityIcon[flag.severity] ?? null}
                   <span style={{ fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', color: severityColor[flag.severity], fontWeight: 700 }}>{flag.severity}</span>
                   <span style={{ fontSize: '13px', color: '#2c2825' }}>{flag.clause}</span>
                   <span style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>{expandedFlag === key ? '▲' : '▼'}</span>
                 </button>
                 {expandedFlag === key && (
-                  <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '6px 0 0 0', lineHeight: 1.5 }}>{flag.text}</p>
+                  <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '6px 0 0 18px', lineHeight: 1.5 }}>{flag.text}</p>
                 )}
               </div>
             )
@@ -878,33 +972,74 @@ export default function VendorDetail() {
       )
     }
 
-    function renderUploadButton(documentType: 'contract' | 'proposal') {
-      const isUploading = documentType === 'contract' ? isUploadingContract : isUploadingProposal
-      const isPrimary = documentType === 'contract'
+    async function handleReviewContract() {
+      if (!contractDoc) return
+      setReviewingContractId(contractDoc.id)
+      setReviewError(null)
+      try {
+        const { data, error: fnError } = await supabase.functions.invoke('contract-review', { body: { contract_id: contractDoc.id } })
+        if (fnError) throw fnError
+        if (data?.error) throw new Error(data.error)
+        if (data) setContracts(prev => prev.map(c => c.id === contractDoc.id ? { ...c, ai_review: data } : c))
+      } catch {
+        setReviewError('Contract review failed. Please try again.')
+      }
+      setReviewingContractId(null)
+    }
+
+    function renderDocRow(filePath: string, documentType: 'contract' | 'proposal') {
+      const parts = filePath.split('/')
+      const rawName = parts[parts.length - 1]
+      const ext = getFileExt(rawName)
+      const displayName = `${documentType === 'contract' ? 'Contract' : 'Proposal'}.${ext}`
+      const isImg = isImageFile(rawName)
+      const isReviewing = documentType === 'contract' && contractDoc && reviewingContractId === contractDoc.id
+      const isExtracting = extracting === vendor.id
+      const aiAction = documentType === 'contract' ? handleReviewContract : () => {
+        const fp = vendor.proposal_url || vendor.contract_url
+        const dt = vendor.proposal_url ? 'proposal' : 'contract'
+        if (fp) handleExtractFromDocument(vendor.id, fp, dt as 'contract' | 'proposal')
+      }
+      const aiTooltip = documentType === 'contract' ? (contractDoc?.ai_review?.status === 'complete' ? 'Re-review with AI' : 'Review with AI') : 'Extract Details'
+      const aiLoading = documentType === 'contract' ? isReviewing : isExtracting
+
       return (
-        <label style={{ cursor: isUploading ? 'default' : 'pointer' }}>
-          <input
-            type="file"
-            accept=".pdf,.png,.jpg,.jpeg"
-            style={{ display: 'none' }}
-            disabled={!!uploadingDoc}
-            ref={el => { contractInputRefs.current[`${vendor.id}-${documentType}`] = el }}
-            onChange={e => { const f = e.target.files?.[0]; if (f) { handleDocumentUpload(vendor.id, f, documentType); e.target.value = '' } }}
-          />
-          <span
-            style={{
-              display: 'inline-block', fontSize: '12px', padding: '5px 14px', borderRadius: '7px',
-              background: isPrimary ? 'var(--color-accent)' : 'none',
-              color: isPrimary ? '#fff' : 'var(--color-accent)',
-              border: isPrimary ? 'none' : '1.5px solid var(--color-accent)',
-              cursor: isUploading ? 'default' : 'pointer',
-              opacity: isUploading ? 0.6 : 1,
-              fontFamily: 'var(--font-body)', fontWeight: 600,
-            }}
-          >
-            {isUploading ? 'Uploading...' : isPrimary ? 'Upload Contract' : '+ Upload Proposal'}
-          </span>
-        </label>
+        <div key={documentType} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '8px', background: '#fff', border: '1px solid var(--color-border)' }}>
+          <div style={{ flexShrink: 0, width: '28px', height: '28px', borderRadius: '6px', background: isImg ? '#E2EAF0' : '#F5E8DC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {isImg ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5A7A8F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B6F4E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#2c2825', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
+              {ext.toUpperCase()}
+              {documentType === 'contract' && contractDoc?.ai_review?.status === 'complete' && (
+                <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '20px', background: '#EFF4EC', color: '#5A7A4A', fontWeight: 600 }}>AI Reviewed</span>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+            <button onClick={() => handleViewDocument(filePath, displayName)} title="View" style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            <button onClick={() => handleDownloadDocument(filePath, displayName)} title="Download" style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+            <button onClick={aiAction} title={aiTooltip} disabled={!!aiLoading} style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: aiLoading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: aiLoading ? 'var(--color-text-muted)' : 'var(--color-accent)', opacity: aiLoading ? 0.6 : 1 }}>
+              {aiLoading ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M6.34 6.34L3.51 3.51"/></svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              )}
+            </button>
+            <button onClick={() => handleDeleteDocument(vendor.id, documentType)} title="Delete" style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </div>
       )
     }
 
@@ -914,63 +1049,49 @@ export default function VendorDetail() {
           Documents
         </div>
 
-        {/* Error message */}
+        {/* Error messages */}
         {uploadError && (
           <div style={{ fontSize: '12px', color: '#C4785C', marginBottom: '8px', padding: '6px 10px', background: 'rgba(196,120,92,0.06)', border: '1px solid rgba(196,120,92,0.20)', borderRadius: '6px' }}>
             {uploadError}
             <button onClick={() => setUploadError(null)} style={{ marginLeft: '8px', background: 'none', border: 'none', color: '#C4785C', cursor: 'pointer', fontSize: '11px' }}>×</button>
           </div>
         )}
-
-        {/* Contract section */}
-        <div style={{ marginBottom: '10px' }}>
-          {vendor.contract_url ? (
-            <>
-              {renderFileCard(vendor.contract_url, 'contract')}
-              {renderAiReview()}
-            </>
-          ) : (
-            renderUploadButton('contract')
-          )}
-        </div>
-
-        {/* Proposal section */}
-        <div style={{ marginBottom: '10px' }}>
-          {vendor.proposal_url ? (
-            renderFileCard(vendor.proposal_url, 'proposal')
-          ) : (
-            renderUploadButton('proposal')
-          )}
-        </div>
-
-        {/* Extract Details button */}
-        {(vendor.contract_url || vendor.proposal_url) && (
-          <div>
-            {extracting === vendor.id ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: 'rgba(184,146,106,0.06)', border: '1px solid rgba(184,146,106,0.15)', borderRadius: '8px' }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M6.34 6.34L3.51 3.51"/></svg>
-                <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>Reading your document... This takes about 10 seconds</span>
-              </div>
-            ) : (
-              <button
-                onClick={() => {
-                  const filePath = vendor.proposal_url || vendor.contract_url
-                  const docType = vendor.proposal_url ? 'proposal' : 'contract'
-                  if (filePath) handleExtractFromDocument(vendor.id, filePath, docType as 'contract' | 'proposal')
-                }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  fontSize: '12px', fontWeight: 600, padding: '6px 14px', borderRadius: '7px',
-                  border: '1.5px solid var(--color-accent)', color: 'var(--color-accent)',
-                  background: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)',
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                Extract Details from Document
-              </button>
-            )}
+        {reviewError && (
+          <div style={{ fontSize: '12px', color: '#C4785C', marginBottom: '8px', padding: '6px 10px', background: 'rgba(196,120,92,0.06)', border: '1px solid rgba(196,120,92,0.20)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {reviewError}
+            <button onClick={handleReviewContract} style={{ fontSize: '11px', color: '#C4785C', background: 'none', border: '1px solid rgba(196,120,92,0.3)', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer' }}>Retry</button>
+            <button onClick={() => setReviewError(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#C4785C', cursor: 'pointer', fontSize: '11px' }}>×</button>
           </div>
         )}
+
+        {/* Document rows */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+          {vendor.contract_url && renderDocRow(vendor.contract_url, 'contract')}
+          {vendor.proposal_url && renderDocRow(vendor.proposal_url, 'proposal')}
+        </div>
+
+        {/* AI review results inline */}
+        {renderAiReview()}
+
+        {/* Upload links for missing docs */}
+        <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
+          {!vendor.contract_url && (
+            <label style={{ cursor: isUploadingContract ? 'default' : 'pointer' }}>
+              <input type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }} disabled={!!uploadingDoc} ref={el => { contractInputRefs.current[`${vendor.id}-contract`] = el }} onChange={e => { const f = e.target.files?.[0]; if (f) { handleDocumentUpload(vendor.id, f, 'contract'); e.target.value = '' } }} />
+              <span style={{ fontSize: '12px', color: 'var(--color-accent)', cursor: isUploadingContract ? 'default' : 'pointer', fontFamily: 'var(--font-body)', fontWeight: 500 }}>
+                {isUploadingContract ? 'Uploading...' : '+ Upload Contract'}
+              </span>
+            </label>
+          )}
+          {!vendor.proposal_url && (
+            <label style={{ cursor: isUploadingProposal ? 'default' : 'pointer' }}>
+              <input type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }} disabled={!!uploadingDoc} ref={el => { contractInputRefs.current[`${vendor.id}-proposal`] = el }} onChange={e => { const f = e.target.files?.[0]; if (f) { handleDocumentUpload(vendor.id, f, 'proposal'); e.target.value = '' } }} />
+              <span style={{ fontSize: '12px', color: 'var(--color-accent)', cursor: isUploadingProposal ? 'default' : 'pointer', fontFamily: 'var(--font-body)', fontWeight: 500 }}>
+                {isUploadingProposal ? 'Uploading...' : '+ Upload Proposal'}
+              </span>
+            </label>
+          )}
+        </div>
       </div>
     )
   }
@@ -980,38 +1101,63 @@ export default function VendorDetail() {
   function renderLineItemsSection(vendor: Vendor) {
     const items = lineItems[vendor.id] ?? []
     if (items.length === 0 && !addingLineItem) return null
+    const isExpanded = lineItemsExpanded[vendor.id] ?? false
+    const COLLAPSE_LIMIT = 5
+    const showToggle = items.length > COLLAPSE_LIMIT
+    const visibleItems = isExpanded ? items : items.slice(0, COLLAPSE_LIMIT)
+    const total = items.reduce((s, i) => s + (i.amount ?? 0), 0)
+
+    function renderItem(item: VendorLineItem) {
+      const isEditing = editingLineItem === item.id
+      if (isEditing) {
+        return (
+          <div key={item.id} style={{ padding: '8px 10px', border: '1px solid var(--color-accent)', borderRadius: '7px', background: 'rgba(184,146,106,0.04)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '6px', marginBottom: '6px' }}>
+              <input value={editLineItemForm.label ?? item.label} onChange={e => setEditLineItemForm(f => ({ ...f, label: e.target.value }))} style={{ fontSize: '12px' }} />
+              <input type="number" value={editLineItemForm.amount ?? item.amount ?? ''} onChange={e => setEditLineItemForm(f => ({ ...f, amount: e.target.value ? Number(e.target.value) : null }))} style={{ fontSize: '12px' }} />
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <Button variant="secondary" onClick={() => { setEditingLineItem(null); setEditLineItemForm({}) }}>Cancel</Button>
+              <Button onClick={() => handleUpdateLineItem(item.id, vendor.id)}>Save</Button>
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '7px', background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#2c2825' }}>{item.label}</div>
+            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '1px' }}>
+              {item.normalized_label}
+              {item.quantity ? ` · ${item.quantity}${item.unit ? ` ${item.unit}` : ''}` : ''}
+              {item.notes ? ` · ${item.notes}` : ''}
+            </div>
+          </div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#2c2825', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
+            {item.amount != null ? `$${item.amount.toLocaleString()}` : '—'}
+          </div>
+          <button onClick={() => { setEditingLineItem(item.id); setEditLineItemForm({ label: item.label, amount: item.amount }) }} style={{ fontSize: '10px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}>Edit</button>
+          <button onClick={() => handleDeleteLineItem(item.id, vendor.id)} style={{ fontSize: '13px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
+        </div>
+      )
+    }
 
     return (
       <div style={{ marginTop: '14px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
           <div style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700 }}>
-            Proposal Breakdown
+            Proposal Breakdown{items.length > 0 ? ` (${items.length})` : ''}
           </div>
-          <button
-            onClick={() => setAddingLineItem(addingLineItem === vendor.id ? null : vendor.id)}
-            style={{ fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-          >
+          <button onClick={() => setAddingLineItem(addingLineItem === vendor.id ? null : vendor.id)} style={{ fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
             {addingLineItem === vendor.id ? 'Cancel' : '+ Add item'}
           </button>
         </div>
 
-        {/* Add manual line item form */}
         {addingLineItem === vendor.id && (
           <div style={{ padding: '10px 12px', border: '1px solid var(--color-border)', borderRadius: '8px', marginBottom: '8px', background: '#fff' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '6px', marginBottom: '6px' }}>
-              <input
-                placeholder="Item description"
-                value={newLineItem.label}
-                onChange={e => setNewLineItem(f => ({ ...f, label: e.target.value, normalized_label: f.normalized_label || '' }))}
-                style={{ fontSize: '12px' }}
-              />
-              <input
-                type="number"
-                placeholder="Amount"
-                value={newLineItem.amount}
-                onChange={e => setNewLineItem(f => ({ ...f, amount: e.target.value }))}
-                style={{ fontSize: '12px' }}
-              />
+              <input placeholder="Item description" value={newLineItem.label} onChange={e => setNewLineItem(f => ({ ...f, label: e.target.value, normalized_label: f.normalized_label || '' }))} style={{ fontSize: '12px' }} />
+              <input type="number" placeholder="Amount" value={newLineItem.amount} onChange={e => setNewLineItem(f => ({ ...f, amount: e.target.value }))} style={{ fontSize: '12px' }} />
             </div>
             <div style={{ display: 'flex', gap: '6px' }}>
               <Button variant="secondary" onClick={() => { setAddingLineItem(null); setNewLineItem({ label: '', normalized_label: '', amount: '', quantity: '', unit: '' }) }}>Cancel</Button>
@@ -1020,65 +1166,25 @@ export default function VendorDetail() {
           </div>
         )}
 
-        {/* Line items list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {items.map(item => {
-            const isEditing = editingLineItem === item.id
-            if (isEditing) {
-              return (
-                <div key={item.id} style={{ padding: '8px 10px', border: '1px solid var(--color-accent)', borderRadius: '7px', background: 'rgba(184,146,106,0.04)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '6px', marginBottom: '6px' }}>
-                    <input
-                      value={editLineItemForm.label ?? item.label}
-                      onChange={e => setEditLineItemForm(f => ({ ...f, label: e.target.value }))}
-                      style={{ fontSize: '12px' }}
-                    />
-                    <input
-                      type="number"
-                      value={editLineItemForm.amount ?? item.amount ?? ''}
-                      onChange={e => setEditLineItemForm(f => ({ ...f, amount: e.target.value ? Number(e.target.value) : null }))}
-                      style={{ fontSize: '12px' }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <Button variant="secondary" onClick={() => { setEditingLineItem(null); setEditLineItemForm({}) }}>Cancel</Button>
-                    <Button onClick={() => handleUpdateLineItem(item.id, vendor.id)}>Save</Button>
-                  </div>
-                </div>
-              )
-            }
-            return (
-              <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '7px', background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#2c2825' }}>{item.label}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '1px' }}>
-                    {item.normalized_label}
-                    {item.quantity ? ` · ${item.quantity}${item.unit ? ` ${item.unit}` : ''}` : ''}
-                    {item.notes ? ` · ${item.notes}` : ''}
-                  </div>
-                </div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#2c2825', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
-                  {item.amount != null ? `$${item.amount.toLocaleString()}` : '—'}
-                </div>
-                <button
-                  onClick={() => { setEditingLineItem(item.id); setEditLineItemForm({ label: item.label, amount: item.amount }) }}
-                  style={{ fontSize: '10px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}
-                >Edit</button>
-                <button
-                  onClick={() => handleDeleteLineItem(item.id, vendor.id)}
-                  style={{ fontSize: '13px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
-                >✕</button>
-              </div>
-            )
-          })}
+          {visibleItems.map(renderItem)}
         </div>
 
-        {/* Total */}
+        {showToggle && (
+          <button
+            onClick={() => setLineItemsExpanded(prev => ({ ...prev, [vendor.id]: !isExpanded }))}
+            style={{ fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0 0', fontFamily: 'var(--font-body)', fontWeight: 500 }}
+          >
+            {isExpanded ? 'Show less ▴' : `Show all ${items.length} items ▾`}
+          </button>
+        )}
+
+        {/* Total — always visible */}
         {items.some(i => i.amount != null) && (
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px 0', borderTop: '1px solid var(--color-border)', marginTop: '6px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#2c2825', fontFamily: 'var(--font-body)' }}>
-              ${items.reduce((s, i) => s + (i.amount ?? 0), 0).toLocaleString()}
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#2c2825' }}>Total</span>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: '#2c2825', fontFamily: 'var(--font-body)' }}>
+              ${total.toLocaleString()}
             </span>
           </div>
         )}
@@ -1478,7 +1584,10 @@ export default function VendorDetail() {
         if (compared.length < 2) { setComparing(false); return null }
 
         function handleBookFromCompare(vendorId: string) {
-          setNoteModal({ vendorId, status: 'booked' as VendorStatus, note: '' })
+          const vendor = vendors.find(v => v.id === vendorId)
+          setBookingForm({ totalCost: vendor?.booked_amount ? String(vendor.booked_amount) : '', depositAmount: '', depositDate: new Date().toISOString().split('T')[0], paidBy: 'couple', paymentMethod: '' })
+          setBookingError(null)
+          setBookingModal({ vendorId, vendorName: vendor?.name || 'this vendor' })
         }
 
         const CompareRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -1887,8 +1996,8 @@ export default function VendorDetail() {
 
       {/* ══════ NORMAL LIST VIEW ══════ */}
       {!comparing && !comparePicking && <>
-      {/* AI Shortlist CTA */}
-      <GlowBorder style={{ marginBottom: '16px' }}>
+      {/* AI Shortlist CTA — hidden once a vendor is booked */}
+      {!hasBooked && <GlowBorder style={{ marginBottom: '16px' }}>
         <div style={{ position: 'relative', zIndex: 1, borderRadius: '12px', background: '#F5F1EC', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{ flex: 1 }}>
             <div className="ai-label-shimmer" style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '3px', fontWeight: 600 }}>
@@ -1917,7 +2026,7 @@ export default function VendorDetail() {
             {shortlistLoading ? 'Finding...' : shortlist.length > 0 ? 'Refresh' : 'Get Recommendations'}
           </button>
         </div>
-      </GlowBorder>
+      </GlowBorder>}
 
       {/* Shortlist results (collapsible) */}
       {shortlist.length > 0 && (
@@ -2039,21 +2148,27 @@ export default function VendorDetail() {
       )}
 
       {/* Vendor tile list */}
-      <div style={{ display: 'flex', flexDirection: 'column', border: visible.length > 0 ? '1px solid var(--color-border)' : 'none', borderRadius: '8px', overflow: 'hidden', background: '#fff', boxShadow: visible.length > 0 ? '0 1px 4px rgba(0,0,0,0.05)' : 'none' }}>
-        {visible.map((vendor, idx) => {
-          const isExpanded = expandedId === vendor.id
+      {(() => {
+        const activeVendors = visible.filter(v => v.status !== 'eliminated')
+        const eliminatedVendors = visible.filter(v => v.status === 'eliminated')
+        return (
+      <>
+      <div style={{ display: 'flex', flexDirection: 'column', border: activeVendors.length > 0 ? '1px solid var(--color-border)' : 'none', borderRadius: '8px', overflow: 'hidden', background: '#fff', boxShadow: activeVendors.length > 0 ? '0 1px 4px rgba(0,0,0,0.05)' : 'none' }}>
+        {activeVendors.map((vendor, idx) => {
+          const isBooked = vendor.status === 'booked'
+          const isExpanded = isBooked || expandedId === vendor.id
           const cfg = STATUS_CONFIG[vendor.status] ?? STATUS_CONFIG.not_started
           const displayName = vendor.name || 'Unnamed vendor'
           const isEditing = editingId === vendor.id
-          const isLast = idx === visible.length - 1
+          const isLast = idx === activeVendors.length - 1
 
           return (
             <div key={vendor.id} style={{ borderBottom: isLast ? 'none' : '1px solid var(--color-border)' }}>
 
               {/* Tile row */}
               <div
-                onClick={() => { setExpandedId(isExpanded ? null : vendor.id); setEditingId(null) }}
-                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', cursor: 'pointer', background: isExpanded ? '#F5F1EC' : '#fff', transition: 'background 0.1s' }}
+                onClick={() => { if (!isBooked) { setExpandedId(isExpanded ? null : vendor.id); setEditingId(null) } }}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', cursor: isBooked ? 'default' : 'pointer', background: isExpanded ? (isBooked ? 'rgba(139,158,126,0.06)' : '#F5F1EC') : '#fff', transition: 'background 0.1s', borderLeft: isBooked ? '3px solid #7B8F6B' : '3px solid transparent' }}
               >
                 {/* Avatar circle — only show when vendor has a real name */}
                 {vendor.name ? (
@@ -2076,7 +2191,7 @@ export default function VendorDetail() {
 
                 {/* Right side: status chip + amount + chevron */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  <span style={{ fontSize: '10px', padding: '3px 9px', borderRadius: '20px', background: cfg.bg, color: cfg.color, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: '10px', padding: vendor.status === 'booked' ? '4px 11px' : '3px 9px', borderRadius: '20px', background: cfg.bg, color: cfg.color, fontWeight: 600, whiteSpace: 'nowrap' }}>
                     {cfg.label}
                   </span>
                   {vendor.booked_amount != null && (
@@ -2084,13 +2199,13 @@ export default function VendorDetail() {
                       ${vendor.booked_amount.toLocaleString()}
                     </span>
                   )}
-                  <span style={{ fontSize: '16px', color: 'var(--color-text-muted)', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>›</span>
+                  {!isBooked && <span style={{ fontSize: '16px', color: 'var(--color-text-muted)', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>›</span>}
                 </div>
               </div>
 
               {/* Expanded panel */}
               {isExpanded && (
-                <div style={{ padding: '14px 16px', borderTop: '1px solid var(--color-border)', background: '#F5F1EC' }}>
+                <div style={{ padding: '14px 16px', borderTop: '1px solid var(--color-border)', background: isBooked ? 'rgba(139,158,126,0.06)' : '#F5F1EC', borderLeft: isBooked ? '3px solid #7B8F6B' : '3px solid transparent' }}>
                   {isEditing ? (
                     /* Edit form */
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]" style={{ marginBottom: '12px' }}>
@@ -2170,6 +2285,9 @@ export default function VendorDetail() {
                     </>
                   )}
 
+                  {/* Payment progress (booked only) */}
+                  {vendor.status === 'booked' && !isEditing && renderPaymentProgress(vendor)}
+
                   {/* Payment schedule (booked only) */}
                   {vendor.status === 'booked' && !isEditing && renderPaymentSchedule(vendor)}
 
@@ -2209,53 +2327,249 @@ export default function VendorDetail() {
         })}
       </div>
 
-      {/* Eliminated — collapsed by default */}
-      {eliminated.length > 0 && (
-        <div style={{ marginTop: '16px' }}>
-          <details>
-            <summary style={{ fontSize: '12px', color: 'var(--color-text-muted)', cursor: 'pointer', userSelect: 'none', padding: '4px 0' }}>
-              {eliminated.length} eliminated vendor{eliminated.length !== 1 ? 's' : ''}
-            </summary>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px' }}>
-              {eliminated.map(vendor => (
-                <div key={vendor.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '8px', background: '#f5f0ef', border: '1px solid #e8e0dc', opacity: 0.75 }}>
-                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#d0c8c5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#fff' }}>{initials(vendor.name || 'UN')}</span>
+      {/* Eliminated section */}
+      {eliminatedVendors.length > 0 && (
+        <div style={{ marginTop: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+            <div style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700, flexShrink: 0 }}>Eliminated</div>
+            <div style={{ flex: 1, height: '1px', background: 'var(--color-border)' }} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.03)' }}>
+            {eliminatedVendors.map((vendor, idx) => {
+              const isExpElim = expandedId === vendor.id
+              const displayName = vendor.name || 'Unnamed vendor'
+              const isEditing = editingId === vendor.id
+              const isLast = idx === eliminatedVendors.length - 1
+              return (
+                <div key={vendor.id} style={{ borderBottom: isLast ? 'none' : '1px solid var(--color-border)', opacity: 0.55 }}>
+                  <div
+                    onClick={() => { setExpandedId(isExpElim ? null : vendor.id); setEditingId(null) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', cursor: 'pointer', background: isExpElim ? '#f5f0ef' : '#fafaf9', transition: 'background 0.1s', borderLeft: '3px solid transparent' }}
+                  >
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#d0c8c5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff', letterSpacing: '0.02em' }}>{initials(displayName)}</span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayName}</div>
+                    </div>
+                    <span style={{ fontSize: '10px', padding: '3px 9px', borderRadius: '20px', background: '#EDEAE6', color: '#8A8179', fontWeight: 600 }}>Eliminated</span>
+                    <span style={{ fontSize: '16px', color: 'var(--color-text-muted)', display: 'inline-block', transform: isExpElim ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>›</span>
                   </div>
-                  <div style={{ flex: 1, fontSize: '13px', color: 'var(--color-text-muted)' }}>{vendor.name || 'Unnamed vendor'}</div>
-                  <button onClick={() => handleDelete(vendor.id)} style={{ fontSize: '11px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                  {isExpElim && (
+                    <div style={{ padding: '14px 16px', borderTop: '1px solid var(--color-border)', background: '#f5f0ef', borderLeft: '3px solid transparent' }}>
+                      {isEditing ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]" style={{ marginBottom: '12px' }}>
+                          <div>
+                            <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Name</label>
+                            <input style={{ display: 'block' }} value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                          </div>
+                          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                            <Button variant="secondary" onClick={() => setEditingId(null)}>Cancel</Button>
+                            <Button onClick={() => handleSave(vendor.id)} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {vendor.notes && (
+                            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', whiteSpace: 'pre-wrap', marginBottom: '10px', lineHeight: 1.5 }}>{vendor.notes}</div>
+                          )}
+                          {renderDocumentsSection(vendor)}
+                          {renderLineItemsSection(vendor)}
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--color-border)' }}>
+                            <select value={vendor.status} onChange={e => handleStatusChange(vendor.id, e.target.value as VendorStatus)} style={{ fontSize: '11px', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: '5px', padding: '3px 6px', background: '#fff' }}>
+                              {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                            </select>
+                            <div style={{ flex: 1 }} />
+                            <button onClick={() => handleDelete(vendor.id)} style={{ fontSize: '12px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 6px' }}>Remove</button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          </details>
+              )
+            })}
+          </div>
         </div>
       )}
+      </>
+      )
+      })()}
       </>}
 
       {/* Decision note modal */}
+      {/* Eliminated note modal */}
       {noteModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,13,10,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--color-surface)', borderRadius: '16px', padding: '28px 32px', width: '420px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
             <p style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: 400, margin: '0 0 6px 0' }}>
-              {noteModal.status === 'booked' ? 'Booking confirmed!' : 'Mark as eliminated'}
+              Mark as eliminated
             </p>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 18px 0' }}>
-              {noteModal.status === 'booked'
-                ? 'Add a note about why you chose this vendor (optional).'
-                : 'Add a note about why you eliminated this vendor (optional).'}
+              Add a note about why you eliminated this vendor (optional).
             </p>
             <textarea
               autoFocus
-              placeholder={noteModal.status === 'booked' ? 'e.g. Best portfolio, great vibe at the tasting...' : 'e.g. Too expensive, already booked...'}
+              placeholder="e.g. Too expensive, already booked..."
               value={noteModal.note}
               onChange={e => setNoteModal(m => m ? { ...m, note: e.target.value } : m)}
               style={{ width: '100%', minHeight: '80px', fontFamily: 'var(--font-body)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box', display: 'block', marginBottom: '16px' }}
             />
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <Button variant="secondary" onClick={() => setNoteModal(null)}>Cancel</Button>
-              <Button onClick={handleStatusWithNote} style={{ background: noteModal.status === 'booked' ? 'var(--color-status-booked)' : undefined }}>
-                {noteModal.status === 'booked' ? 'Confirm Booking' : 'Eliminate'}
-              </Button>
+              <Button onClick={handleStatusWithNote}>Eliminate</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Booking confirmation modal */}
+      {bookingModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,13,10,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--color-surface)', borderRadius: '16px', padding: '28px 32px', width: '480px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <p style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: 400, margin: '0 0 4px 0' }}>
+              Book {bookingModal.vendorName}?
+            </p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 20px 0' }}>
+              Nice choice. Let's record the details.
+            </p>
+
+            {bookingError && (
+              <div style={{ fontSize: '12px', color: '#C4785C', marginBottom: '12px', padding: '8px 12px', background: 'rgba(196,120,92,0.06)', border: '1px solid rgba(196,120,92,0.20)', borderRadius: '8px' }}>
+                {bookingError}
+              </div>
+            )}
+
+            {/* Total contract amount */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '4px', fontWeight: 700 }}>Total contract amount</label>
+              <input
+                type="number"
+                autoFocus
+                placeholder="e.g. 15000"
+                value={bookingForm.totalCost}
+                onChange={e => setBookingForm(f => ({ ...f, totalCost: e.target.value }))}
+                style={{ display: 'block', width: '100%', fontSize: '14px', padding: '8px 12px', borderRadius: '8px', border: '1.5px solid var(--color-border)', fontFamily: 'var(--font-body)', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            {/* Deposit amount */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '4px', fontWeight: 700 }}>Deposit amount (if already paid)</label>
+              <input
+                type="number"
+                placeholder="Leave blank if no deposit paid"
+                value={bookingForm.depositAmount}
+                onChange={e => setBookingForm(f => ({ ...f, depositAmount: e.target.value }))}
+                style={{ display: 'block', width: '100%', fontSize: '14px', padding: '8px 12px', borderRadius: '8px', border: '1.5px solid var(--color-border)', fontFamily: 'var(--font-body)', boxSizing: 'border-box' }}
+              />
+              <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: '3px 0 0 0' }}>Leave blank if no deposit has been paid yet.</p>
+            </div>
+
+            {/* Deposit details — only visible when deposit > 0 */}
+            {Number(bookingForm.depositAmount) > 0 && (
+              <>
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '4px', fontWeight: 700 }}>When was the deposit paid?</label>
+                  <input
+                    type="date"
+                    value={bookingForm.depositDate}
+                    onChange={e => setBookingForm(f => ({ ...f, depositDate: e.target.value }))}
+                    style={{ display: 'block', width: '100%', fontSize: '14px', padding: '8px 12px', borderRadius: '8px', border: '1.5px solid var(--color-border)', fontFamily: 'var(--font-body)', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-[12px]" style={{ marginBottom: '14px' }}>
+                  <div>
+                    <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '4px', fontWeight: 700 }}>Who paid?</label>
+                    <select
+                      value={bookingForm.paidBy}
+                      onChange={e => setBookingForm(f => ({ ...f, paidBy: e.target.value }))}
+                      style={{ display: 'block', width: '100%', fontSize: '13px', padding: '8px 12px', borderRadius: '8px', border: '1.5px solid var(--color-border)', fontFamily: 'var(--font-body)', boxSizing: 'border-box', background: '#fff' }}
+                    >
+                      <option value="couple">Couple</option>
+                      <option value="family_a">{couple?.family_a_name || 'Family A'}</option>
+                      <option value="family_b">{couple?.family_b_name || 'Family B'}</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '4px', fontWeight: 700 }}>Payment method</label>
+                    <select
+                      value={bookingForm.paymentMethod}
+                      onChange={e => setBookingForm(f => ({ ...f, paymentMethod: e.target.value }))}
+                      style={{ display: 'block', width: '100%', fontSize: '13px', padding: '8px 12px', borderRadius: '8px', border: '1.5px solid var(--color-border)', fontFamily: 'var(--font-body)', boxSizing: 'border-box', background: '#fff' }}
+                    >
+                      <option value="">Select...</option>
+                      <option value="credit_card">Credit Card</option>
+                      <option value="check">Check</option>
+                      <option value="bank_transfer">Bank Transfer</option>
+                      <option value="venmo_zelle">Venmo/Zelle</option>
+                      <option value="cash">Cash</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <Button variant="secondary" onClick={() => setBookingModal(null)}>Cancel</Button>
+                <Button onClick={() => handleBookingConfirm(false)} disabled={bookingSaving} style={{ background: '#5A7A4A' }}>
+                  {bookingSaving ? 'Saving...' : 'Confirm Booking'}
+                </Button>
+              </div>
+              {!Number(bookingForm.depositAmount) && (
+                <button
+                  onClick={() => handleBookingConfirm(true)}
+                  disabled={bookingSaving}
+                  style={{ fontSize: '12px', color: 'var(--color-text-secondary)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'center', fontFamily: 'var(--font-body)', padding: 0 }}
+                >
+                  Skip deposit — just mark as booked
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Un-booking confirmation modal */}
+      {unbookModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,13,10,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--color-surface)', borderRadius: '16px', padding: '28px 32px', width: '420px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
+            <p style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: 400, margin: '0 0 6px 0' }}>
+              Un-book {unbookModal.vendorName}?
+            </p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 18px 0' }}>
+              This won't delete any recorded payments.
+            </p>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <Button variant="secondary" onClick={() => setUnbookModal(null)}>Cancel</Button>
+              <Button onClick={handleUnbookConfirm}>Confirm</Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Eliminate other vendors prompt */}
+      {eliminatePrompt && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,13,10,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--color-surface)', borderRadius: '16px', padding: '28px 32px', width: '440px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
+            <p style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: 400, margin: '0 0 6px 0' }}>
+              Eliminate other vendors?
+            </p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 18px 0', lineHeight: 1.5 }}>
+              You've booked {eliminatePrompt.vendorName}. Want to mark the other {categoryLabel.toLowerCase()} vendors as eliminated?
+            </p>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <Button variant="secondary" onClick={() => setEliminatePrompt(null)}>No, keep them</Button>
+              <Button onClick={async () => {
+                const others = vendors.filter(v => v.id !== eliminatePrompt.vendorId && v.status !== 'booked' && v.status !== 'eliminated' && v.name)
+                try {
+                  await Promise.all(others.map(v => updateVendorStatus(v.id, 'eliminated')))
+                  setVendors(prev => prev.map(v => others.some(o => o.id === v.id) ? { ...v, status: 'eliminated' as VendorStatus } : v))
+                } catch { /* best-effort */ }
+                setEliminatePrompt(null)
+              }}>Yes, eliminate others</Button>
             </div>
           </div>
         </div>

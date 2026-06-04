@@ -47,7 +47,7 @@ export function computeBudgetSummary(
       ...bc,
       booked,
       paid,
-      remaining: bc.budgeted - booked,
+      remaining: booked > 0 ? booked - paid : bc.budgeted,
     }
   })
 }
