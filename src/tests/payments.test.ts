@@ -13,6 +13,8 @@ function makePayment(overrides: Partial<Payment> = {}): Payment {
     paid_date: null,
     paid_by: 'couple',
     notes: null,
+    status: 'upcoming',
+    payment_method: null,
     ...overrides,
   }
 }
@@ -20,7 +22,7 @@ function makePayment(overrides: Partial<Payment> = {}): Payment {
 describe('getUpcomingPayments', () => {
   it('filters out already paid payments', () => {
     const payments = [
-      makePayment({ id: 'p1', due_date: '2027-01-01', paid_date: '2026-12-01' }),
+      makePayment({ id: 'p1', due_date: '2027-01-01', paid_date: '2026-12-01', status: 'paid' }),
       makePayment({ id: 'p2', due_date: '2027-02-01', paid_date: null }),
     ]
     const result = getUpcomingPayments(payments)

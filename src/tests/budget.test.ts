@@ -10,11 +10,11 @@ describe('computeBudgetSummary', () => {
     const vendors: Vendor[] = [
       { id: 'v1', couple_id: 'c1', category: 'venue', name: 'Liberty', status: 'booked',
         contact_name: null, contact_email: null, contact_phone: null,
-        website: null, notes: null, booked_amount: 15000, created_at: '' },
+        website: null, notes: null, booked_amount: 15000, contract_url: null, proposal_url: null, created_at: '' },
     ]
     const payments: Payment[] = [
       { id: 'p1', couple_id: 'c1', vendor_id: 'v1', label: 'Deposit',
-        amount: 5000, due_date: '2026-01-01', paid_date: '2026-01-01', paid_by: 'couple', notes: null },
+        amount: 5000, due_date: '2026-01-01', paid_date: '2026-01-01', paid_by: 'couple', notes: null, status: 'paid', payment_method: null },
     ]
 
     const result = computeBudgetSummary(budgetCategories, vendors, payments)
@@ -30,7 +30,7 @@ describe('computeBudgetSummary', () => {
     const vendors: Vendor[] = [
       { id: 'v1', couple_id: 'c1', category: 'florist', name: 'Rose', status: 'shortlisted',
         contact_name: null, contact_email: null, contact_phone: null,
-        website: null, notes: null, booked_amount: 8000, created_at: '' },
+        website: null, notes: null, booked_amount: 8000, contract_url: null, proposal_url: null, created_at: '' },
     ]
 
     const result = computeBudgetSummary(budgetCategories, vendors, [])

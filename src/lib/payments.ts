@@ -17,10 +17,23 @@ export async function insertPayment(payment: Omit<Payment, 'id'>): Promise<Payme
   return data as Payment
 }
 
-export async function markPaymentPaid(paymentId: string, paidDate: string) {
+export async function markPaymentPaid(
+  paymentId: string,
+  paidDate: string,
+  paymentMethod: string | null = null,
+  notes: string | null = null
+) {
   const { error } = await supabase
     .from('payments')
-    .update({ paid_date: paidDate })
+    .update({ status: 'paid', paid_date: paidDate, payment_method: paymentMethod, notes })
+    .eq('id', paymentId)
+  if (error) throw error
+}
+
+export async function undoPayment(paymentId: string) {
+  const { error } = await supabase
+    .from('payments')
+    .update({ status: 'upcoming', paid_date: null, payment_method: null, notes: null })
     .eq('id', paymentId)
   if (error) throw error
 }
@@ -33,7 +46,7 @@ export async function deletePayment(paymentId: string) {
 export function getUpcomingPayments(payments: Payment[], limit = 3): Payment[] {
   const today = new Date().toISOString().split('T')[0]
   return payments
-    .filter(p => !p.paid_date && (!p.due_date || p.due_date >= today))
+    .filter(p => p.status === 'upcoming' && (!p.due_date || p.due_date >= today))
     .slice(0, limit)
 }
 
@@ -49,7 +62,7 @@ export async function getPaymentsForVendor(vendorId: string): Promise<Payment[]>
 
 export async function updatePayment(
   paymentId: string,
-  updates: Partial<Pick<Payment, 'label' | 'amount' | 'due_date' | 'paid_by'>>
+  updates: Partial<Pick<Payment, 'label' | 'amount' | 'due_date' | 'paid_by' | 'vendor_id'>>
 ): Promise<void> {
   const { error } = await supabase
     .from('payments')

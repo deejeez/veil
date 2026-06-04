@@ -47,6 +47,8 @@ export type Vendor = {
   website: string | null
   notes: string | null
   booked_amount: number | null
+  contract_url: string | null
+  proposal_url: string | null
   created_at: string
 }
 
@@ -60,6 +62,8 @@ export type Payment = {
   paid_date: string | null
   paid_by: string
   notes: string | null
+  status: 'upcoming' | 'paid'
+  payment_method: string | null
 }
 
 export type BudgetCategory = {
@@ -143,6 +147,20 @@ export type Guest = {
   tier: 'a_list' | 'b_list'
   plus_ones: number
   kids: number
+  created_at: string
+}
+
+export type VendorLineItem = {
+  id: string
+  couple_id: string
+  vendor_id: string
+  label: string
+  normalized_label: string
+  amount: number | null
+  quantity: number | null
+  unit: string | null
+  notes: string | null
+  source: 'extracted' | 'manual'
   created_at: string
 }
 

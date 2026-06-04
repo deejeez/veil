@@ -88,10 +88,10 @@ export default function VendorDetail() {
     fileName: string
     vendor_fields: Record<string, unknown>
     line_items: Array<{ label: string; normalized_label: string; amount: number | null; quantity: number | null; unit: string | null; notes: string | null }>
-    checkedFields: Record<string, boolean>
-    checkedItems: boolean[]
   }
   const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null)
+  const [checkedFields, setCheckedFields] = useState<Record<string, boolean>>({})
+  const [checkedItems, setCheckedItems] = useState<Record<number, boolean>>({})
   const [applyingExtraction, setApplyingExtraction] = useState(false)
   const [editingLineItem, setEditingLineItem] = useState<string | null>(null)
   const [editLineItemForm, setEditLineItemForm] = useState<Partial<VendorLineItem>>({})
@@ -453,21 +453,24 @@ export default function VendorDetail() {
       const vendorFields = (data as { vendor_fields?: Record<string, unknown> }).vendor_fields ?? {}
       const items = (data as { line_items?: Array<{ label: string; normalized_label: string; amount: number | null; quantity: number | null; unit: string | null; notes: string | null }> }).line_items ?? []
 
-      // Auto-check all fields and items
-      const checkedFields: Record<string, boolean> = {}
+      // Auto-check all fields and items (exclude key_terms — it's displayed separately, not as a checkbox)
+      const initFields: Record<string, boolean> = {}
       for (const key of Object.keys(vendorFields)) {
+        if (key === 'key_terms') continue
         if (vendorFields[key] !== null && vendorFields[key] !== undefined) {
-          checkedFields[key] = true
+          initFields[key] = true
         }
       }
+      const initItems: Record<number, boolean> = {}
+      items.forEach((_, i) => { initItems[i] = true })
+      setCheckedFields(initFields)
+      setCheckedItems(initItems)
       const ext = filePath.split('/').pop() ?? 'document'
       setExtractionResult({
         vendorId,
         fileName: `${vendor?.name ?? 'Vendor'} ${documentType}.${ext.split('.').pop()}`,
         vendor_fields: vendorFields,
         line_items: items,
-        checkedFields,
-        checkedItems: items.map(() => true),
       })
       track('document_extracted', { category, documentType, lineItemCount: items.length })
     } catch (err) {
@@ -481,7 +484,7 @@ export default function VendorDetail() {
     if (!extractionResult || !couple) return
     setApplyingExtraction(true)
     try {
-      const { vendorId, vendor_fields, line_items, checkedFields, checkedItems } = extractionResult
+      const { vendorId, vendor_fields, line_items } = extractionResult
       const vendor = vendors.find(v => v.id === vendorId)
       if (!vendor) return
 
@@ -505,9 +508,9 @@ export default function VendorDetail() {
 
       // Delete old line items and insert checked new ones
       await deleteLineItemsForVendor(vendorId)
-      const checkedLineItems = line_items.filter((_, i) => checkedItems[i])
-      if (checkedLineItems.length > 0) {
-        await insertLineItems(checkedLineItems.map(item => ({
+      const selectedLineItems = line_items.filter((_, i) => checkedItems[i])
+      if (selectedLineItems.length > 0) {
+        await insertLineItems(selectedLineItems.map(item => ({
           couple_id: couple.id,
           vendor_id: vendorId,
           label: item.label,
@@ -518,38 +521,6 @@ export default function VendorDetail() {
           notes: item.notes,
           source: 'extracted' as const,
         })))
-      }
-
-      // Create payment entries for deposit/balance if present
-      if (checkedFields['deposit_amount'] && vendor_fields.deposit_amount) {
-        const dueDate = vendor_fields.deposit_due_date as string | null
-        if (confirm(`We found a deposit of $${Number(vendor_fields.deposit_amount).toLocaleString()}${dueDate ? ` due by ${new Date(dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}` : ''}. Add to your payment schedule?`)) {
-          await insertPayment({
-            couple_id: couple.id,
-            vendor_id: vendorId,
-            label: 'Deposit',
-            amount: Number(vendor_fields.deposit_amount),
-            due_date: dueDate || null,
-            paid_date: null,
-            paid_by: 'couple',
-            notes: null,
-          })
-        }
-      }
-      if (checkedFields['balance_amount'] && vendor_fields.balance_amount) {
-        const dueDate = vendor_fields.balance_due_date as string | null
-        if (confirm(`We found a balance of $${Number(vendor_fields.balance_amount).toLocaleString()}${dueDate ? ` due by ${new Date(dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}` : ''}. Add to your payment schedule?`)) {
-          await insertPayment({
-            couple_id: couple.id,
-            vendor_id: vendorId,
-            label: 'Final Payment',
-            amount: Number(vendor_fields.balance_amount),
-            due_date: dueDate || null,
-            paid_date: null,
-            paid_by: 'couple',
-            notes: null,
-          })
-        }
       }
 
       setExtractionResult(null)
@@ -668,6 +639,8 @@ export default function VendorDetail() {
         paid_date: null,
         paid_by: newVendorPayment.paid_by,
         notes: null,
+        status: 'upcoming',
+        payment_method: null,
       })
       setAddingPaymentFor(null)
       setNewVendorPayment({ label: '', amount: '', due_date: '', paid_by: 'couple' })
@@ -909,7 +882,7 @@ export default function VendorDetail() {
       const isUploading = documentType === 'contract' ? isUploadingContract : isUploadingProposal
       const isPrimary = documentType === 'contract'
       return (
-        <label>
+        <label style={{ cursor: isUploading ? 'default' : 'pointer' }}>
           <input
             type="file"
             accept=".pdf,.png,.jpg,.jpeg"
@@ -919,7 +892,6 @@ export default function VendorDetail() {
             onChange={e => { const f = e.target.files?.[0]; if (f) { handleDocumentUpload(vendor.id, f, documentType); e.target.value = '' } }}
           />
           <span
-            onClick={() => contractInputRefs.current[`${vendor.id}-${documentType}`]?.click()}
             style={{
               display: 'inline-block', fontSize: '12px', padding: '5px 14px', borderRadius: '7px',
               background: isPrimary ? 'var(--color-accent)' : 'none',
@@ -2379,38 +2351,50 @@ export default function VendorDetail() {
                   if (fields.length === 0) {
                     return <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No vendor fields found in document</div>
                   }
-                  return fields.map(([key, value]: [string, unknown]) => {
-                    const display = typeof value === 'number' ? `$${value.toLocaleString()}` : String(value)
-                    return (
-                      <label
-                        key={key}
-                        style={{
-                          display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 0',
-                          borderBottom: '1px solid var(--color-border)', cursor: 'pointer',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={extractionResult.checkedFields[key] ?? false}
-                          onChange={() => {
-                            setExtractionResult(prev => prev ? {
-                              ...prev,
-                              checkedFields: { ...prev.checkedFields, [key]: !prev.checkedFields[key] },
-                            } : null)
+                  const allFieldsChecked = fields.every(([key]) => checkedFields[key])
+                  return (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '4px' }}>
+                        <button
+                          onClick={() => {
+                            const next: Record<string, boolean> = {}
+                            fields.forEach(([key]) => { next[key] = !allFieldsChecked })
+                            setCheckedFields(prev => ({ ...prev, ...next }))
                           }}
-                          style={{ marginTop: '2px', accentColor: 'var(--color-accent)', width: '16px', height: '16px', flexShrink: 0 }}
-                        />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                            {fieldLabels[key] || key}
-                          </div>
-                          <div style={{ fontSize: '13px', color: '#2c2825', marginTop: '1px' }}>
-                            {display}
-                          </div>
-                        </div>
-                      </label>
-                    )
-                  })
+                          style={{ fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer' }}
+                        >
+                          {allFieldsChecked ? 'Uncheck all' : 'Select all'}
+                        </button>
+                      </div>
+                      {fields.map(([key, value]: [string, unknown]) => {
+                        const display = typeof value === 'number' ? `$${value.toLocaleString()}` : String(value)
+                        return (
+                          <label
+                            key={key}
+                            style={{
+                              display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 0',
+                              borderBottom: '1px solid var(--color-border)', cursor: 'pointer',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checkedFields[key] ?? false}
+                              onChange={() => setCheckedFields(prev => ({ ...prev, [key]: !prev[key] }))}
+                              style={{ marginTop: '2px', accentColor: 'var(--color-accent)', width: '16px', height: '16px', flexShrink: 0 }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                                {fieldLabels[key] || key}
+                              </div>
+                              <div style={{ fontSize: '13px', color: '#2c2825', marginTop: '1px' }}>
+                                {display}
+                              </div>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </>
+                  )
                 })()}
               </div>
 
@@ -2438,15 +2422,14 @@ export default function VendorDetail() {
                   </div>
                   <button
                     onClick={() => {
-                      const allChecked = extractionResult.checkedItems.every(Boolean)
-                      setExtractionResult(prev => prev ? {
-                        ...prev,
-                        checkedItems: prev.checkedItems.map(() => !allChecked),
-                      } : null)
+                      const allChecked = extractionResult.line_items.every((_, i) => checkedItems[i])
+                      const next: Record<number, boolean> = {}
+                      extractionResult.line_items.forEach((_, i) => { next[i] = !allChecked })
+                      setCheckedItems(next)
                     }}
                     style={{ fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer' }}
                   >
-                    {extractionResult.checkedItems.every(Boolean) ? 'Uncheck all' : 'Check all'}
+                    {extractionResult.line_items.every((_, i) => checkedItems[i]) ? 'Uncheck all' : 'Select all'}
                   </button>
                 </div>
 
@@ -2460,20 +2443,15 @@ export default function VendorDetail() {
                         style={{
                           display: 'flex', alignItems: 'flex-start', gap: '8px',
                           padding: '8px 10px', borderRadius: '7px',
-                          background: extractionResult.checkedItems[i] ? 'rgba(184,146,106,0.04)' : 'var(--color-bg)',
-                          border: `1px solid ${extractionResult.checkedItems[i] ? 'rgba(184,146,106,0.20)' : 'var(--color-border)'}`,
+                          background: checkedItems[i] ? 'rgba(184,146,106,0.04)' : 'var(--color-bg)',
+                          border: `1px solid ${checkedItems[i] ? 'rgba(184,146,106,0.20)' : 'var(--color-border)'}`,
                           cursor: 'pointer', transition: 'all 0.15s ease',
                         }}
                       >
                         <input
                           type="checkbox"
-                          checked={extractionResult.checkedItems[i]}
-                          onChange={() => {
-                            setExtractionResult(prev => prev ? {
-                              ...prev,
-                              checkedItems: prev.checkedItems.map((c, j) => j === i ? !c : c),
-                            } : null)
-                          }}
+                          checked={checkedItems[i] ?? false}
+                          onChange={() => setCheckedItems(prev => ({ ...prev, [i]: !prev[i] }))}
                           style={{ marginTop: '2px', accentColor: 'var(--color-accent)', width: '16px', height: '16px', flexShrink: 0 }}
                         />
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -2493,12 +2471,12 @@ export default function VendorDetail() {
                 )}
 
                 {/* Total for checked items */}
-                {extractionResult.line_items.some((item, i) => extractionResult.checkedItems[i] && item.amount != null) && (
+                {extractionResult.line_items.some((item, i) => checkedItems[i] && item.amount != null) && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px 0', borderTop: '1px solid var(--color-border)', marginTop: '8px' }}>
                     <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Selected Total</span>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: '#2c2825', fontFamily: 'var(--font-body)' }}>
                       ${extractionResult.line_items
-                        .filter((_, i) => extractionResult.checkedItems[i])
+                        .filter((_, i) => checkedItems[i])
                         .reduce((s, i) => s + (i.amount ?? 0), 0)
                         .toLocaleString()}
                     </span>
@@ -2508,30 +2486,37 @@ export default function VendorDetail() {
             </div>
 
             {/* Footer with actions */}
-            <div style={{
-              padding: '12px 20px', borderTop: '1px solid var(--color-border)',
-              background: '#FDFBF8', flexShrink: 0,
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-              <button
-                onClick={() => setExtractionResult(null)}
-                style={{ fontSize: '13px', color: 'var(--color-text-secondary)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleApplyExtraction}
-                disabled={applyingExtraction}
-                style={{
-                  fontSize: '13px', fontWeight: 600, padding: '8px 20px', borderRadius: '8px',
-                  background: applyingExtraction ? '#D4CFC8' : 'var(--color-accent)',
-                  color: '#fff', border: 'none', cursor: applyingExtraction ? 'default' : 'pointer',
-                  fontFamily: 'var(--font-body)',
-                }}
-              >
-                {applyingExtraction ? 'Applying...' : 'Apply Selected'}
-              </button>
-            </div>
+            {(() => {
+              const noneSelected = !Object.values(checkedFields).some(Boolean) && !Object.values(checkedItems).some(Boolean)
+              const applyDisabled = applyingExtraction || noneSelected
+              return (
+                <div style={{
+                  padding: '12px 20px', borderTop: '1px solid var(--color-border)',
+                  background: '#FDFBF8', flexShrink: 0,
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
+                  <button
+                    onClick={() => setExtractionResult(null)}
+                    style={{ fontSize: '13px', color: 'var(--color-text-secondary)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleApplyExtraction}
+                    disabled={applyDisabled}
+                    style={{
+                      fontSize: '13px', fontWeight: 600, padding: '8px 20px', borderRadius: '8px',
+                      background: applyDisabled ? '#D4CFC8' : 'var(--color-accent)',
+                      color: '#fff', border: 'none',
+                      cursor: applyDisabled ? 'default' : 'pointer',
+                      fontFamily: 'var(--font-body)',
+                    }}
+                  >
+                    {applyingExtraction ? 'Applying...' : 'Apply Selected'}
+                  </button>
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}
