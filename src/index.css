@@ -74,6 +74,11 @@ input::placeholder, textarea::placeholder {
   animation: fadeInPage 300ms ease both;
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* ── Sidebar responsive (tablet icon-only, 768–1023px only) ────────────────── */
 
 @media (min-width: 768px) and (max-width: 1023px) {
@@ -118,6 +123,19 @@ input::placeholder, textarea::placeholder {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+
+/* ── Currency styling ─────────────────────────────────────────────────────────── */
+
+.currency {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+}
+.currency-lg { font-size: 28px; }
+.currency-md { font-size: 20px; }
+.currency-sm { font-size: 15px; }
+.currency-xs { font-size: 13px; }
 
 /* ── Missing Tailwind v4 base utilities ──────────────────────────────────────── */
 

@@ -47,6 +47,7 @@ export type Vendor = {
   website: string | null
   notes: string | null
   booked_amount: number | null
+  booked_date: string | null
   contract_url: string | null
   proposal_url: string | null
   created_at: string
@@ -79,11 +80,18 @@ export type AiReviewFlag = {
   text: string
 }
 
+export type AiReviewDateMoney = {
+  label: string
+  detail: string
+}
+
 export type AiReview = {
   status: 'pending' | 'complete' | 'error'
   flags: AiReviewFlag[]
   summary: string
   reviewed_at: string
+  dates_money?: AiReviewDateMoney[]
+  questions?: string[]
 }
 
 export type Contract = {

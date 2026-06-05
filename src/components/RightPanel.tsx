@@ -388,7 +388,7 @@ export default function RightPanel() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-secondary)' }}>Remaining</span>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: overBudget ? '#C4785C' : 'var(--color-text-primary)', fontWeight: 600 }}>
+                <span className="currency currency-xs" style={{ color: overBudget ? '#C4785C' : 'var(--color-text-primary)' }}>
                   ${Math.max(0, totalBudget - totalPaid).toLocaleString()}
                 </span>
               </div>
@@ -412,7 +412,7 @@ export default function RightPanel() {
                 <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-primary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>
                   {p.label}
                 </span>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0 }}>
+                <span className="currency currency-xs" style={{ color: 'var(--color-text-primary)', flexShrink: 0 }}>
                   ${p.amount.toLocaleString()}
                 </span>
               </div>
@@ -510,8 +510,8 @@ export default function RightPanel() {
         <div style={{ marginBottom: '20px' }}>
           <p style={LABEL_STYLE}>Payment Progress</p>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
-            <span style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', color: 'var(--color-text-primary)' }}>${totalPaid.toLocaleString()}</span>
-            <span style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-secondary)' }}>of ${totalDue.toLocaleString()}</span>
+            <span className="currency currency-xs" style={{ color: 'var(--color-text-primary)' }}>${totalPaid.toLocaleString()}</span>
+            <span className="currency currency-xs" style={{ color: 'var(--color-text-secondary)' }}>of ${totalDue.toLocaleString()}</span>
           </div>
           <div style={{ height: '5px', background: '#EDE8E1', borderRadius: '3px', overflow: 'hidden', marginBottom: '4px' }}>
             <div style={{ width: `${paidPct}%`, height: '100%', background: '#7B8F6B', borderRadius: '3px' }} />
@@ -535,7 +535,7 @@ export default function RightPanel() {
                     {daysUntilDue !== null ? `${daysUntilDue}d` : '—'}
                   </p>
                 </div>
-                <span style={{ fontFamily: 'var(--font-heading)', fontSize: '13px', color: 'var(--color-text-primary)' }}>${p.amount.toLocaleString()}</span>
+                <span className="currency currency-xs" style={{ color: 'var(--color-text-primary)' }}>${p.amount.toLocaleString()}</span>
               </div>
             )
           })}
@@ -576,7 +576,7 @@ export default function RightPanel() {
               <div style={{ marginBottom: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <span style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-secondary)' }}>Paid</span>
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-primary)', fontWeight: 600 }}>${venuePaid.toLocaleString()} / ${venueTotal.toLocaleString()}</span>
+                  <span className="currency currency-xs" style={{ color: 'var(--color-text-primary)' }}>${venuePaid.toLocaleString()} / ${venueTotal.toLocaleString()}</span>
                 </div>
                 <div style={{ height: '4px', background: '#EDE8E1', borderRadius: '3px', overflow: 'hidden' }}>
                   <div style={{ width: `${Math.min(100, Math.round((venuePaid / venueTotal) * 100))}%`, height: '100%', background: '#7B8F6B', borderRadius: '3px' }} />
@@ -589,7 +589,7 @@ export default function RightPanel() {
                 <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', color: 'var(--color-text-secondary)', margin: '0 0 3px 0', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Next Payment</p>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                   <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-primary)' }}>{nextVenuePayment.label}</span>
-                  <span style={{ fontFamily: 'var(--font-heading)', fontSize: '13px', color: 'var(--color-text-primary)' }}>${nextVenuePayment.amount.toLocaleString()}</span>
+                  <span className="currency currency-xs" style={{ color: 'var(--color-text-primary)' }}>${nextVenuePayment.amount.toLocaleString()}</span>
                 </div>
                 {nextVenuePayment.due_date && (
                   <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-secondary)', margin: '2px 0 0 0' }}>Due {nextVenuePayment.due_date}</p>
@@ -600,7 +600,7 @@ export default function RightPanel() {
             {venueRemaining > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)' }}>Remaining</span>
-                <span style={{ fontFamily: 'var(--font-heading)', fontSize: '14px', color: 'var(--color-text-primary)' }}>${venueRemaining.toLocaleString()}</span>
+                <span className="currency currency-xs" style={{ color: 'var(--color-text-primary)' }}>${venueRemaining.toLocaleString()}</span>
               </div>
             )}
 
@@ -803,7 +803,7 @@ export default function RightPanel() {
               <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '130px' }}>
                 {p.label}
               </span>
-              <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0 }}>
+              <span className="currency currency-xs" style={{ color: 'var(--color-text-primary)', flexShrink: 0 }}>
                 ${p.amount.toLocaleString()}
               </span>
             </div>

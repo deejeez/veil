@@ -1,7 +1,5 @@
-import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27?target=deno'
+import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.39?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,6 +30,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
+    // Verify user
     const { data: { user }, error: authError } = await supabase.auth.getUser(
       authHeader.replace('Bearer ', '')
     )
@@ -41,18 +40,20 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { data: contract } = await supabase
+    // Get contract record
+    const { data: contract, error: contractError } = await supabase
       .from('contracts')
       .select('*, vendors(category, booked_amount)')
       .eq('id', contract_id)
       .single()
 
-    if (!contract) {
-      return new Response(JSON.stringify({ error: 'Contract not found' }), {
+    if (contractError || !contract) {
+      return new Response(JSON.stringify({ error: `Contract not found: ${contractError?.message ?? 'no data'}` }), {
         status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
+    // Verify ownership
     const { data: couple } = await supabase
       .from('couples')
       .select('user_id_primary, user_id_partner')
@@ -65,22 +66,43 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { data: urlData } = await supabase.storage
+    // Download PDF from storage
+    const { data: urlData, error: urlError } = await supabase.storage
       .from('contracts')
-      .createSignedUrl(contract.file_path, 60)
+      .createSignedUrl(contract.file_path, 120)
 
-    if (!urlData?.signedUrl) throw new Error('Could not get signed URL')
+    if (urlError || !urlData?.signedUrl) {
+      return new Response(JSON.stringify({ error: `Could not get signed URL: ${urlError?.message ?? 'no URL returned'}` }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const pdfRes = await fetch(urlData.signedUrl)
+    if (!pdfRes.ok) {
+      return new Response(JSON.stringify({ error: `Failed to download PDF: ${pdfRes.status} ${pdfRes.statusText}` }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const pdfBuffer = await pdfRes.arrayBuffer()
     const bytes = new Uint8Array(pdfBuffer)
     let binary = ''
     for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
     const pdfBase64 = btoa(binary)
 
+    // Call Claude with document
+    const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const anthropic = new Anthropic({ apiKey })
+
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 2048,
+      model: 'claude-sonnet-4-5-20250514',
+      max_tokens: 4096,
       messages: [{
         role: 'user',
         content: [
@@ -90,37 +112,49 @@ Deno.serve(async (req) => {
           },
           {
             type: 'text',
-            text: `This is a wedding vendor contract for ${contract.vendors?.category ?? 'a vendor'}.${contract.vendors?.booked_amount ? ` The booked amount is $${contract.vendors.booked_amount}.` : ''}
+            text: `This is a wedding vendor contract for ${contract.vendors?.category ?? 'a vendor'}.${contract.vendors?.booked_amount ? ` The booked amount is $${contract.vendors.booked_amount.toLocaleString()}.` : ''}
 
-Review this contract for key clauses a couple needs to understand before signing. Focus on:
-1. Cancellation policy
-2. Overtime charges
-3. Exclusivity clauses
-4. Deposit forfeiture conditions
-5. Force majeure / rescheduling terms
+Analyze this contract thoroughly for a couple planning their wedding. They are not lawyers — explain everything in plain English like a smart friend who happens to know contracts.
 
-Respond in this exact JSON format:
+Respond in this exact JSON format (no markdown fences, just raw JSON):
+
 {
-  "summary": "2-3 sentence plain English summary of the most important things to know",
+  "summary": "2-3 sentence plain-English overview. What kind of contract is this? What are the key financial terms? Is anything unusual? Write like you're explaining to a friend over coffee.",
   "flags": [
     {
-      "clause": "Cancellation Policy",
-      "severity": "flag",
-      "text": "Plain English explanation of what this says and what it means for the couple."
+      "clause": "Category name (e.g. Cancellation Policy, Overtime Fees, Payment Schedule)",
+      "severity": "flag | caution | info",
+      "text": "Plain English explanation of what this clause says and what it means for the couple. Be specific — quote dollar amounts, percentages, and deadlines from the contract."
     }
+  ],
+  "dates_money": [
+    {
+      "label": "Short label (e.g. Deposit, Final Payment, Changes Deadline)",
+      "detail": "Specific amount and/or date (e.g. '$5,419.93 due May 20, 2026' or '4 weeks before event')"
+    }
+  ],
+  "questions": [
+    "A specific question the couple should ask the vendor about this contract, based on ambiguities or terms worth clarifying."
   ]
 }
 
-Severity: "flag" = needs attention before signing, "caution" = worth understanding, "info" = standard/neutral.
-Only include flags for clauses actually present in the contract.`,
+Guidelines:
+- "flag" severity = unusual, potentially unfavorable, or needs discussion before signing
+- "caution" severity = worth understanding, standard but important
+- "info" severity = standard/favorable terms, no action needed
+- Include ALL relevant clauses, not just problems. Good terms deserve "info" flags too.
+- Extract every date and dollar amount into dates_money.
+- Generate 2-4 specific questions based on what's ambiguous or worth asking about.
+- Only include information actually present in the contract.`,
           },
         ],
       }],
     })
 
     const content = message.content[0]
-    if (content.type !== 'text') throw new Error('Unexpected response')
+    if (content.type !== 'text') throw new Error('Unexpected response type from Claude')
 
+    // Parse JSON from response (handle optional markdown fences)
     const fenceMatch = content.text.match(/```(?:json)?\s*([\s\S]*?)```/)
     const jsonSource = (fenceMatch ? fenceMatch[1] : content.text).trim()
     let review
@@ -128,7 +162,7 @@ Only include flags for clauses actually present in the contract.`,
       review = JSON.parse(jsonSource)
     } catch {
       const jsonMatch = jsonSource.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) throw new Error('No JSON in response')
+      if (!jsonMatch) throw new Error('No valid JSON in Claude response')
       review = JSON.parse(jsonMatch[0])
     }
 
@@ -136,16 +170,21 @@ Only include flags for clauses actually present in the contract.`,
       status: 'complete',
       flags: review.flags ?? [],
       summary: review.summary ?? '',
+      dates_money: review.dates_money ?? [],
+      questions: review.questions ?? [],
       reviewed_at: new Date().toISOString(),
     }
 
+    // Cache in database
     await supabase.from('contracts').update({ ai_review: aiReview }).eq('id', contract_id)
 
     return new Response(JSON.stringify(aiReview), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('contract-review error:', msg)
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }

@@ -103,7 +103,7 @@ export default function Venue() {
           ].map(({ label, value }) => (
             <Card key={label}>
               <SectionLabel>{label}</SectionLabel>
-              <p style={{ fontFamily: 'var(--font-heading)', fontSize: '24px', margin: 0 }}>{value}</p>
+              <p className="currency currency-lg" style={{ margin: 0 }}>{value}</p>
             </Card>
           ))}
         </div>
@@ -174,7 +174,7 @@ export default function Venue() {
                     </p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <p style={{ fontFamily: 'var(--font-heading)', fontSize: '15px', color: 'var(--color-text-primary)', margin: '0 0 3px 0' }}>${p.amount.toLocaleString()}</p>
+                    <p className="currency currency-sm" style={{ color: 'var(--color-text-primary)', margin: '0 0 3px 0' }}>${p.amount.toLocaleString()}</p>
                     <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', margin: 0, color: p.paid_date ? 'var(--color-status-booked)' : 'var(--color-text-secondary)', fontWeight: p.paid_date ? 600 : 400 }}>
                       {p.paid_date ? '✓ Paid' : 'Pending'}
                     </p>

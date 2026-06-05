@@ -310,7 +310,7 @@ export default function GuestList() {
           <SectionLabel>Per-Guest Cost</SectionLabel>
           {perGuestCost !== null ? (
             <>
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: '24px', fontWeight: 700, margin: 0 }}>${perGuestCost.toLocaleString()}</p>
+              <p className="currency currency-lg" style={{ margin: 0 }}>${perGuestCost.toLocaleString()}</p>
               <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-muted)', margin: '2px 0 0 0' }}>budget ÷ headcount</p>
             </>
           ) : (

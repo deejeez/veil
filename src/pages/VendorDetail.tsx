@@ -5,9 +5,9 @@ import Button from '../components/Button'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, upsertVendor, updateVendorStatus, deleteVendor } from '../lib/vendors'
-import { type Couple, type Vendor, type VendorStatus, type VendorNote } from '../types/database'
+import { type Couple, type Vendor, type VendorStatus, type VendorNote, VENDOR_CATEGORY_LABELS, type VendorCategory } from '../types/database'
 import { getCategoriesForCouple } from '../lib/categories'
-import type { AiReview, AiReviewFlag, Payment } from '../types/database'
+import type { AiReview, AiReviewFlag, AiReviewDateMoney, Payment } from '../types/database'
 import { track } from '../lib/analytics'
 import { getPaymentsForVendor, insertPayment, markPaymentPaid, deletePayment } from '../lib/payments'
 import { getVendorNotes, addVendorNote, deleteVendorNote, toggleVendorNotePin } from '../lib/vendorNotes'
@@ -59,7 +59,6 @@ export default function VendorDetail() {
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null) // 'vendorId-contract' or 'vendorId-proposal'
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [reviewingContractId, setReviewingContractId] = useState<string | null>(null)
-  const [expandedFlag, setExpandedFlag] = useState<string | null>(null)
   const [docViewer, setDocViewer] = useState<{ url: string; name: string; type: 'pdf' | 'image' } | null>(null)
   const [notes, setNotes] = useState<Record<string, VendorNote[]>>({})
   const [noteText, setNoteText] = useState<Record<string, string>>({})
@@ -75,6 +74,7 @@ export default function VendorDetail() {
   const [eliminatePrompt, setEliminatePrompt] = useState<{ vendorId: string; vendorName: string } | null>(null)
   const [lineItemsExpanded, setLineItemsExpanded] = useState<Record<string, boolean>>({})
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const [reviewModal, setReviewModal] = useState<{ review: AiReview; fileName: string } | null>(null)
   const [vendorPayments, setVendorPayments] = useState<Record<string, Payment[]>>({})
   const [addingPaymentFor, setAddingPaymentFor] = useState<string | null>(null)
   const [newVendorPayment, setNewVendorPayment] = useState({ label: '', amount: '', due_date: '', paid_by: 'couple' })
@@ -254,9 +254,10 @@ export default function VendorDetail() {
     setBookingSaving(true)
     setBookingError(null)
     try {
-      // 1. Set vendor status to booked and update booked_amount
+      // 1. Set vendor status to booked and update booked_amount + booked_date
+      const bookedDate = new Date().toISOString().split('T')[0]
       await updateVendorStatus(vendorId, 'booked')
-      await supabase.from('vendors').update({ booked_amount: totalCost }).eq('id', vendorId)
+      await supabase.from('vendors').update({ booked_amount: totalCost, booked_date: bookedDate }).eq('id', vendorId)
 
       // 2. Create deposit payment record if applicable
       if (depositAmount > 0) {
@@ -266,7 +267,7 @@ export default function VendorDetail() {
           label: 'Deposit',
           amount: depositAmount,
           due_date: bookingForm.depositDate || null,
-          paid_date: bookingForm.depositDate || new Date().toISOString().split('T')[0],
+          paid_date: bookingForm.depositDate || bookedDate,
           paid_by: bookingForm.paidBy,
           notes: null,
           status: 'paid',
@@ -275,14 +276,16 @@ export default function VendorDetail() {
       }
 
       // 3. Update local state
-      setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, status: 'booked' as VendorStatus, booked_amount: totalCost } : v))
+      setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, status: 'booked' as VendorStatus, booked_amount: totalCost, booked_date: bookedDate } : v))
       setBookingModal(null)
 
-      // 4. Confetti celebration
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.3 }, colors: ['#C9A96E', '#8B9E7E', '#FAF7F2', '#FFFFFF'] })
-
-      // 5. Reload to pick up new payment data
+      // 4. Reload to pick up new payment data
       await load()
+
+      // 5. Confetti after a short beat so the tile update is visible first
+      setTimeout(() => {
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.3 }, colors: ['#C9A96E', '#8B9E7E', '#FAF7F2', '#FFFFFF'] })
+      }, 500)
 
       // 6. Show success toast
       showToast(`Booked! ${vendorName} is locked in.`, vendorId)
@@ -290,7 +293,7 @@ export default function VendorDetail() {
       // 7. After a beat, show elimination prompt if there are other active vendors
       const othersActive = vendors.filter(v => v.id !== vendorId && v.status !== 'eliminated' && v.status !== 'booked' && v.name)
       if (othersActive.length > 0) {
-        setTimeout(() => setEliminatePrompt({ vendorId, vendorName }), 1500)
+        setTimeout(() => setEliminatePrompt({ vendorId, vendorName }), 2000)
       }
     } catch {
       setBookingError('Failed to complete booking. Please try again.')
@@ -810,7 +813,7 @@ export default function VendorDetail() {
           ].map(s => (
             <div key={s.label} style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', background: '#fff', border: '1px solid var(--color-border)' }}>
               <div style={{ fontSize: '10px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: '4px' }}>{s.label}</div>
-              <div style={{ fontSize: '15px', fontWeight: 600, fontFamily: 'var(--font-mono, "JetBrains Mono", monospace)', color: s.color }}>${s.value.toLocaleString()}</div>
+              <div className="currency currency-sm" style={{ color: s.color }}>${s.value.toLocaleString()}</div>
             </div>
           ))}
         </div>
@@ -819,7 +822,7 @@ export default function VendorDetail() {
           <div style={{ height: '100%', borderRadius: '2px', background: '#7B8F6B', width: `${pct}%`, transition: 'width 0.3s ease' }} />
         </div>
         <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-          ${paidAmount.toLocaleString()} of ${contractAmount.toLocaleString()} paid
+          <span className="currency currency-xs">${paidAmount.toLocaleString()}</span> of <span className="currency currency-xs">${contractAmount.toLocaleString()}</span> paid
         </div>
       </div>
     )
@@ -848,7 +851,7 @@ export default function VendorDetail() {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: '#2c2825' }}>{p.label}</div>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                    ${p.amount.toLocaleString()}
+                    <span className="currency currency-xs">${p.amount.toLocaleString()}</span>
                     {p.due_date ? ` · Due ${new Date(p.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
                     {isPaid ? ' · Paid ✓' : ''}
                     {p.paid_by ? ` · ${paidByLabel(p.paid_by)}` : ''}
@@ -925,52 +928,8 @@ export default function VendorDetail() {
     const contractDoc = contracts.find(c => c.vendor_id === vendor.id && c.document_type === 'contract')
     const isUploadingContract = uploadingDoc === `${vendor.id}-contract`
     const isUploadingProposal = uploadingDoc === `${vendor.id}-proposal`
-
-    function renderAiReview() {
-      if (!contractDoc?.ai_review || contractDoc.ai_review.status !== 'complete') return null
-      const flags = contractDoc.ai_review.flags
-      const hasFlag = flags.some(f => f.severity === 'flag')
-      const hasCaution = flags.some(f => f.severity === 'caution')
-      const ratingLabel = hasFlag ? 'Review carefully' : hasCaution ? 'Some concerns' : 'Standard terms'
-      const ratingColor = hasFlag ? '#C4785C' : hasCaution ? '#B8926A' : '#5A7A4A'
-      const ratingBg = hasFlag ? 'rgba(196,120,92,0.08)' : hasCaution ? 'rgba(184,146,106,0.08)' : 'rgba(90,122,74,0.08)'
-      const severityIcon: Record<string, React.ReactNode> = {
-        info: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5A7A4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>,
-        caution: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#B8926A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
-        flag: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C4785C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
-      }
-      return (
-        <div style={{ padding: '12px', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '8px', marginTop: '8px' }}>
-          {/* Overall rating */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '3px 10px', borderRadius: '6px', background: ratingBg, marginBottom: '10px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: ratingColor }}>{ratingLabel}</span>
-          </div>
-          <p style={{ fontFamily: 'var(--font-heading)', fontSize: '13px', fontStyle: 'italic', color: '#2c2825', marginBottom: '12px', lineHeight: 1.5 }}>
-            {contractDoc.ai_review.summary}
-          </p>
-          {flags.map((flag: AiReviewFlag, i: number) => {
-            const key = `${contractDoc.id}-${i}`
-            const severityColor: Record<string, string> = { flag: '#C4785C', caution: '#B8926A', info: 'var(--color-text-muted)' }
-            return (
-              <div key={i} style={{ marginBottom: '8px' }}>
-                <button
-                  onClick={() => setExpandedFlag(expandedFlag === key ? null : key)}
-                  style={{ display: 'flex', gap: '8px', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
-                >
-                  {severityIcon[flag.severity] ?? null}
-                  <span style={{ fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', color: severityColor[flag.severity], fontWeight: 700 }}>{flag.severity}</span>
-                  <span style={{ fontSize: '13px', color: '#2c2825' }}>{flag.clause}</span>
-                  <span style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>{expandedFlag === key ? '▲' : '▼'}</span>
-                </button>
-                {expandedFlag === key && (
-                  <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '6px 0 0 18px', lineHeight: 1.5 }}>{flag.text}</p>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )
-    }
+    const isReviewing = contractDoc ? reviewingContractId === contractDoc.id : false
+    const hasReview = contractDoc?.ai_review?.status === 'complete'
 
     async function handleReviewContract() {
       if (!contractDoc) return
@@ -978,11 +937,22 @@ export default function VendorDetail() {
       setReviewError(null)
       try {
         const { data, error: fnError } = await supabase.functions.invoke('contract-review', { body: { contract_id: contractDoc.id } })
-        if (fnError) throw fnError
+        if (fnError) {
+          // Supabase SDK v2 wraps HTTP errors
+          let msg = 'Contract review failed.'
+          try {
+            const errBody = await (fnError as { context?: Response }).context?.json?.()
+            msg = (errBody as { error?: string })?.error || fnError.message || msg
+          } catch { msg = fnError.message || msg }
+          throw new Error(msg)
+        }
         if (data?.error) throw new Error(data.error)
-        if (data) setContracts(prev => prev.map(c => c.id === contractDoc.id ? { ...c, ai_review: data } : c))
-      } catch {
-        setReviewError('Contract review failed. Please try again.')
+        if (data) {
+          setContracts(prev => prev.map(c => c.id === contractDoc.id ? { ...c, ai_review: data } : c))
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Contract review failed.'
+        setReviewError(msg)
       }
       setReviewingContractId(null)
     }
@@ -993,15 +963,10 @@ export default function VendorDetail() {
       const ext = getFileExt(rawName)
       const displayName = `${documentType === 'contract' ? 'Contract' : 'Proposal'}.${ext}`
       const isImg = isImageFile(rawName)
-      const isReviewing = documentType === 'contract' && contractDoc && reviewingContractId === contractDoc.id
+
+      // Proposal row gets extract button; contract row does NOT get review icon (it has its own section)
       const isExtracting = extracting === vendor.id
-      const aiAction = documentType === 'contract' ? handleReviewContract : () => {
-        const fp = vendor.proposal_url || vendor.contract_url
-        const dt = vendor.proposal_url ? 'proposal' : 'contract'
-        if (fp) handleExtractFromDocument(vendor.id, fp, dt as 'contract' | 'proposal')
-      }
-      const aiTooltip = documentType === 'contract' ? (contractDoc?.ai_review?.status === 'complete' ? 'Re-review with AI' : 'Review with AI') : 'Extract Details'
-      const aiLoading = documentType === 'contract' ? isReviewing : isExtracting
+      const showExtractBtn = documentType === 'proposal' || (documentType === 'contract' && !vendor.proposal_url)
 
       return (
         <div key={documentType} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '8px', background: '#fff', border: '1px solid var(--color-border)' }}>
@@ -1016,7 +981,7 @@ export default function VendorDetail() {
             <div style={{ fontSize: '13px', fontWeight: 600, color: '#2c2825', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
             <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
               {ext.toUpperCase()}
-              {documentType === 'contract' && contractDoc?.ai_review?.status === 'complete' && (
+              {documentType === 'contract' && hasReview && (
                 <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '20px', background: '#EFF4EC', color: '#5A7A4A', fontWeight: 600 }}>AI Reviewed</span>
               )}
             </div>
@@ -1028,17 +993,151 @@ export default function VendorDetail() {
             <button onClick={() => handleDownloadDocument(filePath, displayName)} title="Download" style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             </button>
-            <button onClick={aiAction} title={aiTooltip} disabled={!!aiLoading} style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: aiLoading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: aiLoading ? 'var(--color-text-muted)' : 'var(--color-accent)', opacity: aiLoading ? 0.6 : 1 }}>
-              {aiLoading ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M6.34 6.34L3.51 3.51"/></svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-              )}
-            </button>
+            {showExtractBtn && (
+              <button
+                onClick={() => {
+                  const fp = vendor.proposal_url || vendor.contract_url
+                  const dt = vendor.proposal_url ? 'proposal' : 'contract'
+                  if (fp) handleExtractFromDocument(vendor.id, fp, dt as 'contract' | 'proposal')
+                }}
+                title="Extract Details"
+                disabled={isExtracting}
+                style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: isExtracting ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isExtracting ? 'var(--color-text-muted)' : 'var(--color-accent)', opacity: isExtracting ? 0.6 : 1 }}
+              >
+                {isExtracting ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M6.34 6.34L3.51 3.51"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                )}
+              </button>
+            )}
             <button onClick={() => handleDeleteDocument(vendor.id, documentType)} title="Delete" style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
           </div>
+        </div>
+      )
+    }
+
+    // Contract review button / summary card
+    function renderContractReviewSection() {
+      if (!vendor.contract_url || !contractDoc) return null
+
+      // Loading state
+      if (isReviewing) {
+        return (
+          <div style={{ marginTop: '8px' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 20px',
+              border: '1.5px solid var(--color-accent)', borderRadius: '10px', background: 'rgba(201,169,110,0.04)',
+              animation: 'pulse-border 2s ease-in-out infinite',
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 2s linear infinite', flexShrink: 0 }}>
+                <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M6.34 6.34L3.51 3.51"/>
+              </svg>
+              <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-accent)' }}>Reading your contract...</span>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '6px', paddingLeft: '4px' }}>
+              This usually takes 10-15 seconds
+            </div>
+          </div>
+        )
+      }
+
+      // Review complete: show summary card
+      if (hasReview && contractDoc.ai_review) {
+        const review = contractDoc.ai_review
+        const flags = review.flags
+        const hasFlag = flags.some(f => f.severity === 'flag')
+        const hasCaution = flags.some(f => f.severity === 'caution')
+        const ratingLabel = hasFlag ? 'Review Carefully' : hasCaution ? 'Some Concerns' : 'Standard Terms'
+        const ratingBg = hasFlag ? '#C4785C' : hasCaution ? '#B8926A' : '#5A7A4A'
+        const flagCount = flags.filter(f => f.severity === 'flag').length
+        const cautionCount = flags.filter(f => f.severity === 'caution').length
+        const dateCount = (review.dates_money ?? []).length
+
+        let countText = ''
+        if (flagCount > 0) countText += `${flagCount} flag${flagCount !== 1 ? 's' : ''}`
+        if (cautionCount > 0) countText += `${countText ? ', ' : ''}${cautionCount} caution${cautionCount !== 1 ? 's' : ''}`
+        if (dateCount > 0) countText += `${countText ? ', ' : ''}${dateCount} date${dateCount !== 1 ? 's' : ''} found`
+        if (!countText) countText = `${flags.length} term${flags.length !== 1 ? 's' : ''} reviewed`
+
+        // Get the contract filename for the modal
+        const rawName = vendor.contract_url!.split('/').pop() ?? 'contract'
+        const ext = getFileExt(rawName)
+        const fileName = `Contract.${ext}`
+
+        return (
+          <div style={{
+            marginTop: '8px', padding: '16px', borderRadius: '10px',
+            background: 'rgba(139,158,126,0.04)', border: '1px solid var(--color-border)',
+          }}>
+            {/* Header: label + rating */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <span style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700 }}>Contract Review</span>
+              <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px', background: ratingBg, color: '#fff' }}>{ratingLabel}</span>
+            </div>
+            {/* Summary */}
+            <p style={{ fontSize: '13px', color: '#2c2825', lineHeight: 1.6, margin: '0 0 8px 0' }}>
+              {review.summary}
+            </p>
+            {/* Count line */}
+            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '12px' }}>
+              {countText}
+            </div>
+            {/* Actions */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <button
+                onClick={() => setReviewModal({ review, fileName })}
+                style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)', textDecoration: 'none' }}
+                onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+              >
+                View Full Review
+              </button>
+              <button
+                onClick={handleReviewContract}
+                style={{ fontSize: '12px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)' }}
+              >
+                Re-review
+              </button>
+            </div>
+          </div>
+        )
+      }
+
+      // No review yet: show prominent button
+      return (
+        <div style={{ marginTop: '8px' }}>
+          <button
+            onClick={handleReviewContract}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+              padding: '12px 20px', borderRadius: '10px', cursor: 'pointer',
+              border: '1px solid var(--color-accent)', background: 'transparent',
+              fontFamily: 'var(--font-body)', textAlign: 'left',
+              transition: 'box-shadow 0.3s ease, background 0.2s ease, border-width 0.1s ease',
+              boxShadow: '0 0 0 0 rgba(201,169,110,0)',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(201,169,110,0.06)'
+              e.currentTarget.style.boxShadow = '0 0 12px 2px rgba(201,169,110,0.15)'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.boxShadow = '0 0 0 0 rgba(201,169,110,0)'
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            <span style={{ flex: 1, fontSize: '14px', fontWeight: 500, color: 'var(--color-accent)' }}>
+              Review Contract with AI
+            </span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', flexShrink: 0 }} className="desktop-only">
+              Analyzes terms, fees &amp; cancellation clauses
+            </span>
+          </button>
         </div>
       )
     }
@@ -1065,13 +1164,10 @@ export default function VendorDetail() {
         )}
 
         {/* Document rows */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {vendor.contract_url && renderDocRow(vendor.contract_url, 'contract')}
           {vendor.proposal_url && renderDocRow(vendor.proposal_url, 'proposal')}
         </div>
-
-        {/* AI review results inline */}
-        {renderAiReview()}
 
         {/* Upload links for missing docs */}
         <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
@@ -1092,6 +1188,9 @@ export default function VendorDetail() {
             </label>
           )}
         </div>
+
+        {/* Contract review button or summary card */}
+        {renderContractReviewSection()}
       </div>
     )
   }
@@ -1133,7 +1232,7 @@ export default function VendorDetail() {
               {item.notes ? ` · ${item.notes}` : ''}
             </div>
           </div>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#2c2825', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
+          <div className="currency currency-xs" style={{ color: '#2c2825', flexShrink: 0 }}>
             {item.amount != null ? `$${item.amount.toLocaleString()}` : '—'}
           </div>
           <button onClick={() => { setEditingLineItem(item.id); setEditLineItemForm({ label: item.label, amount: item.amount }) }} style={{ fontSize: '10px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}>Edit</button>
@@ -1183,7 +1282,7 @@ export default function VendorDetail() {
         {items.some(i => i.amount != null) && (
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px 0', borderTop: '1px solid var(--color-border)', marginTop: '6px' }}>
             <span style={{ fontSize: '12px', fontWeight: 700, color: '#2c2825' }}>Total</span>
-            <span style={{ fontSize: '14px', fontWeight: 700, color: '#2c2825', fontFamily: 'var(--font-body)' }}>
+            <span className="currency currency-sm" style={{ color: '#2c2825' }}>
               ${total.toLocaleString()}
             </span>
           </div>
@@ -1539,7 +1638,7 @@ export default function VendorDetail() {
                     {cfg.label}
                   </span>
                   {/* Amount */}
-                  <div style={{ fontSize: '14px', fontWeight: 600, fontFamily: 'var(--font-mono)', color: '#2C2825', flexShrink: 0, minWidth: '60px', textAlign: 'right' }}>
+                  <div className="currency currency-xs" style={{ color: '#2C2825', flexShrink: 0, minWidth: '60px', textAlign: 'right' }}>
                     {v.booked_amount != null ? `$${v.booked_amount.toLocaleString()}` : ''}
                   </div>
                 </button>
@@ -1672,7 +1771,7 @@ export default function VendorDetail() {
                         {/* Price */}
                         <div>
                           <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '2px' }}>Booked Amount</div>
-                          <div style={{ fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-heading)', color: '#2c2825' }}>
+                          <div className="currency currency-md" style={{ color: '#2c2825' }}>
                             {vendor.booked_amount != null ? `$${vendor.booked_amount.toLocaleString()}` : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
                           </div>
                         </div>
@@ -1697,7 +1796,7 @@ export default function VendorDetail() {
                         {/* Payments */}
                         {vendor.status === 'booked' && (
                           <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-                            {vPayments.length > 0 ? `$${paidTotal.toLocaleString()} paid / $${dueTotal.toLocaleString()} due` : 'No payments'}
+                            {vPayments.length > 0 ? <><span className="currency currency-xs">${paidTotal.toLocaleString()}</span> paid / <span className="currency currency-xs">${dueTotal.toLocaleString()}</span> due</> : 'No payments'}
                           </div>
                         )}
                         {/* Documents */}
@@ -1711,12 +1810,12 @@ export default function VendorDetail() {
                             {(lineItems[vendor.id] ?? []).map(item => (
                               <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '12px' }}>
                                 <span style={{ color: 'var(--color-text-secondary)' }}>{item.normalized_label}</span>
-                                <span style={{ fontWeight: 600, color: '#2c2825' }}>{item.amount != null ? `$${item.amount.toLocaleString()}` : '—'}</span>
+                                <span className="currency currency-xs" style={{ color: '#2c2825' }}>{item.amount != null ? `$${item.amount.toLocaleString()}` : '—'}</span>
                               </div>
                             ))}
                             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0 0', borderTop: '1px solid var(--color-border)', marginTop: '4px', fontSize: '12px', fontWeight: 700 }}>
                               <span style={{ color: 'var(--color-text-muted)' }}>Total</span>
-                              <span style={{ color: '#2c2825' }}>${(lineItems[vendor.id] ?? []).reduce((s, i) => s + (i.amount ?? 0), 0).toLocaleString()}</span>
+                              <span className="currency currency-xs" style={{ color: '#2c2825' }}>${(lineItems[vendor.id] ?? []).reduce((s, i) => s + (i.amount ?? 0), 0).toLocaleString()}</span>
                             </div>
                           </div>
                         )}
@@ -1775,7 +1874,7 @@ export default function VendorDetail() {
                   {compared.map(vendor => (
                     <Cell key={vendor.id}>
                       {vendor.booked_amount != null ? (
-                        <span style={{ fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-heading)', color: '#2c2825' }}>
+                        <span className="currency currency-md" style={{ color: '#2c2825' }}>
                           ${vendor.booked_amount.toLocaleString()}
                         </span>
                       ) : <Em />}
@@ -1853,10 +1952,10 @@ export default function VendorDetail() {
                         <Cell key={vendor.id}>
                           {vPayments.length > 0 ? (
                             <div style={{ fontSize: '12px' }}>
-                              <span style={{ color: '#7B8F6B', fontWeight: 600 }}>${paidTotal.toLocaleString()}</span>
+                              <span className="currency currency-xs" style={{ color: '#7B8F6B' }}>${paidTotal.toLocaleString()}</span>
                               <span style={{ color: 'var(--color-text-muted)' }}> paid</span>
                               <br />
-                              <span style={{ color: 'var(--color-accent)', fontWeight: 600 }}>${dueTotal.toLocaleString()}</span>
+                              <span className="currency currency-xs" style={{ color: 'var(--color-accent)' }}>${dueTotal.toLocaleString()}</span>
                               <span style={{ color: 'var(--color-text-muted)' }}> due</span>
                             </div>
                           ) : <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>No payments</span>}
@@ -1929,7 +2028,7 @@ export default function VendorDetail() {
                                 const item = (lineItems[vendor.id] ?? []).find(i => i.normalized_label === label)
                                 return (
                                   <Cell key={vendor.id}>
-                                    <span style={{ fontSize: '15px', fontWeight: 600, color: item?.amount != null ? '#2c2825' : 'var(--color-text-muted)' }}>
+                                    <span className="currency currency-sm" style={{ color: item?.amount != null ? '#2c2825' : 'var(--color-text-muted)' }}>
                                       {item?.amount != null ? `$${item.amount.toLocaleString()}` : '—'}
                                     </span>
                                   </Cell>
@@ -1950,7 +2049,7 @@ export default function VendorDetail() {
                             const total = items.reduce((s, i) => s + (i.amount ?? 0), 0)
                             return (
                               <Cell key={vendor.id} style={{ background: '#FAFAF8', borderTop: '1px solid var(--color-border)' }}>
-                                <span style={{ fontSize: '16px', fontWeight: 700, color: '#2c2825' }}>
+                                <span className="currency currency-sm" style={{ color: '#2c2825' }}>
                                   {items.length > 0 ? `$${total.toLocaleString()}` : '—'}
                                 </span>
                               </Cell>
@@ -2166,9 +2265,33 @@ export default function VendorDetail() {
             <div key={vendor.id} style={{ borderBottom: isLast ? 'none' : '1px solid var(--color-border)' }}>
 
               {/* Tile row */}
+              {isBooked ? (
+                <div style={{ padding: '16px 18px', background: 'rgba(139,158,126,0.06)', borderLeft: '3px solid #7B8F6B' }}>
+                  <div style={{ fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: '#5A7A4A', fontFamily: 'var(--font-heading)', marginBottom: '4px' }}>
+                    Your {VENDOR_CATEGORY_LABELS[category as VendorCategory] ?? categoryLabel}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '22px', fontWeight: 600, color: '#2c2825', fontFamily: 'var(--font-heading)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {displayName}
+                      </div>
+                      {vendor.booked_date && (
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                          Locked in {new Date(vendor.booked_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                        </div>
+                      )}
+                    </div>
+                    {vendor.booked_amount != null && (
+                      <span className="currency currency-md" style={{ color: '#2c2825', flexShrink: 0 }}>
+                        ${vendor.booked_amount.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
               <div
-                onClick={() => { if (!isBooked) { setExpandedId(isExpanded ? null : vendor.id); setEditingId(null) } }}
-                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', cursor: isBooked ? 'default' : 'pointer', background: isExpanded ? (isBooked ? 'rgba(139,158,126,0.06)' : '#F5F1EC') : '#fff', transition: 'background 0.1s', borderLeft: isBooked ? '3px solid #7B8F6B' : '3px solid transparent' }}
+                onClick={() => { setExpandedId(isExpanded ? null : vendor.id); setEditingId(null) }}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', cursor: 'pointer', background: isExpanded ? '#F5F1EC' : '#fff', transition: 'background 0.1s', borderLeft: '3px solid transparent' }}
               >
                 {/* Avatar circle — only show when vendor has a real name */}
                 {vendor.name ? (
@@ -2191,17 +2314,18 @@ export default function VendorDetail() {
 
                 {/* Right side: status chip + amount + chevron */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  <span style={{ fontSize: '10px', padding: vendor.status === 'booked' ? '4px 11px' : '3px 9px', borderRadius: '20px', background: cfg.bg, color: cfg.color, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: '10px', padding: '3px 9px', borderRadius: '20px', background: cfg.bg, color: cfg.color, fontWeight: 600, whiteSpace: 'nowrap' }}>
                     {cfg.label}
                   </span>
                   {vendor.booked_amount != null && (
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#2c2825', fontFamily: 'var(--font-heading)' }}>
+                    <span className="currency currency-xs" style={{ color: '#2c2825' }}>
                       ${vendor.booked_amount.toLocaleString()}
                     </span>
                   )}
-                  {!isBooked && <span style={{ fontSize: '16px', color: 'var(--color-text-muted)', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>›</span>}
+                  <span style={{ fontSize: '16px', color: 'var(--color-text-muted)', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>›</span>
                 </div>
               </div>
+              )}
 
               {/* Expanded panel */}
               {isExpanded && (
@@ -2272,7 +2396,7 @@ export default function VendorDetail() {
                           {vendor.booked_amount != null && (
                             <div>
                               <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '2px' }}>Booked Amount</div>
-                              <div style={{ fontSize: '14px', fontWeight: 700, color: '#2c2825', fontFamily: 'var(--font-heading)' }}>${vendor.booked_amount.toLocaleString()}</div>
+                              <div className="currency currency-sm" style={{ color: '#2c2825' }}>${vendor.booked_amount.toLocaleString()}</div>
                             </div>
                           )}
                         </div>
@@ -2574,6 +2698,107 @@ export default function VendorDetail() {
           </div>
         </div>
       )}
+      {/* Contract Review Modal */}
+      {reviewModal && (() => {
+        const review = reviewModal.review
+        const flags = review.flags
+        const datesMoney = review.dates_money ?? []
+        const questions = review.questions ?? []
+        const hasFlag = flags.some(f => f.severity === 'flag')
+        const hasCaution = flags.some(f => f.severity === 'caution')
+        const ratingLabel = hasFlag ? 'Review Carefully' : hasCaution ? 'Some Concerns' : 'Standard Terms'
+        const ratingBg = hasFlag ? '#C4785C' : hasCaution ? '#B8926A' : '#5A7A4A'
+        const severityDot: Record<string, string> = { flag: '#C4785C', caution: '#B8926A', info: '#5A7A4A' }
+        return (
+          <div
+            onClick={() => setReviewModal(null)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(26,13,10,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ background: 'var(--color-surface)', borderRadius: '16px', width: '560px', maxWidth: '100%', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
+            >
+              {/* Header */}
+              <div style={{ padding: '28px 32px 20px', borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 0, background: 'var(--color-surface)', borderRadius: '16px 16px 0 0', zIndex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <div>
+                    <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: 400, margin: 0, color: '#2c2825' }}>Contract Review</h2>
+                    <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>Analysis of {reviewModal.fileName}</p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '4px 12px', borderRadius: '20px', background: ratingBg, color: '#fff' }}>{ratingLabel}</span>
+                    <button onClick={() => setReviewModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '20px', padding: '0 2px', lineHeight: 1 }}>×</button>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ padding: '24px 32px 32px' }}>
+                {/* Section 1: Summary */}
+                <div style={{ marginBottom: '28px' }}>
+                  <div style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700, marginBottom: '10px' }}>Summary</div>
+                  <p style={{ fontSize: '14px', color: '#2c2825', lineHeight: 1.7, margin: 0 }}>{review.summary}</p>
+                </div>
+
+                {/* Section 2: Key Terms */}
+                {flags.length > 0 && (
+                  <div style={{ marginBottom: '28px' }}>
+                    <div style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700, marginBottom: '10px' }}>Key Terms</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {flags.map((flag: AiReviewFlag, i: number) => (
+                        <div key={i} style={{ padding: '12px 14px', borderRadius: '8px', background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: severityDot[flag.severity] ?? '#A89F95', flexShrink: 0 }} />
+                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#2c2825' }}>{flag.clause}</span>
+                          </div>
+                          <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: 0, paddingLeft: '16px' }}>{flag.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 3: Dates & Money */}
+                {datesMoney.length > 0 && (
+                  <div style={{ marginBottom: '28px' }}>
+                    <div style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700, marginBottom: '10px' }}>Dates &amp; Money</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {datesMoney.map((dm: AiReviewDateMoney, i: number) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: '8px', padding: '8px 12px', borderRadius: '6px', background: 'var(--color-bg)' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#2c2825', minWidth: '100px', flexShrink: 0 }}>{dm.label}</span>
+                          <span className="currency currency-xs" style={{ color: 'var(--color-text-secondary)' }}>{dm.detail}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 4: Questions to Ask */}
+                {questions.length > 0 && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <div style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700, marginBottom: '10px' }}>Questions to Ask</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {questions.map((q: string, i: number) => (
+                        <div key={i} style={{ padding: '10px 14px', borderRadius: '8px', background: 'var(--color-bg)', borderLeft: '3px solid var(--color-accent)', fontSize: '13px', color: '#2c2825', lineHeight: 1.6 }}>
+                          {q}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Footer */}
+                <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.5, maxWidth: '340px' }}>
+                    This review is AI-generated and not legal advice. Consult a professional for legal questions.
+                  </p>
+                  <Button variant="secondary" onClick={() => setReviewModal(null)}>Close</Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Toast notification */}
       {toast && (
         <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: `translateX(-50%) translateY(${toastVisible ? '0' : '16px'})`, opacity: toastVisible ? 1 : 0, transition: 'opacity 300ms, transform 300ms', background: '#2C2825', color: 'white', borderRadius: '8px', padding: '12px 24px', fontSize: '13px', fontFamily: 'var(--font-body)', boxShadow: '0 4px 16px rgba(0,0,0,0.25)', display: 'flex', gap: '14px', alignItems: 'center', zIndex: 1000, whiteSpace: 'nowrap' }}>
@@ -2776,7 +3001,7 @@ export default function VendorDetail() {
                             {item.notes ? ` · ${item.notes}` : ''}
                           </div>
                         </div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#2c2825', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
+                        <div className="currency currency-xs" style={{ color: '#2c2825', flexShrink: 0 }}>
                           {item.amount != null ? `$${item.amount.toLocaleString()}` : '—'}
                         </div>
                       </label>
@@ -2788,7 +3013,7 @@ export default function VendorDetail() {
                 {extractionResult.line_items.some((item, i) => checkedItems[i] && item.amount != null) && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px 0', borderTop: '1px solid var(--color-border)', marginTop: '8px' }}>
                     <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Selected Total</span>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#2c2825', fontFamily: 'var(--font-body)' }}>
+                    <span className="currency currency-xs" style={{ color: '#2c2825' }}>
                       ${extractionResult.line_items
                         .filter((_, i) => checkedItems[i])
                         .reduce((s, i) => s + (i.amount ?? 0), 0)

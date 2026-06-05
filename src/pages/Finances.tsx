@@ -358,7 +358,7 @@ export default function Finances() {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-              <span style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-body)', color: overdue ? '#C4785C' : 'var(--color-text-primary)' }}>
+              <span className="currency currency-sm" style={{ color: overdue ? '#C4785C' : 'var(--color-text-primary)' }}>
                 ${p.amount.toLocaleString()}
               </span>
               <button
@@ -473,7 +473,7 @@ export default function Finances() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
             <div>
               <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '3px' }}>Total Budget</div>
-              <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1, fontFamily: 'var(--font-body)' }}>
+              <div className="currency currency-lg" style={{ color: 'var(--color-text-primary)', lineHeight: 1 }}>
                 {totalBudget > 0 ? `$${totalBudget.toLocaleString()}` : '—'}
               </div>
             </div>
@@ -505,7 +505,7 @@ export default function Finances() {
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: color, flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-primary)' }}>${amount.toLocaleString()}</div>
+                  <div className="currency currency-xs" style={{ color: 'var(--color-text-primary)' }}>${amount.toLocaleString()}</div>
                   <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{label}</div>
                 </div>
               </div>
@@ -517,8 +517,8 @@ export default function Finances() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
           {/* Due This Month */}
           <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px 10px', background: '#fff', textAlign: 'center' }}>
-            <div style={{
-              fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-body)', lineHeight: 1.2,
+            <div className="currency currency-lg" style={{
+              lineHeight: 1.2,
               color: thisMonthAllPaid ? '#7B8F6B' : thisMonthHasOverdue ? '#C4785C' : dueThisMonth > 0 ? 'var(--color-accent)' : 'var(--color-text-primary)',
             }}>
               ${dueThisMonth.toLocaleString()}
@@ -530,7 +530,7 @@ export default function Finances() {
 
           {/* Due Next 3 Months */}
           <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px 10px', background: '#fff', textAlign: 'center' }}>
-            <div style={{ fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-body)', lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
+            <div className="currency currency-lg" style={{ lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
               ${dueNext3.toLocaleString()}
             </div>
             <div style={{ fontSize: '9px', color: 'var(--color-text-muted)', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -540,7 +540,7 @@ export default function Finances() {
 
           {/* Total Remaining */}
           <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px 10px', background: '#fff', textAlign: 'center' }}>
-            <div style={{ fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-body)', lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
+            <div className="currency currency-lg" style={{ lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
               ${totalRemainingAll.toLocaleString()}
             </div>
             <div style={{ fontSize: '9px', color: 'var(--color-text-muted)', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -550,7 +550,7 @@ export default function Finances() {
 
           {/* Total Paid */}
           <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px 10px', background: '#fff', textAlign: 'center' }}>
-            <div style={{ fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-body)', lineHeight: 1.2, color: '#7B8F6B' }}>
+            <div className="currency currency-lg" style={{ lineHeight: 1.2, color: '#7B8F6B' }}>
               ${totalPaid.toLocaleString()}
             </div>
             <div style={{ fontSize: '9px', color: 'var(--color-text-muted)', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -627,8 +627,7 @@ export default function Finances() {
                     {isWedding && <div style={{ fontSize: '8px', color: 'var(--color-accent)', marginBottom: '3px', fontWeight: 700 }}>Wedding</div>}
                     {hasPayments ? (
                       <div>
-                        <div style={{
-                          fontSize: '11px', fontWeight: overdueCount > 0 ? 700 : 700,
+                        <div className="currency currency-xs" style={{
                           color: overdueCount > 0 ? '#C4785C' : paidCount === monthPayments.length ? '#7B8F6B' : 'var(--color-text-primary)',
                           opacity: paidCount === monthPayments.length ? 0.6 : 1,
                         }}>
@@ -724,14 +723,14 @@ export default function Finances() {
                 return (
                   <div key={payer} style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '12px 14px', background: '#fff' }}>
                     <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>{label}</div>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', marginBottom: '8px' }}>
+                    <div className="currency currency-md" style={{ color: 'var(--color-text-primary)', marginBottom: '8px' }}>
                       ${groupTotal.toLocaleString()}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                       {items.map((p, i) => (
                         <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: i < items.length - 1 ? '5px' : 0, borderBottom: i < items.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
                           <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{p.label}</span>
-                          <span style={{ fontSize: '11px', fontWeight: 600, color: p.status === 'paid' ? 'var(--color-status-booked)' : 'var(--color-text-primary)' }}>
+                          <span className="currency currency-xs" style={{ color: p.status === 'paid' ? 'var(--color-status-booked)' : 'var(--color-text-primary)' }}>
                             ${p.amount.toLocaleString()}{p.status === 'paid' ? ' ✓' : ''}
                           </span>
                         </div>
@@ -867,7 +866,7 @@ export default function Finances() {
                         {p.notes && <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontStyle: 'italic', marginTop: '1px' }}>{p.notes}</div>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                        <span style={{ fontSize: '14px', fontWeight: 500, color: '#7B8F6B' }}>
+                        <span className="currency currency-xs" style={{ color: '#7B8F6B' }}>
                           ${p.amount.toLocaleString()}
                         </span>
                         <button

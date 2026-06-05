@@ -340,8 +340,8 @@ function ActionCardView({ card, navigate }: { card: ActionCard; navigate: (path:
 
 // ── Compact stat card ───────────────────────────────────────────────────────
 
-function CompactStatCard({ label, value, sub, pct, onClick }: {
-  label: string; value: string; sub?: string; pct: number; onClick?: () => void
+function CompactStatCard({ label, value, sub, pct, onClick, valueClassName }: {
+  label: string; value: string; sub?: string; pct: number; onClick?: () => void; valueClassName?: string
 }) {
   return (
     <div
@@ -367,7 +367,7 @@ function CompactStatCard({ label, value, sub, pct, onClick }: {
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', fontWeight: 600, margin: '0 0 4px 0' }}>
           {label}
         </p>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: '26px', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1, margin: '0 0 3px 0' }}>
+        <p className={valueClassName} style={{ ...(!valueClassName && { fontFamily: 'var(--font-body)', fontSize: '26px', fontWeight: 700 }), color: 'var(--color-text-primary)', lineHeight: 1, margin: '0 0 3px 0' }}>
           {value}
         </p>
         {sub && (
@@ -415,7 +415,7 @@ function BudgetBreakdownCard({ vendors, categoryLabels }: { vendors: Vendor[]; c
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
         <MultiSegmentRing data={segments} size={140} strokeWidth={20}>
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '17px', fontWeight: 700, color: 'var(--color-text-primary)', margin: '0 0 2px 0' }}>
+            <p className="currency currency-sm" style={{ color: 'var(--color-text-primary)', margin: '0 0 2px 0' }}>
               {totalCommitted > 0 ? `$${Math.round(totalCommitted / 1000)}K` : '$0'}
             </p>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', color: 'var(--color-text-secondary)', margin: 0 }}>committed</p>
@@ -467,7 +467,7 @@ function UpcomingPaymentsCard({ payments, navigate }: { payments: Payment[]; nav
                     {p.due_date ? `Due ${p.due_date}` : 'No due date'}
                   </p>
                 </div>
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 700, color: 'var(--color-text-primary)', flexShrink: 0 }}>
+                <span className="currency currency-xs" style={{ color: 'var(--color-text-primary)', flexShrink: 0 }}>
                   ${p.amount.toLocaleString()}
                 </span>
               </div>
@@ -744,6 +744,7 @@ export default function Dashboard() {
           sub={couple?.budget_total ? `${budgetPct}% committed` : 'Set in Settings'}
           pct={budgetPct}
           onClick={() => navigate('/budget')}
+          valueClassName="currency currency-sm"
         />
         <CompactStatCard
           label="Paid"
@@ -751,6 +752,7 @@ export default function Dashboard() {
           sub={`${paidPct}% of budget`}
           pct={paidPct}
           onClick={() => navigate('/finances')}
+          valueClassName="currency currency-sm"
         />
         <CompactStatCard
           label="Vendors"

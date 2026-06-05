@@ -100,8 +100,7 @@ function BudgetDonutCard({
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <MultiSegmentRing data={segments} size={140} strokeWidth={20}>
           <div style={{ textAlign: 'center' }}>
-            <p style={{
-              fontFamily: 'var(--font-body)', fontSize: '17px', fontWeight: 700,
+            <p className="currency currency-sm" style={{
               color: showSuggestions ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
               margin: '0 0 2px 0',
             }}>
@@ -378,7 +377,7 @@ export default function Budget() {
           ].map(({ label, value }) => (
             <Card key={label}>
               <SectionLabel>{label}</SectionLabel>
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: '28px', fontWeight: 700, margin: 0 }}>{value}</p>
+              <p className="currency currency-lg" style={{ margin: 0 }}>{value}</p>
             </Card>
           ))}
         </div>
@@ -443,7 +442,7 @@ export default function Budget() {
                 </div>
               ) : showSuggestions && suggestion !== undefined ? (
                 <div>
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-secondary)', margin: '0 0 4px 0', fontStyle: 'italic' }}>
+                  <p className="currency currency-sm" style={{ color: 'var(--color-text-secondary)', margin: '0 0 4px 0', fontStyle: 'italic' }}>
                     ${suggestion.toLocaleString()}
                   </p>
                   <div style={{ display: 'flex', gap: '5px' }}>
@@ -473,7 +472,7 @@ export default function Budget() {
                 </div>
               ) : row.budgeted === 0 && !nycDismissed && NYC_SUGGESTIONS[row.category] !== undefined ? (
                 <div>
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', fontWeight: 700, color: '#C4B8A8', margin: '0 0 4px 0' }}>
+                  <p className="currency currency-sm" style={{ color: '#C4B8A8', margin: '0 0 4px 0' }}>
                     ${NYC_SUGGESTIONS[row.category].toLocaleString()}
                   </p>
                   <button
@@ -491,21 +490,22 @@ export default function Budget() {
                 </div>
               ) : (
                 <p
+                  className="currency currency-sm"
                   onClick={() => { setEditingCategory(row.category); setEditValue(String(row.budgeted)) }}
-                  style={{ fontFamily: 'var(--font-body)', fontSize: '14px', fontWeight: 700, color: 'var(--color-text-primary)', margin: 0, cursor: 'pointer' }}
+                  style={{ color: 'var(--color-text-primary)', margin: 0, cursor: 'pointer' }}
                   title="Click to edit"
                 >
                   {row.budgeted > 0 ? `$${row.budgeted.toLocaleString()}` : '—'}
                 </p>
               )}
 
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+              <p className="currency currency-sm" style={{ color: 'var(--color-text-primary)', margin: 0 }}>
                 {row.booked > 0 ? `$${row.booked.toLocaleString()}` : '—'}
               </p>
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', fontWeight: 700, color: 'var(--color-status-booked)', margin: 0 }}>
+              <p className="currency currency-sm" style={{ color: 'var(--color-status-booked)', margin: 0 }}>
                 {row.paid > 0 ? `$${row.paid.toLocaleString()}` : '—'}
               </p>
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', fontWeight: 700, color: row.remaining < 0 ? '#C4785C' : 'var(--color-text-primary)', margin: 0 }}>
+              <p className="currency currency-sm" style={{ color: row.remaining < 0 ? '#C4785C' : 'var(--color-text-primary)', margin: 0 }}>
                 {row.booked > 0 || row.budgeted > 0 ? `$${row.remaining.toLocaleString()}` : '—'}
               </p>
             </div>
