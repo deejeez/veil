@@ -1,4 +1,4 @@
-import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.39?target=deno'
+import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.52?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
 
     // Download PDF from storage
     const { data: urlData, error: urlError } = await supabase.storage
-      .from('contracts')
+      .from('documents')
       .createSignedUrl(contract.file_path, 120)
 
     if (urlError || !urlData?.signedUrl) {
@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
     const anthropic = new Anthropic({ apiKey })
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250514',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
       messages: [{
         role: 'user',

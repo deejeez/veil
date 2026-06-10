@@ -106,7 +106,9 @@ Deno.serve(async (req) => {
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      max_tokens: 4096,
+      // deno-lint-ignore no-explicit-any
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }] as any,
       messages: [{
         role: 'user',
         content: `You are an expert wedding planner helping a couple find vendors.
@@ -116,9 +118,14 @@ Looking for: ${categoryLabel}
 Wedding: ${weddingContext}
 Couple's vibe: ${vibeDesc}
 
-Suggest 5 real, well-reviewed ${categoryLabel}s in or near ${location} that match this couple's style and wedding season. Use your knowledge of real businesses that actually exist in this city.${allExcluded.length > 0 ? `\n\nDo NOT suggest any of these vendors (already added or previously shown): ${allExcluded.join(', ')}. Return 5 completely different suggestions.` : ''}
+Suggest 5 real, well-reviewed ${categoryLabel}s in or near ${location} that match this couple's style and wedding season. Use web search to verify these are real businesses and to look up their current reviews and ratings on platforms like Google, The Knot, WeddingWire, and Yelp.${allExcluded.length > 0 ? `\n\nDo NOT suggest any of these vendors (already added or previously shown): ${allExcluded.join(', ')}. Return 5 completely different suggestions.` : ''}
 
-Respond with ONLY valid JSON in this exact format, no markdown:
+For each vendor, also include review data based on what you find:
+- review_summary: 1-2 sentences synthesizing the overall sentiment of their reviews (what couples consistently praise or mention). Use null if you can't find any reviews.
+- ratings: array of ratings you found, one entry per platform (Google, The Knot, WeddingWire, Yelp, etc.) with the rating, review count, and a URL to the review page if available. Use an empty array if none found.
+- review_highlight: one specific, notable thing a reviewer mentioned (e.g. "Multiple reviews mention the team handled a sudden rain plan flawlessly"). Use null if nothing stands out.
+
+After your research, respond with ONLY valid JSON in this exact format, no markdown, no citations inside the JSON:
 {
   "vendors": [
     {
@@ -127,23 +134,43 @@ Respond with ONLY valid JSON in this exact format, no markdown:
       "website": "https://website.com or empty string if unknown",
       "style": "2-4 style descriptors matching their aesthetic, e.g. Garden-romantic, lush and textured",
       "price_range": "Estimated range for this city and wedding type, e.g. $12K–$20K for NYC",
-      "why_fit": "One sentence: why this vendor fits this couple's specific vibe and season"
+      "why_fit": "One sentence: why this vendor fits this couple's specific vibe and season",
+      "review_summary": "1-2 sentence review sentiment synthesis, or null",
+      "ratings": [{ "platform": "Google", "rating": 4.8, "review_count": 127, "url": "https://..." }],
+      "review_highlight": "One specific notable reviewer mention, or null"
     }
   ]
 }`,
       }],
     })
 
-    const content = message.content[0]
-    if (content.type !== 'text') throw new Error('Unexpected response type from AI')
+    // Web search responses contain multiple content blocks (search calls,
+    // results, text with citations). Find the JSON in the text blocks —
+    // scan from the last block backwards, then fall back to joined text.
+    const textBlocks = message.content.filter((b: { type: string }) => b.type === 'text') as { type: 'text'; text: string }[]
+    if (textBlocks.length === 0) throw new Error('Unexpected response type from AI')
 
-    // Strip markdown fences if present
-    const raw = content.text.trim()
-    const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
-    const jsonSource = fenceMatch ? fenceMatch[1].trim() : raw
-    const jsonMatch = jsonSource.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) throw new Error('AI response was not valid JSON')
-    const result = JSON.parse(jsonMatch[0])
+    const tryParse = (source: string): { vendors?: unknown[] } | null => {
+      const trimmed = source.trim()
+      const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/)
+      const jsonSource = fenceMatch ? fenceMatch[1].trim() : trimmed
+      const jsonMatch = jsonSource.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) return null
+      try {
+        const parsed = JSON.parse(jsonMatch[0])
+        return parsed && Array.isArray(parsed.vendors) ? parsed : null
+      } catch {
+        return null
+      }
+    }
+
+    let result: { vendors?: unknown[] } | null = null
+    for (let bi = textBlocks.length - 1; bi >= 0 && !result; bi--) {
+      result = tryParse(textBlocks[bi].text)
+    }
+    // Citations can split the final answer across multiple text blocks
+    if (!result) result = tryParse(textBlocks.map(b => b.text).join(''))
+    if (!result) throw new Error('AI response was not valid JSON')
 
     try {
       await supabase.from('ai_insights').insert({

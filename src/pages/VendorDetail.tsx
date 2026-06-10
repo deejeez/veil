@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import Button from '../components/Button'
@@ -40,6 +41,18 @@ function initials(name: string) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+type ShortlistItem = {
+  name: string
+  address: string
+  website?: string
+  style?: string
+  price_range?: string
+  why_fit?: string
+  review_summary?: string | null
+  review_highlight?: string | null
+  ratings?: { platform: string; rating: number; review_count: number; url?: string }[]
+}
+
 export default function VendorDetail() {
   const { category } = useParams<{ category: string }>()
   const navigate = useNavigate()
@@ -51,11 +64,16 @@ export default function VendorDetail() {
   const [editForm, setEditForm] = useState<Partial<Vendor>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [shortlist, setShortlist] = useState<{ name: string; address: string; website?: string; style?: string; price_range?: string; why_fit?: string }[]>([])
+  const [shortlist, setShortlist] = useState<ShortlistItem[]>([])
   const [shortlistLoading, setShortlistLoading] = useState(false)
   const [shortlistError, setShortlistError] = useState<string | null>(null)
   const [shortlistExpanded, setShortlistExpanded] = useState(false)
-  const [contracts, setContracts] = useState<{ id: string; vendor_id: string; file_path: string; file_name: string; document_type: 'contract' | 'proposal'; ai_review: AiReview | null }[]>([])
+  const [cardStates, setCardStates] = useState<Record<string, 'added' | 'exiting' | 'entering'>>({})
+  const cardTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>[]>>({})
+  const shortlistRef = useRef<ShortlistItem[]>([])
+  const [allSuggestionsAdded, setAllSuggestionsAdded] = useState(false)
+  const [expandedReviews, setExpandedReviews] = useState<Record<string, boolean>>({})
+  const [contracts, setContracts] = useState<{ id: string; vendor_id: string; file_path: string; file_name: string; document_type: 'contract' | 'proposal'; ai_review: AiReview | null; uploaded_at: string }[]>([])
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null) // 'vendorId-contract' or 'vendorId-proposal'
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [reviewingContractId, setReviewingContractId] = useState<string | null>(null)
@@ -81,13 +99,14 @@ export default function VendorDetail() {
   const [savingVendorPayment, setSavingVendorPayment] = useState(false)
   const [categoryLabel, setCategoryLabel] = useState<string>(category ?? '')
   const [suggestedHistory, setSuggestedHistory] = useState<string[]>([])
-  const [toast, setToast] = useState<{ message: string; vendorId: string } | null>(null)
+  const [toast, setToast] = useState<{ message: string; vendorId: string; shortlistItem?: ShortlistItem; shortlistIndex?: number } | null>(null)
   const [toastVisible, setToastVisible] = useState(false)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [comparing, setComparing] = useState(false)
   const [comparePicking, setComparePicking] = useState(false)
   const [comparedVendorIds, setComparedVendorIds] = useState<string[]>([])
   const [comparePickerMsg, setComparePickerMsg] = useState<string | null>(null)
+  const [docDropdown, setDocDropdown] = useState<string | null>(null) // 'vendorId-contract' or 'vendorId-proposal'
 
   // ─── Line item extraction state ──────────────────────────────────────────────
   const [lineItems, setLineItems] = useState<Record<string, VendorLineItem[]>>({})
@@ -107,15 +126,23 @@ export default function VendorDetail() {
   const [addingLineItem, setAddingLineItem] = useState<string | null>(null) // vendorId
   const [newLineItem, setNewLineItem] = useState({ label: '', normalized_label: '', amount: '', quantity: '', unit: '' })
 
-  function showToast(message: string, vendorId: string) {
+  function showToast(message: string, vendorId: string, shortlistItem?: ShortlistItem, shortlistIndex?: number) {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    setToast({ message, vendorId })
+    setToast({ message, vendorId, shortlistItem, shortlistIndex })
     setToastVisible(true)
     toastTimerRef.current = setTimeout(() => {
       setToastVisible(false)
       setTimeout(() => setToast(null), 300)
-    }, 5000)
+    }, shortlistItem ? 4000 : 5000)
   }
+
+  // Keep a ref mirror of the shortlist so timer callbacks read fresh data
+  useEffect(() => { shortlistRef.current = shortlist }, [shortlist])
+
+  // Clear pending card animation timers on unmount
+  useEffect(() => () => {
+    Object.values(cardTimersRef.current).forEach(timers => timers.forEach(clearTimeout))
+  }, [])
 
   async function load() {
     try {
@@ -131,9 +158,9 @@ export default function VendorDetail() {
       setVendors(all.filter(v => v.category === category))
       const { data: contractData } = await supabase
         .from('contracts')
-        .select('id, vendor_id, file_path, file_name, document_type, ai_review')
+        .select('id, vendor_id, file_path, file_name, document_type, ai_review, uploaded_at')
         .eq('couple_id', c.id)
-      setContracts((contractData ?? []) as { id: string; vendor_id: string; file_path: string; file_name: string; document_type: 'contract' | 'proposal'; ai_review: AiReview | null }[])
+      setContracts((contractData ?? []) as { id: string; vendor_id: string; file_path: string; file_name: string; document_type: 'contract' | 'proposal'; ai_review: AiReview | null; uploaded_at: string }[])
       const allVendors = all.filter(v => v.category === category)
       const notesResults = await Promise.all(allVendors.map(v => getVendorNotes(v.id)))
       const notesMap: Record<string, VendorNote[]> = {}
@@ -361,6 +388,9 @@ export default function VendorDetail() {
       }
       setSuggestedHistory(prev => [...prev, ...newVendors.map(v => v.name)])
       setShortlist(newVendors)
+      setAllSuggestionsAdded(false)
+      setCardStates({})
+      setExpandedReviews({})
       setShortlistExpanded(true)
       track('shortlist_generated', { category })
     } catch (err: unknown) {
@@ -443,7 +473,7 @@ export default function VendorDetail() {
         if (insertError) throw insertError
         setContracts(prev => [
           ...prev.filter(c => !(c.vendor_id === vendorId && c.document_type === 'contract')),
-          { id: contractRow.id, vendor_id: vendorId, file_path: filePath, file_name: file.name, document_type: 'contract', ai_review: null },
+          { id: contractRow.id, vendor_id: vendorId, file_path: filePath, file_name: file.name, document_type: 'contract', ai_review: null, uploaded_at: new Date().toISOString() },
         ])
 
         // Trigger AI review
@@ -790,137 +820,6 @@ export default function VendorDetail() {
     return 'Couple'
   }
 
-  // ─── Payment progress sub-render (booked only) ──────────────────────────────
-
-  function renderPaymentProgress(vendor: Vendor) {
-    if (vendor.status !== 'booked') return null
-    const payments = vendorPayments[vendor.id] ?? []
-    const contractAmount = vendor.booked_amount ?? 0
-    const paidAmount = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0)
-    const remaining = Math.max(0, contractAmount - paidAmount)
-    const pct = contractAmount > 0 ? Math.min(100, Math.round((paidAmount / contractAmount) * 100)) : 100
-
-    return (
-      <div style={{ marginTop: '14px' }}>
-        <div style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: '10px', fontWeight: 700 }}>
-          Payment Progress
-        </div>
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '10px' }}>
-          {[
-            { label: 'Contract', value: contractAmount, color: '#2c2825' },
-            { label: 'Paid', value: paidAmount, color: '#5A7A4A' },
-            { label: 'Remaining', value: remaining, color: '#7A7168' },
-          ].map(s => (
-            <div key={s.label} style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', background: '#fff', border: '1px solid var(--color-border)' }}>
-              <div style={{ fontSize: '10px', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: '4px' }}>{s.label}</div>
-              <div className="currency currency-sm" style={{ color: s.color }}>${s.value.toLocaleString()}</div>
-            </div>
-          ))}
-        </div>
-        {/* Progress bar */}
-        <div style={{ height: '4px', borderRadius: '2px', background: '#E8E2D8', overflow: 'hidden' }}>
-          <div style={{ height: '100%', borderRadius: '2px', background: '#7B8F6B', width: `${pct}%`, transition: 'width 0.3s ease' }} />
-        </div>
-        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-          <span className="currency currency-xs">${paidAmount.toLocaleString()}</span> of <span className="currency currency-xs">${contractAmount.toLocaleString()}</span> paid
-        </div>
-      </div>
-    )
-  }
-
-  // ─── Payment schedule sub-render ─────────────────────────────────────────────
-
-  function renderPaymentSchedule(vendor: Vendor) {
-    const todayStr = new Date().toISOString().split('T')[0]
-    const payments = vendorPayments[vendor.id] ?? []
-
-    return (
-      <div style={{ marginTop: '14px' }}>
-        <div style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: '7px', fontWeight: 700 }}>
-          Payment Schedule
-        </div>
-        {payments.length === 0 && (
-          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>No payments yet.</div>
-        )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {payments.map(p => {
-            const isOverdue = !!p.due_date && p.due_date < todayStr && !p.paid_date
-            const isPaid = !!p.paid_date
-            return (
-              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '7px', background: isPaid ? '#EFF4EC' : isOverdue ? 'rgba(196,120,92,0.06)' : 'var(--color-bg)', border: `1px solid ${isPaid ? '#C8DCBE' : isOverdue ? 'rgba(196,120,92,0.25)' : 'var(--color-border)'}` }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#2c2825' }}>{p.label}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                    <span className="currency currency-xs">${p.amount.toLocaleString()}</span>
-                    {p.due_date ? ` · Due ${new Date(p.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
-                    {isPaid ? ' · Paid ✓' : ''}
-                    {p.paid_by ? ` · ${paidByLabel(p.paid_by)}` : ''}
-                  </div>
-                </div>
-                {!isPaid && (
-                  <button
-                    onClick={() => handleMarkVendorPaymentPaid(p.id)}
-                    style={{ fontSize: '10px', border: `1px solid ${isOverdue ? '#C4785C' : 'var(--color-border)'}`, borderRadius: '5px', padding: '2px 7px', color: isOverdue ? '#C4785C' : 'var(--color-text-muted)', background: 'none', cursor: 'pointer' }}
-                  >Pay</button>
-                )}
-                <button
-                  onClick={() => handleDeleteVendorPayment(p.id)}
-                  style={{ fontSize: '11px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}
-                >✕</button>
-              </div>
-            )
-          })}
-        </div>
-
-        {addingPaymentFor === vendor.id ? (
-          <div style={{ marginTop: '8px', padding: '10px 12px', border: '1px solid var(--color-border)', borderRadius: '8px', background: '#fff' }}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]" style={{ marginBottom: '10px' }}>
-              <div>
-                <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Label</label>
-                <input placeholder="Deposit" value={newVendorPayment.label} onChange={e => setNewVendorPayment(f => ({ ...f, label: e.target.value }))} style={{ display: 'block', fontSize: '12px' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Amount ($)</label>
-                <input type="number" value={newVendorPayment.amount} onChange={e => setNewVendorPayment(f => ({ ...f, amount: e.target.value }))} style={{ display: 'block', fontSize: '12px' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Due Date</label>
-                <input type="date" value={newVendorPayment.due_date} onChange={e => setNewVendorPayment(f => ({ ...f, due_date: e.target.value }))} style={{ display: 'block', fontSize: '12px' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Paid By</label>
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
-                  {(['couple', 'family_a', 'family_b'] as const).map(key => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setNewVendorPayment(f => ({ ...f, paid_by: key }))}
-                      style={{ fontSize: '11px', padding: '3px 9px', borderRadius: '20px', border: `1px solid ${newVendorPayment.paid_by === key ? 'var(--color-accent)' : 'var(--color-border)'}`, background: newVendorPayment.paid_by === key ? 'var(--color-sidebar-active)' : '#fff', color: newVendorPayment.paid_by === key ? 'var(--color-accent)' : 'var(--color-text-muted)', cursor: 'pointer', fontWeight: newVendorPayment.paid_by === key ? 600 : 400 }}
-                    >
-                      {key === 'couple' ? 'Couple' : key === 'family_a' ? familyAName : familyBName}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <Button variant="secondary" onClick={() => { setAddingPaymentFor(null); setNewVendorPayment({ label: '', amount: '', due_date: '', paid_by: 'couple' }) }}>Cancel</Button>
-              <Button onClick={() => handleAddVendorPayment(vendor.id)} disabled={savingVendorPayment || !newVendorPayment.label || !newVendorPayment.amount}>
-                {savingVendorPayment ? 'Saving...' : 'Add'}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => setAddingPaymentFor(vendor.id)}
-            style={{ marginTop: '6px', fontSize: '12px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-          >
-            + Add payment
-          </button>
-        )}
-      </div>
-    )
-  }
 
   // ─── Documents section sub-render ────────────────────────────────────────────
 
@@ -930,6 +829,7 @@ export default function VendorDetail() {
     const isUploadingProposal = uploadingDoc === `${vendor.id}-proposal`
     const isReviewing = contractDoc ? reviewingContractId === contractDoc.id : false
     const hasReview = contractDoc?.ai_review?.status === 'complete'
+    const isExtracting = extracting === vendor.id
 
     async function handleReviewContract() {
       if (!contractDoc) return
@@ -938,7 +838,6 @@ export default function VendorDetail() {
       try {
         const { data, error: fnError } = await supabase.functions.invoke('contract-review', { body: { contract_id: contractDoc.id } })
         if (fnError) {
-          // Supabase SDK v2 wraps HTTP errors
           let msg = 'Contract review failed.'
           try {
             const errBody = await (fnError as { context?: Response }).context?.json?.()
@@ -957,94 +856,290 @@ export default function VendorDetail() {
       setReviewingContractId(null)
     }
 
-    function renderDocRow(filePath: string, documentType: 'contract' | 'proposal') {
-      const parts = filePath.split('/')
-      const rawName = parts[parts.length - 1]
-      const ext = getFileExt(rawName)
-      const displayName = `${documentType === 'contract' ? 'Contract' : 'Proposal'}.${ext}`
-      const isImg = isImageFile(rawName)
+    // ── SVG icon components ──────────────────────────────────────────────────────
 
-      // Proposal row gets extract button; contract row does NOT get review icon (it has its own section)
-      const isExtracting = extracting === vendor.id
-      const showExtractBtn = documentType === 'proposal' || (documentType === 'contract' && !vendor.proposal_url)
+    const IconFileText = ({ size = 20, color = '#D85A30' }: { size?: number; color?: string }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+      </svg>
+    )
+    const IconUpload = ({ size = 20, color = '#999' }: { size?: number; color?: string }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    )
+    const IconSparkles = ({ size = 14, color = '#B8944F' }: { size?: number; color?: string }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z"/>
+      </svg>
+    )
+    const IconEye = ({ size = 14 }: { size?: number }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+      </svg>
+    )
+    const IconDownload = ({ size = 14 }: { size?: number }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+    )
+    const IconTrash = ({ size = 14 }: { size?: number }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+      </svg>
+    )
+
+    // ── Tile helper ──────────────────────────────────────────────────────────────
+
+    function renderDocTile(documentType: 'contract' | 'proposal') {
+      const isContract = documentType === 'contract'
+      const filePath = isContract ? vendor.contract_url : vendor.proposal_url
+      const isUploading = isContract ? isUploadingContract : isUploadingProposal
+      const tileKey = `${vendor.id}-${documentType}`
+
+      // ── Empty state tile ───────────────────────────────────────────────────────
+      if (!filePath) {
+        return (
+          <label
+            style={{
+              cursor: isUploading ? 'default' : 'pointer',
+              border: '1.5px dashed #E8E0D5', borderRadius: '12px',
+              padding: '18px 16px', display: 'flex', flexDirection: 'row',
+              alignItems: 'center', gap: '10px',
+              background: '#fff',
+              transition: 'border-color 0.2s, background 0.2s',
+            }}
+            onMouseEnter={e => { if (!isUploading) { e.currentTarget.style.borderColor = '#C9A96E'; e.currentTarget.style.background = 'rgba(245,241,236,0.4)' } }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#E8E0D5'; e.currentTarget.style.background = '#fff' }}
+          >
+            <input
+              type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }}
+              disabled={!!uploadingDoc}
+              ref={el => { contractInputRefs.current[tileKey] = el }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) { handleDocumentUpload(vendor.id, f, documentType); e.target.value = '' } }}
+            />
+            {isUploading ? (
+              <>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#F3EDE4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" style={{ animation: 'spin 1s linear infinite' }}>
+                    <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M6.34 6.34L3.51 3.51"/>
+                  </svg>
+                </div>
+                <p style={{ fontSize: '12px', fontWeight: 500, color: '#5C524A', margin: 0 }}>Uploading...</p>
+              </>
+            ) : (
+              <>
+                {/* Upload icon in rounded square */}
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#F3EDE4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <IconUpload size={18} />
+                </div>
+                <div>
+                  {/* Line 1: title */}
+                  <p style={{ fontSize: '12px', fontWeight: 500, color: '#5C524A', margin: '0 0 2px' }}>
+                    Upload {isContract ? 'contract' : 'proposal'}
+                  </p>
+                  {/* Line 2: AI value copy in champagne gold */}
+                  <p style={{ fontSize: '10px', color: '#B8944F', margin: 0, lineHeight: 1.4 }}>
+                    ✨ {isContract
+                      ? "We'll flag cancellation terms, fees, and anything unusual"
+                      : "We'll pull every line item for comparison"}
+                  </p>
+                </div>
+              </>
+            )}
+          </label>
+        )
+      }
+
+      // ── Filled state tile ──────────────────────────────────────────────────────
+      const fp = filePath!
+      const rawName = fp.split('/').pop() ?? ''
+      const ext = getFileExt(rawName)
+      const displayName = `${isContract ? 'Contract' : 'Proposal'}.${ext}`
+
+      // Get upload date from contracts table for contracts
+      const docRow = contracts.find(c => c.vendor_id === vendor.id && c.document_type === documentType)
+      const uploadDate = docRow?.uploaded_at
+        ? new Date(docRow.uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : null
+
+      // Primary AI action
+      const primaryLabel = isContract
+        ? (isReviewing ? 'Reviewing...' : hasReview ? 'View review' : 'Review terms')
+        : (isExtracting ? 'Extracting...' : 'Extract pricing')
+      const primaryBusy = isContract ? isReviewing : isExtracting
+
+      function handlePrimaryAi() {
+        if (isContract) {
+          if (hasReview && contractDoc?.ai_review) {
+            const rn = vendor.contract_url!.split('/').pop() ?? 'contract'
+            setReviewModal({ review: contractDoc.ai_review, fileName: `Contract.${getFileExt(rn)}` })
+          } else {
+            handleReviewContract()
+          }
+        } else {
+          handleExtractFromDocument(vendor.id, fp, documentType)
+        }
+      }
+
+      // Secondary AI action (shown in dropdown chevron)
+      const secondaryAction = isContract
+        ? { label: 'Extract pricing', handler: () => handleExtractFromDocument(vendor.id, fp, 'contract') }
+        : null
+      const dropdownOpen = docDropdown === tileKey
 
       return (
-        <div key={documentType} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '8px', background: '#fff', border: '1px solid var(--color-border)' }}>
-          <div style={{ flexShrink: 0, width: '28px', height: '28px', borderRadius: '6px', background: isImg ? '#E2EAF0' : '#F5E8DC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {isImg ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5A7A8F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B6F4E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            )}
+        <div style={{
+          border: '0.5px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden',
+          background: '#fff', position: 'relative', display: 'flex', flexDirection: 'column',
+        }}>
+          {/* Utility icons — absolutely positioned top-right */}
+          <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '2px', zIndex: 2 }}>
+            <button onClick={() => handleViewDocument(fp, displayName)} title="View" style={{ width: '28px', height: '28px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', cursor: 'pointer', border: 'none', background: 'transparent', transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#555'} onMouseLeave={e => e.currentTarget.style.color = '#888'}>
+              <IconEye />
+            </button>
+            <button onClick={() => handleDownloadDocument(fp, displayName)} title="Download" style={{ width: '28px', height: '28px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', cursor: 'pointer', border: 'none', background: 'transparent', transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#555'} onMouseLeave={e => e.currentTarget.style.color = '#888'}>
+              <IconDownload />
+            </button>
+            <button onClick={() => handleDeleteDocument(vendor.id, documentType)} title="Delete" style={{ width: '28px', height: '28px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', cursor: 'pointer', border: 'none', background: 'transparent', transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#C4785C'} onMouseLeave={e => e.currentTarget.style.color = '#888'}>
+              <IconTrash />
+            </button>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: '#2c2825', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
-              {ext.toUpperCase()}
-              {documentType === 'contract' && hasReview && (
-                <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '20px', background: '#EFF4EC', color: '#5A7A4A', fontWeight: 600 }}>AI Reviewed</span>
+
+          {/* File info area with bottom border */}
+          <div style={{ padding: '18px 16px 12px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '0.5px solid var(--color-border)', flex: 1 }}>
+            {/* Coral icon square for contract, gold for proposal */}
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '8px', flexShrink: 0,
+              background: isContract ? '#FAECE7' : '#F5EDDF',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <IconFileText color={isContract ? '#D85A30' : '#B8926A'} />
+            </div>
+            <div>
+              {/* Type label above filename */}
+              <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', color: '#999', margin: '0 0 2px', fontWeight: 500, fontFamily: 'var(--font-body)' }}>
+                {isContract ? 'CONTRACT' : 'PROPOSAL'}
+              </p>
+              {/* Filename */}
+              <p style={{ fontSize: '13px', fontWeight: 500, margin: 0, color: '#2C2420', fontFamily: 'var(--font-body)' }}>
+                {displayName}
+              </p>
+              {/* Upload date */}
+              {uploadDate && (
+                <p style={{ fontSize: '11px', color: '#999', margin: 0, fontFamily: 'var(--font-body)' }}>
+                  {uploadDate}
+                </p>
               )}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-            <button onClick={() => handleViewDocument(filePath, displayName)} title="View" style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-            <button onClick={() => handleDownloadDocument(filePath, displayName)} title="Download" style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            </button>
-            {showExtractBtn && (
+
+          {/* AI action button area */}
+          <div style={{ padding: '10px 12px' }}>
+            <GlowBorder borderRadius={8} padding={1.5}>
+              <div style={{ display: 'flex', gap: 0, background: '#fff', borderRadius: '6.5px' }}>
               <button
-                onClick={() => {
-                  const fp = vendor.proposal_url || vendor.contract_url
-                  const dt = vendor.proposal_url ? 'proposal' : 'contract'
-                  if (fp) handleExtractFromDocument(vendor.id, fp, dt as 'contract' | 'proposal')
+                onClick={handlePrimaryAi}
+                disabled={primaryBusy}
+                style={{
+                  flex: 1, fontSize: '12px', padding: '8px 12px',
+                  borderRadius: secondaryAction ? '6px 0 0 6px' : '6px',
+                  border: 'none', background: '#fff',
+                  color: '#B8944F', fontWeight: 500, fontFamily: 'var(--font-body)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  cursor: primaryBusy ? 'default' : 'pointer',
+                  opacity: primaryBusy ? 0.7 : 1,
+                  transition: 'background 0.15s',
                 }}
-                title="Extract Details"
-                disabled={isExtracting}
-                style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: isExtracting ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isExtracting ? 'var(--color-text-muted)' : 'var(--color-accent)', opacity: isExtracting ? 0.6 : 1 }}
+                onMouseEnter={e => { if (!primaryBusy) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
+                onMouseLeave={e => e.currentTarget.style.background = '#fff'}
               >
-                {isExtracting ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M6.34 6.34L3.51 3.51"/></svg>
+                {primaryBusy ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ animation: 'spin 1s linear infinite' }}>
+                    <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M6.34 6.34L3.51 3.51"/>
+                  </svg>
                 ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  <IconSparkles size={14} />
                 )}
+                {primaryLabel}
               </button>
-            )}
-            <button onClick={() => handleDeleteDocument(vendor.id, documentType)} title="Delete" style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-            </button>
+              {secondaryAction && (
+                <div style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => setDocDropdown(dropdownOpen ? null : tileKey)}
+                    style={{
+                      width: '32px', height: '100%',
+                      borderRadius: '0 6px 6px 0',
+                      border: 'none', borderLeft: '1px solid #eee',
+                      background: dropdownOpen ? 'rgba(0,0,0,0.02)' : '#fff',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#B8944F', transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.02)'}
+                    onMouseLeave={e => { if (!dropdownOpen) e.currentTarget.style.background = '#fff' }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                  </button>
+                  {dropdownOpen && (
+                    <div style={{
+                      position: 'absolute', right: 0, top: '100%', marginTop: '4px', zIndex: 10,
+                      background: '#fff', border: '1px solid var(--color-border)',
+                      borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', overflow: 'hidden',
+                      minWidth: '160px',
+                    }}>
+                      <button
+                        onClick={() => { setDocDropdown(null); secondaryAction.handler() }}
+                        style={{
+                          width: '100%', padding: '8px 14px', border: 'none', background: 'none',
+                          cursor: 'pointer', fontSize: '12px', fontWeight: 500, color: '#2C2420',
+                          fontFamily: 'var(--font-body)', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '6px',
+                          transition: 'background 0.1s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#F5F1EC'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <IconSparkles size={12} />
+                        {secondaryAction.label}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            </GlowBorder>
           </div>
         </div>
       )
     }
 
-    // Contract review button / summary card
-    function renderContractReviewSection() {
+    // ── Contract review summary card ───────────────────────────────────────────
+
+    function renderContractReviewCard() {
       if (!vendor.contract_url || !contractDoc) return null
 
       // Loading state
       if (isReviewing) {
         return (
-          <div style={{ marginTop: '8px' }}>
+          <div style={{ marginTop: '14px' }}>
             <div style={{
               display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 20px',
-              border: '1.5px solid var(--color-accent)', borderRadius: '10px', background: 'rgba(201,169,110,0.04)',
-              animation: 'pulse-border 2s ease-in-out infinite',
+              border: '1.5px solid #C9A96E', borderRadius: '10px', background: 'rgba(201,169,110,0.04)',
             }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 2s linear infinite', flexShrink: 0 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 2s linear infinite', flexShrink: 0 }}>
                 <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M6.34 6.34L3.51 3.51"/>
               </svg>
-              <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-accent)' }}>Reading your contract...</span>
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '6px', paddingLeft: '4px' }}>
-              This usually takes 10-15 seconds
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 500, color: '#B8944F' }}>Reading your contract...</div>
+                <div style={{ fontSize: '11px', color: '#999', marginTop: '2px' }}>Reading every clause — this can take up to a minute</div>
+              </div>
             </div>
           </div>
         )
       }
 
-      // Review complete: show summary card
+      // Review complete: summary card
       if (hasReview && contractDoc.ai_review) {
         const review = contractDoc.ai_review
         const flags = review.flags
@@ -1062,34 +1157,29 @@ export default function VendorDetail() {
         if (dateCount > 0) countText += `${countText ? ', ' : ''}${dateCount} date${dateCount !== 1 ? 's' : ''} found`
         if (!countText) countText = `${flags.length} term${flags.length !== 1 ? 's' : ''} reviewed`
 
-        // Get the contract filename for the modal
         const rawName = vendor.contract_url!.split('/').pop() ?? 'contract'
         const ext = getFileExt(rawName)
         const fileName = `Contract.${ext}`
 
         return (
           <div style={{
-            marginTop: '8px', padding: '16px', borderRadius: '10px',
+            marginTop: '14px', padding: '16px', borderRadius: '10px',
             background: 'rgba(139,158,126,0.04)', border: '1px solid var(--color-border)',
           }}>
-            {/* Header: label + rating */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
               <span style={{ fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700 }}>Contract Review</span>
               <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px', background: ratingBg, color: '#fff' }}>{ratingLabel}</span>
             </div>
-            {/* Summary */}
             <p style={{ fontSize: '13px', color: '#2c2825', lineHeight: 1.6, margin: '0 0 8px 0' }}>
               {review.summary}
             </p>
-            {/* Count line */}
             <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '12px' }}>
               {countText}
             </div>
-            {/* Actions */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <button
                 onClick={() => setReviewModal({ review, fileName })}
-                style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)', textDecoration: 'none' }}
+                style={{ fontSize: '13px', fontWeight: 500, color: '#B8944F', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)', textDecoration: 'none' }}
                 onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
                 onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
               >
@@ -1097,7 +1187,7 @@ export default function VendorDetail() {
               </button>
               <button
                 onClick={handleReviewContract}
-                style={{ fontSize: '12px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)' }}
+                style={{ fontSize: '12px', color: '#999', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)' }}
               >
                 Re-review
               </button>
@@ -1106,40 +1196,7 @@ export default function VendorDetail() {
         )
       }
 
-      // No review yet: show prominent button
-      return (
-        <div style={{ marginTop: '8px' }}>
-          <button
-            onClick={handleReviewContract}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
-              padding: '12px 20px', borderRadius: '10px', cursor: 'pointer',
-              border: '1px solid var(--color-accent)', background: 'transparent',
-              fontFamily: 'var(--font-body)', textAlign: 'left',
-              transition: 'box-shadow 0.3s ease, background 0.2s ease, border-width 0.1s ease',
-              boxShadow: '0 0 0 0 rgba(201,169,110,0)',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(201,169,110,0.06)'
-              e.currentTarget.style.boxShadow = '0 0 12px 2px rgba(201,169,110,0.15)'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'transparent'
-              e.currentTarget.style.boxShadow = '0 0 0 0 rgba(201,169,110,0)'
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
-            <span style={{ flex: 1, fontSize: '14px', fontWeight: 500, color: 'var(--color-accent)' }}>
-              Review Contract with AI
-            </span>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', flexShrink: 0 }} className="desktop-only">
-              Analyzes terms, fees &amp; cancellation clauses
-            </span>
-          </button>
-        </div>
-      )
+      return null
     }
 
     return (
@@ -1163,34 +1220,14 @@ export default function VendorDetail() {
           </div>
         )}
 
-        {/* Document rows */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {vendor.contract_url && renderDocRow(vendor.contract_url, 'contract')}
-          {vendor.proposal_url && renderDocRow(vendor.proposal_url, 'proposal')}
+        {/* Two-tile grid: Proposal (left) + Contract (right) */}
+        <div className="doc-tiles-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', alignItems: 'stretch' }}>
+          {renderDocTile('proposal')}
+          {renderDocTile('contract')}
         </div>
 
-        {/* Upload links for missing docs */}
-        <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
-          {!vendor.contract_url && (
-            <label style={{ cursor: isUploadingContract ? 'default' : 'pointer' }}>
-              <input type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }} disabled={!!uploadingDoc} ref={el => { contractInputRefs.current[`${vendor.id}-contract`] = el }} onChange={e => { const f = e.target.files?.[0]; if (f) { handleDocumentUpload(vendor.id, f, 'contract'); e.target.value = '' } }} />
-              <span style={{ fontSize: '12px', color: 'var(--color-accent)', cursor: isUploadingContract ? 'default' : 'pointer', fontFamily: 'var(--font-body)', fontWeight: 500 }}>
-                {isUploadingContract ? 'Uploading...' : '+ Upload Contract'}
-              </span>
-            </label>
-          )}
-          {!vendor.proposal_url && (
-            <label style={{ cursor: isUploadingProposal ? 'default' : 'pointer' }}>
-              <input type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }} disabled={!!uploadingDoc} ref={el => { contractInputRefs.current[`${vendor.id}-proposal`] = el }} onChange={e => { const f = e.target.files?.[0]; if (f) { handleDocumentUpload(vendor.id, f, 'proposal'); e.target.value = '' } }} />
-              <span style={{ fontSize: '12px', color: 'var(--color-accent)', cursor: isUploadingProposal ? 'default' : 'pointer', fontFamily: 'var(--font-body)', fontWeight: 500 }}>
-                {isUploadingProposal ? 'Uploading...' : '+ Upload Proposal'}
-              </span>
-            </label>
-          )}
-        </div>
-
-        {/* Contract review button or summary card */}
-        {renderContractReviewSection()}
+        {/* Contract review summary card (below tiles) */}
+        {renderContractReviewCard()}
       </div>
     )
   }
@@ -1421,24 +1458,25 @@ export default function VendorDetail() {
               </button>
             )
           })}
-          <div style={{ flex: 1 }} />
+        </div>
+
+        {/* Input + Add button in flex row */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: vendorNotes.length > 0 ? '12px' : '4px' }}>
+          <textarea
+            rows={1}
+            placeholder={cfg.placeholder}
+            value={text}
+            onChange={e => setNoteText(prev => ({ ...prev, [vendor.id]: e.target.value }))}
+            style={{ flex: 1, fontFamily: 'var(--font-body)', fontSize: '12px', resize: 'none', boxSizing: 'border-box', padding: '10px 12px', borderRadius: '8px', minHeight: '44px', maxHeight: '44px' }}
+          />
           <button
             onClick={() => handleAddNote(vendor.id)}
             disabled={isSaving || !text.trim()}
-            style={{ fontSize: '12px', padding: '5px 14px', borderRadius: '7px', background: isSaving || !text.trim() ? '#D4CFC8' : 'var(--color-accent)', color: '#fff', border: 'none', cursor: isSaving || !text.trim() ? 'default' : 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600 }}
+            style={{ padding: '10px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, background: 'rgba(184,146,106,0.08)', color: '#B8944F', border: '1px solid rgba(184,146,106,0.2)', cursor: isSaving || !text.trim() ? 'default' : 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', opacity: isSaving || !text.trim() ? 0.5 : 1, transition: 'opacity 0.15s' }}
           >
             {isSaving ? 'Adding...' : 'Add'}
           </button>
         </div>
-
-        {/* Input */}
-        <textarea
-          rows={3}
-          placeholder={cfg.placeholder}
-          value={text}
-          onChange={e => setNoteText(prev => ({ ...prev, [vendor.id]: e.target.value }))}
-          style={{ display: 'block', width: '100%', fontFamily: 'var(--font-body)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box', marginBottom: vendorNotes.length > 0 ? '12px' : '4px' }}
-        />
 
         {/* Empty hint */}
         {vendorNotes.length === 0 && (
@@ -1516,6 +1554,94 @@ export default function VendorDetail() {
           -webkit-text-fill-color: transparent;
           background-clip: text;
           animation: aiLabelShimmer 4s ease infinite;
+        }
+        .shortlist-card {
+          padding: 10px 14px;
+          margin-bottom: 8px;
+          border: 1px solid var(--color-border);
+          border-radius: 8px;
+          display: flex;
+          gap: 12px;
+          align-items: flex-start;
+          max-height: 500px;
+          overflow: hidden;
+          opacity: 1;
+          transform: translateX(0);
+          transition:
+            opacity 300ms ease-out,
+            transform 300ms ease-out,
+            background 300ms,
+            max-height 200ms ease-in-out 300ms,
+            margin-bottom 200ms ease-in-out 300ms,
+            padding-top 200ms ease-in-out 300ms,
+            padding-bottom 200ms ease-in-out 300ms,
+            border-top-width 200ms ease-in-out 300ms,
+            border-bottom-width 200ms ease-in-out 300ms;
+        }
+        .shortlist-card.exiting {
+          opacity: 0;
+          transform: translateX(-30px);
+          max-height: 0;
+          margin-bottom: 0;
+          padding-top: 0;
+          padding-bottom: 0;
+          border-top-width: 0;
+          border-bottom-width: 0;
+        }
+        .shortlist-card.entering {
+          opacity: 0;
+          transform: translateX(-30px);
+        }
+        .vendor-toast {
+          position: fixed;
+          bottom: 32px;
+          left: 50%;
+          transform: translateX(-50%) translateY(16px);
+          opacity: 0;
+          transition: opacity 300ms, transform 300ms;
+          background: #2C2420;
+          color: #fff;
+          border-radius: 8px;
+          padding: 10px 20px;
+          font-size: 13px;
+          font-family: var(--font-body);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+          display: flex;
+          gap: 14px;
+          align-items: center;
+          z-index: 1000;
+          white-space: nowrap;
+        }
+        .vendor-toast.visible {
+          transform: translateX(-50%) translateY(0);
+          opacity: 1;
+        }
+        @media (max-width: 640px) {
+          .vendor-toast {
+            left: 16px;
+            right: 16px;
+            transform: translateY(16px);
+            white-space: normal;
+            justify-content: space-between;
+          }
+          .vendor-toast.visible {
+            transform: translateY(0);
+          }
+        }
+        .shortlist-ratings {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          flex-wrap: wrap;
+          font-size: 12px;
+          margin: 8px 0;
+        }
+        .shortlist-rating-star {
+          color: #C9A96E;
+        }
+        .shortlist-rating-platform {
+          color: #999;
+          margin-right: 8px;
         }
       `}</style>
       {/* Back */}
@@ -2128,21 +2254,37 @@ export default function VendorDetail() {
       </GlowBorder>}
 
       {/* Shortlist results (collapsible) */}
-      {shortlist.length > 0 && (
+      {(shortlist.length > 0 || allSuggestionsAdded) && (
         <div style={{ marginBottom: '14px' }}>
-          <button
-            onClick={() => setShortlistExpanded(e => !e)}
-            style={{ fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0', fontWeight: 600 }}
-          >
-            {shortlistExpanded ? '▲ Hide' : '▼ Show'} {shortlist.length} AI suggestions
-          </button>
-          {shortlistExpanded && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {shortlist.length > 0 && (
+            <button
+              onClick={() => setShortlistExpanded(e => !e)}
+              style={{ fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0', fontWeight: 600 }}
+            >
+              {shortlistExpanded ? '▲ Hide' : '▼ Show'} {shortlist.length} AI suggestions
+            </button>
+          )}
+          {shortlist.length === 0 && allSuggestionsAdded && (
+            <div style={{ padding: '12px 14px', border: '1px solid var(--color-border)', borderRadius: '8px', background: 'rgba(123, 143, 107, 0.06)', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+              All suggestions added! You can request more recommendations anytime.
+            </div>
+          )}
+          {shortlistExpanded && shortlist.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
               {shortlist.map((v, i) => {
                 const isAdded = vendors.some(vd => vd.name === v.name)
+                const cardState = cardStates[v.name]
+                const reviewsOpen = !!expandedReviews[v.name]
+                const ratings = v.ratings?.filter(r => r && r.platform && typeof r.rating === 'number') ?? []
+                const hasReviewData = ratings.length > 0 || (v.review_summary !== undefined && v.review_summary !== null)
+                const noReviews = v.review_summary === null && ratings.length === 0
                 return (
-                <div key={i} style={{ padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: '8px', background: isAdded ? 'rgba(123, 143, 107, 0.06)' : 'var(--color-bg)', display: 'flex', gap: '12px', alignItems: 'flex-start', transition: 'background 300ms' }}>
-                  <div style={{ flex: 1 }}>
+                <div
+                  key={v.name}
+                  className={`shortlist-card${cardState === 'exiting' ? ' exiting' : ''}${cardState === 'entering' ? ' entering' : ''}`}
+                  style={{ background: isAdded ? 'rgba(123, 143, 107, 0.06)' : 'var(--color-bg)' }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: '#2c2825', marginBottom: '1px' }}>{v.name}</div>
                     <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>{v.address}</div>
                     {v.style && (
@@ -2158,6 +2300,57 @@ export default function VendorDetail() {
                     {v.why_fit && (
                       <div style={{ fontSize: '11px', color: '#7a6358', fontStyle: 'italic', marginBottom: '4px' }}>{v.why_fit}</div>
                     )}
+                    {hasReviewData && (
+                      noReviews ? (
+                        <div className="shortlist-ratings" style={{ color: 'var(--color-text-muted)' }}>No reviews available</div>
+                      ) : (
+                        <>
+                          {ratings.length > 0 && (
+                            <div className="shortlist-ratings" style={{ color: '#5C524A' }}>
+                              {ratings.map((r, ri) => (
+                                <span key={r.platform} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  {ri > 0 && <span style={{ color: '#D4CFC8', margin: '0 4px' }}>·</span>}
+                                  <span className="shortlist-rating-star">★</span>
+                                  <span style={{ fontWeight: 600 }}>{r.rating.toFixed(1)}</span>
+                                  <span className="shortlist-rating-platform">{r.platform}{r.review_count ? ` (${r.review_count})` : ''}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {v.review_summary && (
+                            <>
+                              <button
+                                onClick={() => setExpandedReviews(prev => ({ ...prev, [v.name]: !reviewsOpen }))}
+                                style={{ fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '0', fontWeight: 600, display: 'block', marginBottom: '4px' }}
+                              >
+                                {reviewsOpen ? 'Show less ▴' : 'Read summary ▾'}
+                              </button>
+                              {reviewsOpen && (
+                                <div style={{ marginBottom: '4px' }}>
+                                  <div style={{ fontSize: '13px', color: '#2C2420', fontStyle: 'italic', marginBottom: '6px' }}>{v.review_summary}</div>
+                                  {v.review_highlight && (
+                                    <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', borderLeft: '2px solid #8B9E7E', paddingLeft: '8px', marginBottom: '6px' }}>
+                                      {v.review_highlight}
+                                    </div>
+                                  )}
+                                  {ratings.some(r => r.url) && (
+                                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                                      Read reviews on:{' '}
+                                      {ratings.filter(r => r.url).map((r, ri) => (
+                                        <span key={r.platform}>
+                                          {ri > 0 && ' · '}
+                                          <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ color: '#C9A96E' }}>{r.platform}</a>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </>
+                      )
+                    )}
                     {v.website && (
                       <a href={v.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--color-accent)' }}>
                         {v.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
@@ -2165,9 +2358,9 @@ export default function VendorDetail() {
                     )}
                   </div>
                   <button
-                    disabled={isAdded}
+                    disabled={isAdded || !!cardState}
                     onClick={async () => {
-                      if (!couple) return
+                      if (!couple || cardStates[v.name]) return
                       try {
                         const notesLines = [
                           v.style ? `Style: ${v.style}` : '',
@@ -2183,12 +2376,41 @@ export default function VendorDetail() {
                           notes: notesLines.length > 0 ? notesLines.join('\n') : null,
                         })
                         setVendors(prev => [...prev, vendor])
-                        showToast(`${v.name} added to your ${categoryLabel} list`, vendor.id)
+                        // Step 1: instant feedback — button flips to "Added"
+                        setCardStates(prev => ({ ...prev, [v.name]: 'added' }))
+                        // Step 2: after 500ms, slide out + show toast
+                        const t1 = setTimeout(() => {
+                          setCardStates(prev => ({ ...prev, [v.name]: 'exiting' }))
+                          showToast(`Added ${v.name} to your ${categoryLabel.toLowerCase()} list`, vendor.id, v, i)
+                        }, 500)
+                        // Step 3: after exit animation completes, remove from list
+                        const t2 = setTimeout(() => {
+                          shortlistRef.current = shortlistRef.current.filter(s => s.name !== v.name)
+                          setShortlist(shortlistRef.current)
+                          if (shortlistRef.current.length === 0) setAllSuggestionsAdded(true)
+                          setCardStates(prev => {
+                            const next = { ...prev }
+                            delete next[v.name]
+                            return next
+                          })
+                          delete cardTimersRef.current[v.name]
+                        }, 1300)
+                        cardTimersRef.current[v.name] = [t1, t2]
                       } catch {
                         alert('Failed to add vendor.')
                       }
                     }}
-                    style={{ fontSize: '12px', color: isAdded ? '#7B8F6B' : 'var(--color-accent)', border: `1px solid ${isAdded ? '#7B8F6B' : 'var(--color-accent)'}`, borderRadius: '6px', padding: '4px 12px', background: 'none', cursor: isAdded ? 'default' : 'pointer', flexShrink: 0, transition: 'color 200ms, border-color 200ms' }}
+                    style={{
+                      fontSize: '12px',
+                      color: isAdded ? '#fff' : 'var(--color-accent)',
+                      border: `1px solid ${isAdded ? '#8B9E7E' : 'var(--color-accent)'}`,
+                      borderRadius: '6px',
+                      padding: '4px 12px',
+                      background: isAdded ? '#8B9E7E' : 'none',
+                      cursor: isAdded || cardState ? 'default' : 'pointer',
+                      flexShrink: 0,
+                      transition: 'color 200ms, border-color 200ms, background 200ms',
+                    }}
                   >
                     {isAdded ? '✓ Added' : 'Add →'}
                   </button>
@@ -2266,29 +2488,374 @@ export default function VendorDetail() {
 
               {/* Tile row */}
               {isBooked ? (
-                <div style={{ padding: '16px 18px', background: 'rgba(139,158,126,0.06)', borderLeft: '3px solid #7B8F6B' }}>
-                  <div style={{ fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: '#5A7A4A', fontFamily: 'var(--font-heading)', marginBottom: '4px' }}>
-                    Your {VENDOR_CATEGORY_LABELS[category as VendorCategory] ?? categoryLabel}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '22px', fontWeight: 600, color: '#2c2825', fontFamily: 'var(--font-heading)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {displayName}
+                /* ═══════════════════════════════════════════════════════════════════
+                   BOOKED VENDOR — Full restructured layout
+                   ═══════════════════════════════════════════════════════════════════ */
+                <>
+                {isEditing ? (
+                  /* Edit form (booked) */
+                  <div style={{ padding: '14px 16px', background: 'rgba(139,158,126,0.06)', borderLeft: '3px solid #7B8F6B' }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]" style={{ marginBottom: '12px' }}>
+                      <div>
+                        <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Name</label>
+                        <input style={{ display: 'block' }} value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
                       </div>
-                      {vendor.booked_date && (
-                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                          Locked in {new Date(vendor.booked_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                        </div>
-                      )}
+                      <div>
+                        <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Booked Amount</label>
+                        <input type="number" style={{ display: 'block' }} value={editForm.booked_amount ?? ''} onChange={e => setEditForm(f => ({ ...f, booked_amount: e.target.value ? Number(e.target.value) : null }))} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Contact Name</label>
+                        <input style={{ display: 'block' }} value={editForm.contact_name ?? ''} onChange={e => setEditForm(f => ({ ...f, contact_name: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Email</label>
+                        <input style={{ display: 'block' }} value={editForm.contact_email ?? ''} onChange={e => setEditForm(f => ({ ...f, contact_email: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Phone</label>
+                        <input style={{ display: 'block' }} value={editForm.contact_phone ?? ''} onChange={e => setEditForm(f => ({ ...f, contact_phone: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Website</label>
+                        <input style={{ display: 'block' }} value={editForm.website ?? ''} onChange={e => setEditForm(f => ({ ...f, website: e.target.value }))} />
+                      </div>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Notes</label>
+                        <textarea
+                          style={{ display: 'block', width: '100%', minHeight: '60px', fontFamily: 'var(--font-body)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }}
+                          value={editForm.notes ?? ''}
+                          onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                        />
+                      </div>
+                      <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <Button variant="secondary" onClick={() => setEditingId(null)}>Cancel</Button>
+                        <Button onClick={() => handleSave(vendor.id)} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+                      </div>
                     </div>
-                    {vendor.booked_amount != null && (
-                      <span className="currency currency-md" style={{ color: '#2c2825', flexShrink: 0 }}>
-                        ${vendor.booked_amount.toLocaleString()}
-                      </span>
+                  </div>
+                ) : (
+                <>
+                {/* ── SECTION 1: Header with payment progress ─────────────────── */}
+                {(() => {
+                  const payments = vendorPayments[vendor.id] ?? []
+                  const contractAmount = vendor.booked_amount ?? 0
+                  const paidAmount = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0)
+                  const remaining = Math.max(0, contractAmount - paidAmount)
+                  const pct = contractAmount > 0 ? Math.min(100, Math.round((paidAmount / contractAmount) * 100)) : 100
+
+                  return (
+                    <div style={{ padding: '20px 24px 18px', background: 'rgba(139,158,126,0.04)', borderBottom: '0.5px solid var(--color-border)' }}>
+                      <div className="booked-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '2px', color: '#8B9E7E', margin: '0 0 4px', fontWeight: 500 }}>
+                            Your {VENDOR_CATEGORY_LABELS[category as VendorCategory]?.toLowerCase() ?? categoryLabel?.toLowerCase()}
+                          </p>
+                          <p style={{ fontSize: '20px', fontWeight: 500, margin: 0, color: '#2C2420' }}>{displayName}</p>
+                          {vendor.booked_date && (
+                            <p style={{ fontSize: '12px', color: '#999', margin: '4px 0 0' }}>
+                              Locked in {new Date(vendor.booked_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                          {vendor.booked_amount != null && (
+                            <p style={{ fontSize: '22px', fontWeight: 500, margin: 0, color: '#2C2420', fontVariantNumeric: 'tabular-nums' }}>
+                              ${vendor.booked_amount.toLocaleString()}
+                            </p>
+                          )}
+                          <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                            <button onClick={() => { setEditingId(vendor.id); setEditForm(vendor) }} title="Edit" style={{ width: '26px', height: '26px', borderRadius: '6px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#555'} onMouseLeave={e => e.currentTarget.style.color = '#999'}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button onClick={() => handleDelete(vendor.id)} title="Remove" style={{ width: '26px', height: '26px', borderRadius: '6px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#C4785C'} onMouseLeave={e => e.currentTarget.style.color = '#999'}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Payment stat cards: 3 cells with 1px gap borders */}
+                      <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1px', background: '#E8E0D5', borderRadius: '8px', overflow: 'hidden' }}>
+                        <div style={{ background: '#fff', padding: '10px 14px' }}>
+                          <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: '#999', margin: '0 0 2px', fontWeight: 500 }}>Contract</p>
+                          <p style={{ fontSize: '16px', fontWeight: 500, margin: 0, color: '#2C2420', fontVariantNumeric: 'tabular-nums' }}>${contractAmount.toLocaleString()}</p>
+                        </div>
+                        <div style={{ background: '#fff', padding: '10px 14px' }}>
+                          <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: '#999', margin: '0 0 2px', fontWeight: 500 }}>Paid</p>
+                          <p style={{ fontSize: '16px', fontWeight: 500, margin: 0, color: '#8B9E7E', fontVariantNumeric: 'tabular-nums' }}>${paidAmount.toLocaleString()}</p>
+                        </div>
+                        <div style={{ background: '#fff', padding: '10px 14px' }}>
+                          <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: '#999', margin: '0 0 2px', fontWeight: 500 }}>Remaining</p>
+                          <p style={{ fontSize: '16px', fontWeight: 500, margin: 0, color: '#2C2420', fontVariantNumeric: 'tabular-nums' }}>${remaining.toLocaleString()}</p>
+                        </div>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div style={{ marginTop: '8px', height: '4px', background: '#F0EBE3', borderRadius: '2px', overflow: 'hidden' }}>
+                        <div style={{ width: `${pct}%`, height: '100%', background: '#8B9E7E', borderRadius: '2px', transition: 'width 0.3s ease' }} />
+                      </div>
+                      <p style={{ fontSize: '11px', color: '#999', margin: '4px 0 0' }}>
+                        ${paidAmount.toLocaleString()} of ${contractAmount.toLocaleString()} paid
+                      </p>
+                    </div>
+                  )
+                })()}
+
+                {/* ── SECTION 2: Documents (full width) ──────────────────────── */}
+                <div style={{ padding: '0 24px 18px', borderBottom: '0.5px solid var(--color-border)' }}>
+                  {renderDocumentsSection(vendor)}
+                </div>
+
+                {/* ── SECTION 3: Two columns (55/45 split) ───────────────────── */}
+                <div className="booked-columns" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+
+                  {/* LEFT COLUMN: Proposal breakdown */}
+                  <div style={{ padding: '18px 20px', borderRight: '0.5px solid var(--color-border)' }}>
+                    {(() => {
+                      const items = lineItems[vendor.id] ?? []
+                      const liExpanded = lineItemsExpanded[vendor.id] ?? false
+                      const COLLAPSE_LIMIT = 5
+                      const showToggle = items.length > COLLAPSE_LIMIT
+                      const visibleItems = liExpanded ? items : items.slice(0, COLLAPSE_LIMIT)
+                      const total = items.reduce((s, i) => s + (i.amount ?? 0), 0)
+
+                      return (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                            <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1.5px', color: '#5C524A', fontWeight: 500, margin: 0 }}>
+                              Proposal breakdown
+                            </p>
+                            <span style={{ fontSize: '11px', color: '#999' }}>
+                              {items.length > 0 ? `${items.length} item${items.length !== 1 ? 's' : ''}` : ''}
+                            </span>
+                          </div>
+
+                          {items.length === 0 ? (
+                            <p style={{ fontSize: '12px', color: '#999', margin: 0 }}>No line items yet. Upload a proposal to extract pricing.</p>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: '12px' }}>
+                                {visibleItems.map((item, i) => {
+                                  const isLi = i < visibleItems.length - 1 || (showToggle && !liExpanded)
+                                  return (
+                                    <div key={item.id} style={{ padding: '7px 0', borderBottom: isLi ? '0.5px solid var(--color-border)' : 'none' }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span style={{ color: '#2C2420' }}>
+                                          {item.normalized_label || item.label}
+                                          {item.quantity && item.quantity > 1 && (
+                                            <span style={{ color: '#999' }}> ×{item.quantity}</span>
+                                          )}
+                                        </span>
+                                        <span style={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: '#2C2420', flexShrink: 0, marginLeft: '12px' }}>
+                                          {item.amount != null ? `$${item.amount.toLocaleString()}` : '—'}
+                                        </span>
+                                      </div>
+                                      {liExpanded && item.normalized_label && item.label !== item.normalized_label && (
+                                        <p style={{ fontSize: '11px', color: '#999', margin: '2px 0 0', lineHeight: 1.4 }}>
+                                          {item.label}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+
+                              {showToggle && (
+                                <p
+                                  onClick={() => setLineItemsExpanded(prev => ({ ...prev, [vendor.id]: !liExpanded }))}
+                                  style={{ fontSize: '12px', color: '#B8944F', margin: '8px 0 0', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+                                >
+                                  {liExpanded ? 'Show less \u25B4' : `Show all ${items.length} items \u25BE`}
+                                </p>
+                              )}
+
+                              {/* Total row — always visible */}
+                              {items.some(i => i.amount != null) && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0', marginTop: '8px', borderTop: '0.5px solid #ccc' }}>
+                                  <span style={{ fontSize: '13px', fontWeight: 500, color: '#2C2420' }}>Total</span>
+                                  <span style={{ fontSize: '13px', fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: '#2C2420' }}>
+                                    ${total.toLocaleString()}
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          )}
+
+                          {/* Add item link */}
+                          {addingLineItem === vendor.id ? (
+                            <div style={{ marginTop: '10px', padding: '10px 12px', border: '1px solid var(--color-border)', borderRadius: '8px', background: '#fff' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '6px', marginBottom: '6px' }}>
+                                <input placeholder="Item description" value={newLineItem.label} onChange={e => setNewLineItem(f => ({ ...f, label: e.target.value, normalized_label: f.normalized_label || '' }))} style={{ fontSize: '12px' }} />
+                                <input type="number" placeholder="Amount" value={newLineItem.amount} onChange={e => setNewLineItem(f => ({ ...f, amount: e.target.value }))} style={{ fontSize: '12px' }} />
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <Button variant="secondary" onClick={() => { setAddingLineItem(null); setNewLineItem({ label: '', normalized_label: '', amount: '', quantity: '', unit: '' }) }}>Cancel</Button>
+                                <Button onClick={() => handleAddManualLineItem(vendor.id)} disabled={!newLineItem.label.trim()}>Add</Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p
+                              onClick={() => setAddingLineItem(vendor.id)}
+                              style={{ fontSize: '11px', color: '#B8944F', margin: '8px 0 0', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+                            >
+                              + Add item
+                            </p>
+                          )}
+                        </>
+                      )
+                    })()}
+                  </div>
+
+                  {/* RIGHT COLUMN: Payments + Contact */}
+                  <div style={{ padding: '18px 20px' }}>
+                    {/* Payments */}
+                    {(() => {
+                      const todayStr = new Date().toISOString().split('T')[0]
+                      const payments = vendorPayments[vendor.id] ?? []
+
+                      return (
+                        <>
+                          <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1.5px', color: '#5C524A', fontWeight: 500, margin: '0 0 10px' }}>
+                            Payments
+                          </p>
+
+                          {payments.length === 0 && (
+                            <p style={{ fontSize: '12px', color: '#999', margin: '0 0 4px' }}>No payments yet.</p>
+                          )}
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {payments.map(p => {
+                              const isOverdue = !!p.due_date && p.due_date < todayStr && !p.paid_date
+                              const isPaid = !!p.paid_date
+                              return (
+                                <div key={p.id} style={{ borderTop: '0.5px solid var(--color-border)', borderRight: '0.5px solid var(--color-border)', borderBottom: '0.5px solid var(--color-border)', borderLeft: `3px solid ${isOverdue ? '#C4785C' : '#8B9E7E'}`, borderRadius: '0 8px 8px 0', padding: '10px 12px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                      <p style={{ fontSize: '12px', fontWeight: 500, margin: 0, color: '#2C2420' }}>{p.label}</p>
+                                      <p style={{ fontSize: '11px', color: '#999', margin: '1px 0 0' }}>
+                                        {p.due_date ? new Date(p.due_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                                        {isPaid ? ' · Paid' : isOverdue ? ' · Overdue' : ''}
+                                        {p.paid_by ? ` · ${paidByLabel(p.paid_by)}` : ''}
+                                      </p>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <p style={{ fontSize: '12px', fontWeight: 500, color: isPaid ? '#8B9E7E' : '#2C2420', fontVariantNumeric: 'tabular-nums', margin: 0 }}>
+                                        ${p.amount.toLocaleString()}
+                                      </p>
+                                      {!isPaid && (
+                                        <button
+                                          onClick={() => handleMarkVendorPaymentPaid(p.id)}
+                                          style={{ fontSize: '10px', border: `1px solid ${isOverdue ? '#C4785C' : 'var(--color-border)'}`, borderRadius: '5px', padding: '2px 7px', color: isOverdue ? '#C4785C' : '#999', background: 'none', cursor: 'pointer' }}
+                                        >Pay</button>
+                                      )}
+                                      <button
+                                        onClick={() => handleDeleteVendorPayment(p.id)}
+                                        style={{ fontSize: '11px', color: '#999', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}
+                                      >×</button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          {addingPaymentFor === vendor.id ? (
+                            <div style={{ marginTop: '8px', padding: '10px 12px', border: '1px solid var(--color-border)', borderRadius: '8px', background: '#fff' }}>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]" style={{ marginBottom: '10px' }}>
+                                <div>
+                                  <label style={{ fontSize: '10px', color: '#999', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Label</label>
+                                  <input placeholder="Deposit" value={newVendorPayment.label} onChange={e => setNewVendorPayment(f => ({ ...f, label: e.target.value }))} style={{ display: 'block', fontSize: '12px' }} />
+                                </div>
+                                <div>
+                                  <label style={{ fontSize: '10px', color: '#999', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Amount ($)</label>
+                                  <input type="number" value={newVendorPayment.amount} onChange={e => setNewVendorPayment(f => ({ ...f, amount: e.target.value }))} style={{ display: 'block', fontSize: '12px' }} />
+                                </div>
+                                <div>
+                                  <label style={{ fontSize: '10px', color: '#999', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Due Date</label>
+                                  <input type="date" value={newVendorPayment.due_date} onChange={e => setNewVendorPayment(f => ({ ...f, due_date: e.target.value }))} style={{ display: 'block', fontSize: '12px' }} />
+                                </div>
+                                <div>
+                                  <label style={{ fontSize: '10px', color: '#999', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '3px' }}>Paid By</label>
+                                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                    {(['couple', 'family_a', 'family_b'] as const).map(key => (
+                                      <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => setNewVendorPayment(f => ({ ...f, paid_by: key }))}
+                                        style={{ fontSize: '11px', padding: '3px 9px', borderRadius: '20px', border: `1px solid ${newVendorPayment.paid_by === key ? '#B8944F' : 'var(--color-border)'}`, background: newVendorPayment.paid_by === key ? 'rgba(184,146,106,0.08)' : '#fff', color: newVendorPayment.paid_by === key ? '#B8944F' : '#999', cursor: 'pointer', fontWeight: newVendorPayment.paid_by === key ? 600 : 400 }}
+                                      >
+                                        {key === 'couple' ? 'Couple' : key === 'family_a' ? familyAName : familyBName}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <Button variant="secondary" onClick={() => { setAddingPaymentFor(null); setNewVendorPayment({ label: '', amount: '', due_date: '', paid_by: 'couple' }) }}>Cancel</Button>
+                                <Button onClick={() => handleAddVendorPayment(vendor.id)} disabled={savingVendorPayment || !newVendorPayment.label || !newVendorPayment.amount}>
+                                  {savingVendorPayment ? 'Saving...' : 'Add'}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p
+                              onClick={() => setAddingPaymentFor(vendor.id)}
+                              style={{ fontSize: '11px', color: '#B8944F', margin: '8px 0 0', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+                            >
+                              + Add payment
+                            </p>
+                          )}
+                        </>
+                      )
+                    })()}
+
+                    {/* Contact */}
+                    {(vendor.contact_email || vendor.contact_phone || vendor.website) && (
+                      <div style={{ marginTop: '20px' }}>
+                        <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1.5px', color: '#5C524A', fontWeight: 500, margin: '0 0 10px' }}>
+                          Contact
+                        </p>
+                        <div style={{ fontSize: '12px', lineHeight: 2.2 }}>
+                          {vendor.contact_email && (
+                            <p style={{ margin: 0, color: '#5C524A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                              {vendor.contact_email}
+                            </p>
+                          )}
+                          {vendor.contact_phone && (
+                            <p style={{ margin: 0, color: '#5C524A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                              {vendor.contact_phone}
+                            </p>
+                          )}
+                          {vendor.website && (
+                            <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                              <a href={vendor.website.startsWith('http') ? vendor.website : `https://${vendor.website}`} target="_blank" rel="noopener" style={{ color: '#B8944F', textDecoration: 'none' }}>
+                                {vendor.website.replace(/^https?:\/\//, '')}
+                              </a>
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
+
+                {/* ── SECTION 4: Communication log (full width) ──────────────── */}
+                <div style={{ padding: '0 24px 18px', borderTop: '0.5px solid var(--color-border)' }}>
+                  {renderNotesSection(vendor)}
+                </div>
+
+                </>
+                )}
+                </>
               ) : (
+              /* ═══════════════════════════════════════════════════════════════════
+                 NON-BOOKED VENDOR — Original layout (unchanged)
+                 ═══════════════════════════════════════════════════════════════════ */
+              <>
               <div
                 onClick={() => { setExpandedId(isExpanded ? null : vendor.id); setEditingId(null) }}
                 style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', cursor: 'pointer', background: isExpanded ? '#F5F1EC' : '#fff', transition: 'background 0.1s', borderLeft: '3px solid transparent' }}
@@ -2325,11 +2892,10 @@ export default function VendorDetail() {
                   <span style={{ fontSize: '16px', color: 'var(--color-text-muted)', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>›</span>
                 </div>
               </div>
-              )}
 
-              {/* Expanded panel */}
+              {/* Expanded panel (non-booked) */}
               {isExpanded && (
-                <div style={{ padding: '14px 16px', borderTop: '1px solid var(--color-border)', background: isBooked ? 'rgba(139,158,126,0.06)' : '#F5F1EC', borderLeft: isBooked ? '3px solid #7B8F6B' : '3px solid transparent' }}>
+                <div style={{ padding: '14px 16px', borderTop: '1px solid var(--color-border)', background: '#F5F1EC', borderLeft: '3px solid transparent' }}>
                   {isEditing ? (
                     /* Edit form */
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]" style={{ marginBottom: '12px' }}>
@@ -2409,13 +2975,7 @@ export default function VendorDetail() {
                     </>
                   )}
 
-                  {/* Payment progress (booked only) */}
-                  {vendor.status === 'booked' && !isEditing && renderPaymentProgress(vendor)}
-
-                  {/* Payment schedule (booked only) */}
-                  {vendor.status === 'booked' && !isEditing && renderPaymentSchedule(vendor)}
-
-                  {/* Documents + notes for all vendors */}
+                  {/* Documents + notes for non-booked vendors */}
                   {!isEditing && (
                     <>
                       {renderDocumentsSection(vendor)}
@@ -2445,6 +3005,8 @@ export default function VendorDetail() {
                     </div>
                   )}
                 </div>
+              )}
+              </>
               )}
             </div>
           )
@@ -2799,28 +3361,55 @@ export default function VendorDetail() {
         )
       })()}
 
-      {/* Toast notification */}
-      {toast && (
-        <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: `translateX(-50%) translateY(${toastVisible ? '0' : '16px'})`, opacity: toastVisible ? 1 : 0, transition: 'opacity 300ms, transform 300ms', background: '#2C2825', color: 'white', borderRadius: '8px', padding: '12px 24px', fontSize: '13px', fontFamily: 'var(--font-body)', boxShadow: '0 4px 16px rgba(0,0,0,0.25)', display: 'flex', gap: '14px', alignItems: 'center', zIndex: 1000, whiteSpace: 'nowrap' }}>
+      {/* Toast notification — portaled to body so page-transition transforms don't break position:fixed */}
+      {toast && createPortal(
+        <div className={`vendor-toast${toastVisible ? ' visible' : ''}`}>
           <span>{toast.message}</span>
           <button
             onClick={async () => {
               if (!toast) return
+              const { shortlistItem, shortlistIndex } = toast
               try {
                 await deleteVendor(toast.vendorId)
                 setVendors(prev => prev.filter(v => v.id !== toast.vendorId))
               } catch {
                 // undo failed silently
               }
+              if (shortlistItem) {
+                // Cancel any pending exit/remove timers for this card
+                const timers = cardTimersRef.current[shortlistItem.name]
+                if (timers) {
+                  timers.forEach(clearTimeout)
+                  delete cardTimersRef.current[shortlistItem.name]
+                }
+                // Re-insert at original position if it was already removed
+                if (!shortlistRef.current.some(s => s.name === shortlistItem.name)) {
+                  const next = [...shortlistRef.current]
+                  next.splice(Math.min(shortlistIndex ?? next.length, next.length), 0, shortlistItem)
+                  shortlistRef.current = next
+                  setShortlist(next)
+                  setCardStates(prev => ({ ...prev, [shortlistItem.name]: 'entering' }))
+                }
+                setAllSuggestionsAdded(false)
+                // Next frame: clear animation state so the card transitions back in
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                  setCardStates(prev => {
+                    const next = { ...prev }
+                    delete next[shortlistItem.name]
+                    return next
+                  })
+                }))
+              }
               if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
               setToastVisible(false)
               setTimeout(() => setToast(null), 300)
             }}
-            style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', background: 'none', border: 'none', cursor: 'pointer', padding: '0', textDecoration: 'underline', fontFamily: 'var(--font-body)' }}
+            style={{ fontSize: '12px', color: toast.shortlistItem ? '#C9A96E' : 'rgba(255,255,255,0.7)', background: 'none', border: 'none', cursor: 'pointer', padding: '0', textDecoration: 'underline', fontFamily: 'var(--font-body)', flexShrink: 0 }}
           >
             Undo
           </button>
-        </div>
+        </div>,
+        document.body
       )}
       {/* ─── Extraction Confirmation Card ──────────────────────────────────── */}
       {extractionResult && (

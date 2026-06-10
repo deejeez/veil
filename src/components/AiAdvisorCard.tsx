@@ -16,8 +16,6 @@ export default function AiAdvisorCard({ text, loading = false }: AiAdvisorCardPr
     >
       <div
         style={{
-          position: 'relative',
-          zIndex: 1,
           padding: '14px 16px',
           borderRadius: '12px',
           background: '#F5F1EC',

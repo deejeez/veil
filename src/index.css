@@ -165,6 +165,29 @@ input::placeholder, textarea::placeholder {
   .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
+/* ── Document tiles responsive (single column under 640px) ───────────────────── */
+
+@media (max-width: 639px) {
+  .doc-tiles-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Booked vendor layout responsive (single column under 768px) ──────────────── */
+
+@media (max-width: 767px) {
+  .booked-header-row {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .booked-header-row > div:last-child {
+    text-align: left !important;
+  }
+  .booked-columns {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 /* ── Responsive visibility helpers (bypasses Tailwind v4 variant generation) ── */
 
 /* Visible on mobile (<768px), hidden on tablet/desktop */
