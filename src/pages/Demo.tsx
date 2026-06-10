@@ -121,7 +121,7 @@ function Shell({ tab, setTab, children }: { tab: string; setTab: (t: string) => 
         {(['vendors', 'venue', 'finances'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ ...tabStyle(t), border: 'none', background: 'none' }}>
             <span style={{ fontSize: 16 }}>{TAB_ICONS[t]}</span>
-            <span>{t === 'venue' ? 'Venue' : t.charAt(0).toUpperCase() + t.slice(1)}</span>
+            <span>{t === 'venue' ? 'Venue' : t === 'finances' ? 'Payments' : t.charAt(0).toUpperCase() + t.slice(1)}</span>
           </button>
         ))}
       </div>
@@ -393,7 +393,7 @@ function FinancesPage() {
     <div>
       {/* Header */}
       <div style={{ padding: '18px 16px 10px', background: '#fff', borderBottom: '1px solid #E8E3DC' }}>
-        <div style={{ fontSize: 22, fontWeight: 400, fontFamily: 'Georgia, serif', color: '#2c2825', marginBottom: 2 }}>Finances</div>
+        <div style={{ fontSize: 22, fontWeight: 400, fontFamily: 'Georgia, serif', color: '#2c2825', marginBottom: 2 }}>Payment Tracker</div>
         <div style={{ fontSize: 12, color: '#A89F95' }}>Payment tracking across all booked vendors</div>
       </div>
 

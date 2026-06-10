@@ -1,12 +1,14 @@
 export type VendorStatus = 'not_started' | 'researching' | 'shortlisted' | 'meeting_scheduled' | 'booked' | 'eliminated'
 
 export type VibeProfile = {
-  aesthetic: 'romantic' | 'modern' | 'rustic' | 'industrial' | 'maximalist' | 'minimalist'
-  formality: 'black_tie' | 'cocktail' | 'garden_party' | 'casual'
-  setting: 'urban_venue' | 'countryside' | 'beach' | 'ballroom' | 'restaurant'
-  vibe_words: string[]   // 3 selected from grid
-  music_style: 'live_band' | 'dj' | 'acoustic' | 'classical' | 'mixed'
-  priority: 'food' | 'photography' | 'flowers' | 'music' | 'decor'
+  /** Multi-select vibe values from onboarding, e.g. ['classic_elegant', 'modern_minimal'] */
+  vibes?: string[]
+  aesthetic?: 'romantic' | 'modern' | 'rustic' | 'industrial' | 'maximalist' | 'minimalist'
+  formality?: 'black_tie' | 'cocktail' | 'garden_party' | 'casual'
+  setting?: 'urban_venue' | 'countryside' | 'beach' | 'ballroom' | 'restaurant'
+  vibe_words?: string[]   // 3 selected from grid
+  music_style?: 'live_band' | 'dj' | 'acoustic' | 'classical' | 'mixed'
+  priority?: 'food' | 'photography' | 'flowers' | 'music' | 'decor'
 }
 
 export type Couple = {

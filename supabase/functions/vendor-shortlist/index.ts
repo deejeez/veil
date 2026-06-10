@@ -93,51 +93,46 @@ Deno.serve(async (req) => {
       return `${season} ${d.getFullYear()} wedding (${d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})`
     })()
 
-    const vibeDesc = couple.vibe_profile
+    const vp = couple.vibe_profile
+    const vibeDesc = vp
       ? [
-          `Aesthetic: ${couple.vibe_profile.aesthetic}`,
-          `Formality: ${couple.vibe_profile.formality}`,
-          `Setting: ${couple.vibe_profile.setting}`,
-          couple.vibe_profile.vibe_words?.length ? `Vibe words: ${couple.vibe_profile.vibe_words.join(', ')}` : '',
-          `Music style: ${couple.vibe_profile.music_style}`,
-          `Top priority: ${couple.vibe_profile.priority}`,
-        ].filter(Boolean).join(' | ')
+          vp.vibes?.length ? `Vibe: ${vp.vibes.map((x: string) => x.replace(/_/g, ' ')).join(', ')}` : '',
+          vp.aesthetic ? `Aesthetic: ${vp.aesthetic}` : '',
+          vp.formality ? `Formality: ${vp.formality}` : '',
+          vp.setting ? `Setting: ${vp.setting}` : '',
+          vp.vibe_words?.length ? `Vibe words: ${vp.vibe_words.join(', ')}` : '',
+          vp.music_style ? `Music style: ${vp.music_style}` : '',
+          vp.priority ? `Top priority: ${vp.priority}` : '',
+        ].filter(Boolean).join(' | ') || 'No vibe profile specified'
       : 'No vibe profile specified'
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2000,
       // deno-lint-ignore no-explicit-any
-      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }] as any,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }] as any,
       messages: [{
         role: 'user',
-        content: `You are an expert wedding planner helping a couple find vendors.
+        content: `You are an expert wedding planner helping a couple find vendors. Be fast and concise.
 
 Location: ${location}
 Looking for: ${categoryLabel}
 Wedding: ${weddingContext}
 Couple's vibe: ${vibeDesc}
 
-Suggest 5 real, well-reviewed ${categoryLabel}s in or near ${location} that match this couple's style and wedding season. Use web search to verify these are real businesses and to look up their current reviews and ratings on platforms like Google, The Knot, WeddingWire, and Yelp.${allExcluded.length > 0 ? `\n\nDo NOT suggest any of these vendors (already added or previously shown): ${allExcluded.join(', ')}. Return 5 completely different suggestions.` : ''}
+Suggest 5 real ${categoryLabel}s in or near ${location} that match this couple's style and wedding season. You may use web search briefly to confirm these are real businesses, but keep research minimal — do NOT research reviews or ratings.${allExcluded.length > 0 ? `\n\nDo NOT suggest any of these vendors (already added or previously shown): ${allExcluded.join(', ')}. Return 5 completely different suggestions.` : ''}
 
-For each vendor, also include review data based on what you find:
-- review_summary: 1-2 sentences synthesizing the overall sentiment of their reviews (what couples consistently praise or mention). Use null if you can't find any reviews.
-- ratings: array of ratings you found, one entry per platform (Google, The Knot, WeddingWire, Yelp, etc.) with the rating, review count, and a URL to the review page if available. Use an empty array if none found.
-- review_highlight: one specific, notable thing a reviewer mentioned (e.g. "Multiple reviews mention the team handled a sudden rain plan flawlessly"). Use null if nothing stands out.
-
-After your research, respond with ONLY valid JSON in this exact format, no markdown, no citations inside the JSON:
+Respond with ONLY valid JSON in this exact format, no markdown, no citations inside the JSON:
 {
   "vendors": [
     {
       "name": "Actual Business Name",
-      "address": "City, State (or full address if known)",
+      "location": "City, State",
+      "style_tags": "3-4 words max, e.g. garden-romantic, lush, textured",
+      "price_range": "Estimated range for this city and wedding type, e.g. $12K–$20K",
+      "description": "Max 2 sentences describing the vendor",
       "website": "https://website.com or empty string if unknown",
-      "style": "2-4 style descriptors matching their aesthetic, e.g. Garden-romantic, lush and textured",
-      "price_range": "Estimated range for this city and wedding type, e.g. $12K–$20K for NYC",
-      "why_fit": "One sentence: why this vendor fits this couple's specific vibe and season",
-      "review_summary": "1-2 sentence review sentiment synthesis, or null",
-      "ratings": [{ "platform": "Google", "rating": 4.8, "review_count": 127, "url": "https://..." }],
-      "review_highlight": "One specific notable reviewer mention, or null"
+      "why_good_fit": "One sentence: why this vendor fits this couple's specific vibe and season"
     }
   ]
 }`,

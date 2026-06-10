@@ -85,8 +85,15 @@ Deno.serve(async (req) => {
     const daysToGo = weddingDate ? Math.ceil((weddingDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
     const monthsOut = daysToGo ? Math.round(daysToGo / 30) : null
 
-    const vibeDesc = couple.vibe_profile
-      ? `${couple.vibe_profile.aesthetic ?? ''}, ${couple.vibe_profile.formality ?? ''}, ${couple.vibe_profile.setting ?? ''}, priority: ${couple.vibe_profile.priority ?? ''}`
+    const vp = couple.vibe_profile
+    const vibeDesc = vp
+      ? [
+          vp.vibes?.length ? vp.vibes.map((x: string) => x.replace(/_/g, ' ')).join(', ') : '',
+          vp.aesthetic ?? '',
+          vp.formality ?? '',
+          vp.setting ?? '',
+          vp.priority ? `priority: ${vp.priority}` : '',
+        ].filter(Boolean).join(', ') || 'Not set'
       : 'Not set'
 
     const budgetLines = (budgetCategories ?? [])
@@ -129,6 +136,7 @@ ${upcomingPayments.map((p: { label: string | null; amount: number | null; due_da
   `- ${p.label ?? 'Payment'}: ${(p.amount ?? 0).toLocaleString()} due ${p.due_date}`).join('\n') || 'None scheduled'}
 
 VENDORS (${bookedVendors.length} booked of ${(vendors ?? []).length} total):
+ALREADY-BOOKED CATEGORIES (these are DONE, do not suggest booking them): ${[...new Set(bookedVendors.map((v: { category: string }) => v.category))].join(', ') || 'none yet'}
 ${(vendors ?? []).map((v: { category: string; name: string | null; status: string; booked_amount: number | null }) =>
   `- ${v.category}: ${v.name ?? 'unnamed'} (${v.status})${v.booked_amount ? ` — ${v.booked_amount.toLocaleString()}` : ''}`).join('\n') || 'None added yet'}
 
@@ -137,6 +145,10 @@ ${lineItemLines ? `VENDOR PROPOSAL/CONTRACT LINE ITEMS:\n${lineItemLines}` : ''}
 MANUALLY COMPLETED MILESTONES (${(milestones ?? []).length} checked off by the couple):
 ${milestoneLines || 'None checked off yet'}
     `.trim()
+
+    // Debug: verify the model sees correct vendor statuses (check with
+    // `supabase functions logs chat-assistant`)
+    console.log(`contextSummary for couple ${couple.id}:\n${contextSummary}`)
 
     const systemPrompt = `You are the AI wedding planner inside Veil. You have complete knowledge of this couple's wedding planning data.
 
@@ -150,7 +162,7 @@ RULES:
    - [[/vendors/photographer|Go to Photographers]]
    - [[/budget|View your budget]]
    - [[/timeline|Check your timeline]]
-   - [[/finances|View payments]]
+   - [[/finances|Open Payment Tracker]] (the /finances page is called "Payment Tracker" in the app)
    - [[/vendors|Browse vendors]]
    - [[/guests|Guest list]]
    - [[/settings|Settings]]
@@ -159,7 +171,8 @@ RULES:
 7. No em dashes. No buzzwords. Write like a smart friend who happens to be a wedding planner.
 8. If they seem stressed, acknowledge it briefly but stay practical. Don't be therapist-y.
 9. For vendor recommendations or comparisons, reference their actual vendor data and line items when available.
-10. Keep the conversation contextual. If they were just talking about florists, don't pivot to budget unless they do.`
+10. Keep the conversation contextual. If they were just talking about florists, don't pivot to budget unless they do.
+11. CRITICAL: Before suggesting any action related to vendors, CHECK the vendor list above. If a vendor category shows status 'booked', do NOT tell the user to book it. Acknowledge it's already handled.`
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

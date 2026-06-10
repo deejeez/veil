@@ -464,7 +464,7 @@ export default function Finances() {
 
         {/* Page header */}
         <div>
-          <div style={{ fontSize: '22px', fontWeight: 400, fontFamily: 'var(--font-heading)', color: 'var(--color-text-primary)', marginBottom: '3px' }}>Finances</div>
+          <div style={{ fontSize: '22px', fontWeight: 400, fontFamily: 'var(--font-heading)', color: 'var(--color-text-primary)', marginBottom: '3px' }}>Payment Tracker</div>
           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Payment tracking across all booked vendors</div>
         </div>
 

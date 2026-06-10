@@ -54,7 +54,7 @@ const navItems: { to: string; label: string; icon: IconName }[] = [
   { to: '/venue',     label: 'Venue',     icon: 'venue' },
   { to: '/guests',    label: 'Guests',    icon: 'guests' },
   { to: '/budget',    label: 'Budget',    icon: 'budget' },
-  { to: '/finances',  label: 'Finances',  icon: 'finances' },
+  { to: '/finances',  label: 'Payment Tracker',  icon: 'finances' },
   { to: '/timeline',  label: 'Timeline',  icon: 'timeline' },
   { to: '/settings',  label: 'Settings',  icon: 'settings' },
 ]

@@ -82,8 +82,15 @@ Deno.serve(async (req) => {
       `${m.milestone_key.replace(/_/g, ' ')} (completed ${m.completed_at?.split('T')[0] ?? 'unknown'})`
     ).join('\n')
 
-    const vibeDesc = couple.vibe_profile
-      ? `Aesthetic: ${couple.vibe_profile.aesthetic}, Formality: ${couple.vibe_profile.formality}, Setting: ${couple.vibe_profile.setting}, Priority: ${couple.vibe_profile.priority}`
+    const vp = couple.vibe_profile
+    const vibeDesc = vp
+      ? [
+          vp.vibes?.length ? `Vibe: ${vp.vibes.map((x: string) => x.replace(/_/g, ' ')).join(', ')}` : '',
+          vp.aesthetic ? `Aesthetic: ${vp.aesthetic}` : '',
+          vp.formality ? `Formality: ${vp.formality}` : '',
+          vp.setting ? `Setting: ${vp.setting}` : '',
+          vp.priority ? `Priority: ${vp.priority}` : '',
+        ].filter(Boolean).join(', ') || 'No vibe profile'
       : 'No vibe profile'
 
     const message = await anthropic.messages.create({

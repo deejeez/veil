@@ -191,7 +191,7 @@ export default function Venue() {
         {sortedPayments.length === 0 && venue.status === 'booked' && (
           <Card>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-secondary)', margin: 0 }}>
-              No payments recorded yet. Add them in <button onClick={() => navigate('/finances')} style={{ background: 'none', border: 'none', color: 'var(--color-accent)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '14px', padding: 0, textDecoration: 'underline' }}>Finances</button>.
+              No payments recorded yet. Add them in <button onClick={() => navigate('/finances')} style={{ background: 'none', border: 'none', color: 'var(--color-accent)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '14px', padding: 0, textDecoration: 'underline' }}>Payment Tracker</button>.
             </p>
           </Card>
         )}

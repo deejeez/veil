@@ -36,10 +36,12 @@ export type PhaseStatus = {
 }
 
 function vendorStatus(vendors: Vendor[], category: string): MilestoneStatus {
-  const v = vendors.find(v => v.category === category)
-  if (!v || v.status === 'not_started') return 'pending'
-  if (v.status === 'booked') return 'done'
-  return 'in_progress'
+  // A category can have multiple vendor rows (e.g. shortlisted candidates plus
+  // the one that got booked), so check ALL rows — booked anywhere wins.
+  const rows = vendors.filter(v => v.category === category)
+  if (rows.some(v => v.status === 'booked')) return 'done'
+  if (rows.some(v => v.status !== 'not_started' && v.status !== 'eliminated')) return 'in_progress'
+  return 'pending'
 }
 
 function allBooked(vendors: Vendor[], categories: string[]): MilestoneStatus {
@@ -92,9 +94,10 @@ export function deriveTimelineStatus(
     : 'pending'
 
   // Wedding planner: deciding NOT to hire one (eliminated) also completes the milestone
-  const plannerVendor = vendors.find(v => v.category === 'wedding_planner')
-  const plannerEliminated = plannerVendor?.status === 'eliminated'
-  const plannerStatus: MilestoneStatus = plannerEliminated ? 'done' : vendorStatus(vendors, 'wedding_planner')
+  const plannerVendorStatus = vendorStatus(vendors, 'wedding_planner')
+  const plannerEliminated = plannerVendorStatus !== 'done' &&
+    vendors.some(v => v.category === 'wedding_planner' && v.status === 'eliminated')
+  const plannerStatus: MilestoneStatus = plannerEliminated ? 'done' : plannerVendorStatus
 
   const phases: PhaseStatus[] = [
     {

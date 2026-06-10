@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { getCoupleForUser } from '../../lib/couple'
+import { getCoupleForUser, updateCouple } from '../../lib/couple'
 import { upsertVendor } from '../../lib/vendors'
+import type { Couple } from '../../types/database'
 
 const VENDOR_TILES = [
   { category: 'venue',           label: 'Venue',           icon: (
@@ -91,18 +92,21 @@ function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
 
 export default function OnboardingStep2() {
   const navigate = useNavigate()
-  const [coupleId, setCoupleId] = useState<string | null>(null)
+  const [couple, setCouple] = useState<Couple | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [vibe, setVibe] = useState<VibeValue | ''>('')
+  const [vibes, setVibes] = useState<Set<VibeValue>>(new Set())
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const couple = await getCoupleForUser(user.id)
-      if (!couple) return
-      setCoupleId(couple.id)
+      const c = await getCoupleForUser(user.id)
+      if (!c) return
+      setCouple(c)
+      if (c.vibe_profile?.vibes?.length) {
+        setVibes(new Set(c.vibe_profile.vibes as VibeValue[]))
+      }
     }
     load()
   }, [])
@@ -116,24 +120,42 @@ export default function OnboardingStep2() {
     })
   }
 
+  function toggleVibe(value: VibeValue) {
+    setVibes(prev => {
+      const next = new Set(prev)
+      if (next.has(value)) next.delete(value)
+      else next.add(value)
+      return next
+    })
+  }
+
+  async function saveVibes() {
+    if (!couple) return
+    const vibeArray = Array.from(vibes)
+    localStorage.setItem('veil_onboarding_vibe', JSON.stringify(vibeArray))
+    await updateCouple(couple.id, {
+      vibe_profile: { ...(couple.vibe_profile ?? {}), vibes: vibeArray },
+    })
+  }
+
   async function handleNext() {
-    if (!coupleId || saving) return
+    if (!couple || saving) return
     setSaving(true)
     try {
       const selectedCategories = Array.from(selected)
-      await Promise.all(
-        selectedCategories.map(category => {
+      await Promise.all([
+        ...selectedCategories.map(category => {
           const tile = VENDOR_TILES.find(t => t.category === category)
           return upsertVendor({
-            couple_id: coupleId,
+            couple_id: couple.id,
             category,
             name: tile?.label ?? null,
             status: 'booked',
           })
-        })
-      )
+        }),
+        saveVibes(),
+      ])
       localStorage.setItem('veil_onboarding_booked', JSON.stringify(selectedCategories))
-      if (vibe) localStorage.setItem('veil_onboarding_vibe', vibe)
       navigate('/onboarding/3')
     } catch {
       alert('Something went wrong. Please try again.')
@@ -144,7 +166,11 @@ export default function OnboardingStep2() {
 
   async function handleSkip() {
     localStorage.setItem('veil_onboarding_booked', JSON.stringify([]))
-    if (vibe) localStorage.setItem('veil_onboarding_vibe', vibe)
+    try {
+      await saveVibes()
+    } catch {
+      // vibe save failure shouldn't block onboarding
+    }
     navigate('/onboarding/3')
   }
 
@@ -185,13 +211,16 @@ export default function OnboardingStep2() {
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
             {VIBE_TILES.map(tile => {
-              const isSelected = vibe === tile.value
+              const isSelected = vibes.has(tile.value)
               return (
                 <button
                   key={tile.value}
                   type="button"
-                  onClick={() => setVibe(isSelected ? '' : tile.value)}
+                  onClick={() => toggleVibe(tile.value)}
                   style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
                     padding: '8px 16px',
                     borderRadius: '20px',
                     border: `1.5px solid ${isSelected ? 'var(--color-accent)' : 'var(--color-border)'}`,
@@ -205,6 +234,22 @@ export default function OnboardingStep2() {
                     whiteSpace: 'nowrap',
                   }}
                 >
+                  {isSelected && (
+                    <span style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                      background: 'var(--color-accent)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <svg width="9" height="7" viewBox="0 0 10 8" fill="none">
+                        <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </span>
+                  )}
                   {tile.label}
                 </button>
               )

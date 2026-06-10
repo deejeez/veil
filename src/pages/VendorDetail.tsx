@@ -43,14 +43,18 @@ function initials(name: string) {
 
 type ShortlistItem = {
   name: string
-  address: string
-  website?: string
-  style?: string
+  location?: string
+  style_tags?: string
   price_range?: string
-  why_fit?: string
-  review_summary?: string | null
-  review_highlight?: string | null
-  ratings?: { platform: string; rating: number; review_count: number; url?: string }[]
+  description?: string
+  website?: string
+  why_good_fit?: string
+}
+
+const SHORTLIST_CACHE_TTL = 60 * 60 * 1000 // 1 hour
+
+function shortlistCacheKey(coupleId: string, category: string) {
+  return `veil_shortlist_${coupleId}_${category}`
 }
 
 export default function VendorDetail() {
@@ -72,7 +76,6 @@ export default function VendorDetail() {
   const cardTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>[]>>({})
   const shortlistRef = useRef<ShortlistItem[]>([])
   const [allSuggestionsAdded, setAllSuggestionsAdded] = useState(false)
-  const [expandedReviews, setExpandedReviews] = useState<Record<string, boolean>>({})
   const [contracts, setContracts] = useState<{ id: string; vendor_id: string; file_path: string; file_name: string; document_type: 'contract' | 'proposal'; ai_review: AiReview | null; uploaded_at: string }[]>([])
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null) // 'vendorId-contract' or 'vendorId-proposal'
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -138,6 +141,26 @@ export default function VendorDetail() {
 
   // Keep a ref mirror of the shortlist so timer callbacks read fresh data
   useEffect(() => { shortlistRef.current = shortlist }, [shortlist])
+
+  // Restore cached AI suggestions (1-hour TTL) so returning to this page is instant
+  useEffect(() => {
+    if (!couple?.id || !category) return
+    try {
+      const key = shortlistCacheKey(couple.id, category)
+      const raw = localStorage.getItem(key)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as { ts?: number; vendors?: ShortlistItem[]; history?: string[] }
+      if (!parsed?.ts || Date.now() - parsed.ts > SHORTLIST_CACHE_TTL || !Array.isArray(parsed.vendors) || parsed.vendors.length === 0) {
+        localStorage.removeItem(key)
+        return
+      }
+      setShortlist(parsed.vendors)
+      setSuggestedHistory(parsed.history ?? parsed.vendors.map(v => v.name))
+      setShortlistExpanded(true)
+    } catch {
+      // ignore corrupt cache
+    }
+  }, [couple?.id, category])
 
   // Clear pending card animation timers on unmount
   useEffect(() => () => {
@@ -386,12 +409,20 @@ export default function VendorDetail() {
         setShortlistError('No suggestions found for your location. Make sure your city is set in your profile.')
         return
       }
-      setSuggestedHistory(prev => [...prev, ...newVendors.map(v => v.name)])
+      const nextHistory = [...suggestedHistory, ...newVendors.map(v => v.name)]
+      setSuggestedHistory(nextHistory)
       setShortlist(newVendors)
       setAllSuggestionsAdded(false)
       setCardStates({})
-      setExpandedReviews({})
       setShortlistExpanded(true)
+      try {
+        localStorage.setItem(
+          shortlistCacheKey(couple.id, category!),
+          JSON.stringify({ ts: Date.now(), vendors: newVendors, history: nextHistory })
+        )
+      } catch {
+        // localStorage full/unavailable — caching is best-effort
+      }
       track('shortlist_generated', { category })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Couldn't generate suggestions — try again"
@@ -1628,20 +1659,39 @@ export default function VendorDetail() {
             transform: translateY(0);
           }
         }
-        .shortlist-ratings {
+        @keyframes skeletonShimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        @keyframes skeletonFadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .shortlist-skeleton {
           display: flex;
-          align-items: center;
-          gap: 4px;
-          flex-wrap: wrap;
-          font-size: 12px;
-          margin: 8px 0;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 10px 14px;
+          margin-bottom: 8px;
+          border: 1px solid var(--color-border);
+          border-radius: 8px;
+          background: var(--color-bg);
+          animation: skeletonFadeIn 250ms ease-out backwards;
         }
-        .shortlist-rating-star {
-          color: #C9A96E;
+        .skeleton-line {
+          height: 10px;
+          border-radius: 4px;
+          background: linear-gradient(90deg, #EDE8E1 25%, #F7F3EC 50%, #EDE8E1 75%);
+          background-size: 200% 100%;
+          animation: skeletonShimmer 1.2s ease-in-out infinite;
         }
-        .shortlist-rating-platform {
-          color: #999;
-          margin-right: 8px;
+        @keyframes shortlistReveal {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .shortlist-card-reveal {
+          animation: shortlistReveal 300ms ease-out backwards;
         }
       `}</style>
       {/* Back */}
@@ -2253,8 +2303,25 @@ export default function VendorDetail() {
         </div>
       </GlowBorder>}
 
+      {/* Skeleton shimmer cards while suggestions load */}
+      {shortlistLoading && (
+        <div style={{ marginBottom: '14px' }}>
+          {[0, 1, 2, 3, 4].map(i => (
+            <div key={i} className="shortlist-skeleton" style={{ animationDelay: `${i * 100}ms` }}>
+              <div style={{ flex: 1 }}>
+                <div className="skeleton-line" style={{ width: '40%', height: '13px', marginBottom: '8px' }} />
+                <div className="skeleton-line" style={{ width: '25%', marginBottom: '10px' }} />
+                <div className="skeleton-line" style={{ width: '90%', marginBottom: '6px' }} />
+                <div className="skeleton-line" style={{ width: '70%' }} />
+              </div>
+              <div className="skeleton-line" style={{ width: '58px', height: '26px', borderRadius: '6px', flexShrink: 0 }} />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Shortlist results (collapsible) */}
-      {(shortlist.length > 0 || allSuggestionsAdded) && (
+      {!shortlistLoading && (shortlist.length > 0 || allSuggestionsAdded) && (
         <div style={{ marginBottom: '14px' }}>
           {shortlist.length > 0 && (
             <button
@@ -2274,22 +2341,20 @@ export default function VendorDetail() {
               {shortlist.map((v, i) => {
                 const isAdded = vendors.some(vd => vd.name === v.name)
                 const cardState = cardStates[v.name]
-                const reviewsOpen = !!expandedReviews[v.name]
-                const ratings = v.ratings?.filter(r => r && r.platform && typeof r.rating === 'number') ?? []
-                const hasReviewData = ratings.length > 0 || (v.review_summary !== undefined && v.review_summary !== null)
-                const noReviews = v.review_summary === null && ratings.length === 0
                 return (
                 <div
                   key={v.name}
-                  className={`shortlist-card${cardState === 'exiting' ? ' exiting' : ''}${cardState === 'entering' ? ' entering' : ''}`}
-                  style={{ background: isAdded ? 'rgba(123, 143, 107, 0.06)' : 'var(--color-bg)' }}
+                  className={`shortlist-card${cardState === 'exiting' ? ' exiting' : ''}${cardState === 'entering' ? ' entering' : ''}${!cardState ? ' shortlist-card-reveal' : ''}`}
+                  style={{ background: isAdded ? 'rgba(123, 143, 107, 0.06)' : 'var(--color-bg)', ...(!cardState ? { animationDelay: `${i * 80}ms` } : {}) }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: '#2c2825', marginBottom: '1px' }}>{v.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>{v.address}</div>
-                    {v.style && (
+                    {v.location && (
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>{v.location}</div>
+                    )}
+                    {v.style_tags && (
                       <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginBottom: '2px' }}>
-                        <span style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>Style:</span> {v.style}
+                        <span style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>Style:</span> {v.style_tags}
                       </div>
                     )}
                     {v.price_range && (
@@ -2297,59 +2362,11 @@ export default function VendorDetail() {
                         <span style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>Est. range:</span> {v.price_range}
                       </div>
                     )}
-                    {v.why_fit && (
-                      <div style={{ fontSize: '11px', color: '#7a6358', fontStyle: 'italic', marginBottom: '4px' }}>{v.why_fit}</div>
+                    {v.description && (
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginBottom: '2px' }}>{v.description}</div>
                     )}
-                    {hasReviewData && (
-                      noReviews ? (
-                        <div className="shortlist-ratings" style={{ color: 'var(--color-text-muted)' }}>No reviews available</div>
-                      ) : (
-                        <>
-                          {ratings.length > 0 && (
-                            <div className="shortlist-ratings" style={{ color: '#5C524A' }}>
-                              {ratings.map((r, ri) => (
-                                <span key={r.platform} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                  {ri > 0 && <span style={{ color: '#D4CFC8', margin: '0 4px' }}>·</span>}
-                                  <span className="shortlist-rating-star">★</span>
-                                  <span style={{ fontWeight: 600 }}>{r.rating.toFixed(1)}</span>
-                                  <span className="shortlist-rating-platform">{r.platform}{r.review_count ? ` (${r.review_count})` : ''}</span>
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {v.review_summary && (
-                            <>
-                              <button
-                                onClick={() => setExpandedReviews(prev => ({ ...prev, [v.name]: !reviewsOpen }))}
-                                style={{ fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '0', fontWeight: 600, display: 'block', marginBottom: '4px' }}
-                              >
-                                {reviewsOpen ? 'Show less ▴' : 'Read summary ▾'}
-                              </button>
-                              {reviewsOpen && (
-                                <div style={{ marginBottom: '4px' }}>
-                                  <div style={{ fontSize: '13px', color: '#2C2420', fontStyle: 'italic', marginBottom: '6px' }}>{v.review_summary}</div>
-                                  {v.review_highlight && (
-                                    <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', borderLeft: '2px solid #8B9E7E', paddingLeft: '8px', marginBottom: '6px' }}>
-                                      {v.review_highlight}
-                                    </div>
-                                  )}
-                                  {ratings.some(r => r.url) && (
-                                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                                      Read reviews on:{' '}
-                                      {ratings.filter(r => r.url).map((r, ri) => (
-                                        <span key={r.platform}>
-                                          {ri > 0 && ' · '}
-                                          <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ color: '#C9A96E' }}>{r.platform}</a>
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </>
-                      )
+                    {v.why_good_fit && (
+                      <div style={{ fontSize: '11px', color: '#7a6358', fontStyle: 'italic', marginBottom: '4px' }}>{v.why_good_fit}</div>
                     )}
                     {v.website && (
                       <a href={v.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--color-accent)' }}>
@@ -2363,9 +2380,9 @@ export default function VendorDetail() {
                       if (!couple || cardStates[v.name]) return
                       try {
                         const notesLines = [
-                          v.style ? `Style: ${v.style}` : '',
+                          v.style_tags ? `Style: ${v.style_tags}` : '',
                           v.price_range ? `Est. range: ${v.price_range}` : '',
-                          v.why_fit ? `AI note: ${v.why_fit}` : '',
+                          v.why_good_fit ? `AI note: ${v.why_good_fit}` : '',
                         ].filter(Boolean)
                         const vendor = await upsertVendor({
                           couple_id: couple.id,
