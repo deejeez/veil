@@ -21,6 +21,7 @@ import Demo from './pages/Demo'
 import AuthGuard from './components/AuthGuard'
 import PaywallGuard from './components/PaywallGuard'
 import OnboardingGuard from './components/OnboardingGuard'
+import ChatAssistant from './components/ChatAssistant'
 
 export default function App() {
   return (
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/accept-invite" element={<AcceptInvite />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ChatAssistant />
     </BrowserRouter>
   )
 }
