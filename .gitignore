@@ -25,3 +25,8 @@ dist-ssr
 *.sw?
 .gstack/
 .vercel
+
+# Local tooling and generated artifacts
+.superpowers/
+supabase/.temp/
+test-results/
