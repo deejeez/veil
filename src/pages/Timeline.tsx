@@ -15,9 +15,10 @@ import {
   getCurrentPhaseId,
   buildDataFingerprint,
   type PhaseStatus,
-  type MilestoneStatus,
+  type MilestoneInfo,
+  type MilestoneCompletion,
 } from '../lib/deriveTimelineStatus'
-import type { Couple } from '../types/database'
+import type { Couple, Vendor, Guest, BudgetCategory } from '../types/database'
 
 type TimelineResult = {
   overall_status: 'On Track' | 'Needs Attention' | 'Behind'
@@ -92,36 +93,59 @@ function resolveItemLink(item: string): string | null {
   return null
 }
 
-// Circle indicator for milestone status
-function MilestoneCircle({ status }: { status: MilestoneStatus }) {
+const MILESTONE_SAGE = '#8B9E7E'
+const MILESTONE_GOLD = '#C9A96E'
+
+function formatCompletedDate(iso?: string): string {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// Circle indicator for a milestone — done (sage check), manual incomplete (gold ring),
+// auto in-progress (gold tint), or auto pending (grey ring)
+function MilestoneCircle({ m, sparkling }: { m: MilestoneInfo; sparkling: boolean }) {
   const baseStyle: React.CSSProperties = {
-    width: '15px',
-    height: '15px',
+    width: '16px',
+    height: '16px',
     borderRadius: '50%',
     flexShrink: 0,
-    marginTop: '1px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '8px',
+    fontSize: '9px',
     fontWeight: 700,
-    transition: 'all 0.15s ease',
+    transition: 'background 0.3s ease, border-color 0.3s ease, color 0.3s ease',
+    position: 'relative',
   }
 
-  if (status === 'done') {
-    return (
-      <div style={{ ...baseStyle, background: '#7B8F6B', border: '2px solid #7B8F6B', color: '#fff' }}>
-        ✓
-      </div>
-    )
+  let style: React.CSSProperties
+  if (m.status === 'done') {
+    style = { ...baseStyle, background: MILESTONE_SAGE, border: `2px solid ${MILESTONE_SAGE}`, color: '#fff' }
+  } else if (m.type === 'manual') {
+    style = { ...baseStyle, background: 'transparent', border: `1.5px solid ${MILESTONE_GOLD}` }
+  } else if (m.status === 'in_progress') {
+    style = { ...baseStyle, background: 'rgba(184,146,106,0.15)', border: '2px solid #B8926A' }
+  } else {
+    style = { ...baseStyle, background: 'transparent', border: '2px solid #D4CFC8' }
   }
-  if (status === 'in_progress') {
-    return (
-      <div style={{ ...baseStyle, background: 'rgba(184,146,106,0.15)', border: '2px solid #B8926A' }} />
-    )
-  }
+
   return (
-    <div style={{ ...baseStyle, background: 'transparent', border: '2px solid #D4CFC8' }} />
+    <div style={style}>
+      {m.status === 'done' ? '✓' : ''}
+      {sparkling && [0, 1, 2, 3].map(i => {
+        const angle = (i / 4) * Math.PI * 2 + Math.PI / 5
+        return (
+          <span
+            key={i}
+            className="tl-sparkle-dot"
+            style={{
+              ['--dx' as string]: `${Math.round(Math.cos(angle) * 16)}px`,
+              ['--dy' as string]: `${Math.round(Math.sin(angle) * 16)}px`,
+            } as React.CSSProperties}
+          />
+        )
+      })}
+    </div>
   )
 }
 
@@ -133,6 +157,11 @@ function PhaseCard({
   weddingDate,
   expanded,
   onToggle,
+  sparklingKey,
+  confirmKey,
+  onMilestoneCheck,
+  onUndoConfirm,
+  onUndoCancel,
 }: {
   phase: PhaseStatus
   isCurrent: boolean
@@ -140,6 +169,11 @@ function PhaseCard({
   weddingDate: Date | null
   expanded: boolean
   onToggle: () => void
+  sparklingKey: string | null
+  confirmKey: string | null
+  onMilestoneCheck: (m: MilestoneInfo) => void
+  onUndoConfirm: (m: MilestoneInfo) => void
+  onUndoCancel: () => void
 }) {
   const navigate = useNavigate()
   const allDone = phase.doneCount === phase.totalCount && phase.totalCount > 0
@@ -191,8 +225,12 @@ function PhaseCard({
             </span>
           )}
 
-          {isPast && !isCurrent && (
-            <span style={{ fontSize: '11px', color: '#7B8F6B', fontFamily: 'var(--font-body)' }}>
+          {allDone && (
+            <span style={{
+              fontSize: '10px', fontWeight: 600, color: '#5A7A4A',
+              background: '#E8F0E4', padding: '2px 7px', borderRadius: '6px',
+              fontFamily: 'var(--font-body)', flexShrink: 0,
+            }}>
               ✓ Done
             </span>
           )}
@@ -230,41 +268,98 @@ function PhaseCard({
       {/* Milestones list — shown when expanded */}
       {expanded && (
         <div style={{ padding: '0 16px 14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {phase.milestones.map((m, i) => {
-            const isClickable = !!m.link
+          {phase.milestones.map(m => {
+            const done = m.status === 'done'
+            const navigable = m.type === 'auto' && !done && !!m.link
             return (
-              <div
-                key={i}
-                onClick={() => m.link && navigate(m.link)}
-                style={{
-                  display: 'flex',
-                  gap: '10px',
-                  alignItems: 'flex-start',
-                  cursor: isClickable ? 'pointer' : 'default',
-                  padding: isClickable ? '4px 6px 4px 0' : '2px 6px 2px 0',
-                  borderRadius: '6px',
-                  transition: 'background 0.1s ease',
-                }}
-                onMouseEnter={e => { if (isClickable) (e.currentTarget as HTMLElement).style.background = 'rgba(184,146,106,0.06)' }}
-                onMouseLeave={e => { if (isClickable) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-              >
-                <MilestoneCircle status={m.status} />
-                <span style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '13px',
-                  lineHeight: 1.4,
-                  color: m.status === 'done'
-                    ? 'var(--color-text-muted)'
-                    : 'var(--color-text-primary)',
-                  textDecoration: m.status === 'done' ? 'line-through' : 'none',
-                  flex: 1,
-                }}>
-                  {m.task}
-                </span>
-                {isClickable && m.status !== 'done' && (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#B8926A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px', opacity: 0.6 }}>
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
+              <div key={m.key}>
+                <div
+                  className="tl-milestone-row"
+                  onClick={() => { if (navigable && m.link) navigate(m.link) }}
+                  title={m.type === 'auto' && !done ? m.tooltip : undefined}
+                  style={{
+                    display: 'flex',
+                    gap: '10px',
+                    alignItems: 'flex-start',
+                    cursor: navigable ? 'pointer' : 'default',
+                    padding: '4px 6px 4px 0',
+                    borderRadius: '6px',
+                    transition: 'background 0.1s ease',
+                  }}
+                  onMouseEnter={e => { if (navigable) (e.currentTarget as HTMLElement).style.background = 'rgba(184,146,106,0.06)' }}
+                  onMouseLeave={e => { if (navigable) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                >
+                  {m.type === 'manual' ? (
+                    <button
+                      className="tl-circle-btn"
+                      onClick={e => { e.stopPropagation(); onMilestoneCheck(m) }}
+                      aria-label={done ? `Mark "${m.task}" as not done` : `Mark "${m.task}" as done`}
+                      style={{
+                        background: 'none', border: 'none', padding: 0, margin: '1px 0 0 0',
+                        cursor: 'pointer', borderRadius: '50%', flexShrink: 0, lineHeight: 0,
+                        transition: 'box-shadow 0.15s ease',
+                      }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 5px rgba(201,169,110,0.1)'; (e.currentTarget as HTMLElement).style.background = 'rgba(201,169,110,0.1)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'none'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                    >
+                      <MilestoneCircle m={m} sparkling={sparklingKey === m.key} />
+                    </button>
+                  ) : (
+                    <div style={{ marginTop: '1px', flexShrink: 0 }}>
+                      <MilestoneCircle m={m} sparkling={false} />
+                    </div>
+                  )}
+                  <span style={{
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '13px',
+                    lineHeight: 1.5,
+                    color: done ? '#999' : 'var(--color-text-primary)',
+                    textDecoration: done ? 'line-through' : 'none',
+                    flex: 1,
+                    transition: 'color 0.3s ease',
+                  }}>
+                    {m.task}
+                  </span>
+                  {done && m.type === 'auto' && m.autoBadge && (
+                    <span style={{ fontSize: '10px', fontWeight: 500, color: MILESTONE_SAGE, flexShrink: 0, marginTop: '3px', fontFamily: 'var(--font-body)' }}>
+                      {m.autoBadge}
+                    </span>
+                  )}
+                  {done && m.type === 'manual' && (
+                    <span style={{ fontSize: '10px', fontWeight: 500, color: MILESTONE_SAGE, flexShrink: 0, marginTop: '3px', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>
+                      Done{m.completedAt ? ` · ${formatCompletedDate(m.completedAt)}` : ''}
+                    </span>
+                  )}
+                  {navigable && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#B8926A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '3px', opacity: 0.6 }}>
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  )}
+                </div>
+
+                {/* Inline undo confirmation */}
+                {confirmKey === m.key && (
+                  <div
+                    className="tl-fade-in"
+                    onClick={e => e.stopPropagation()}
+                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '2px 0 4px 26px' }}
+                  >
+                    <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)' }}>
+                      Mark as not done?
+                    </span>
+                    <button
+                      onClick={() => onUndoConfirm(m)}
+                      style={{ background: 'none', border: 'none', padding: '4px 2px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: '#C4785C', fontFamily: 'var(--font-body)' }}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={onUndoCancel}
+                      style={{ background: 'none', border: 'none', padding: '4px 2px', cursor: 'pointer', fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 )}
               </div>
             )
@@ -288,7 +383,13 @@ export default function Timeline() {
   const [phases, setPhases] = useState<PhaseStatus[]>([])
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set())
 
+  // Manual milestone interaction state
+  const [sparklingKey, setSparklingKey] = useState<string | null>(null)
+  const [confirmKey, setConfirmKey] = useState<string | null>(null)
+
   const fingerprintRef = useRef<string>('')
+  const completionsRef = useRef<MilestoneCompletion[]>([])
+  const rawDataRef = useRef<{ c: Couple; v: Vendor[]; g: Guest[]; b: BudgetCategory[] } | null>(null)
 
   useEffect(() => {
     async function init() {
@@ -300,24 +401,32 @@ export default function Timeline() {
         if (!c) return
         setCouple(c)
 
-        const [v, g, b] = await Promise.all([
+        const [v, g, b, compRes] = await Promise.all([
           getVendorsForCouple(c.id),
           getGuestsForCouple(c.id),
           getBudgetCategories(c.id),
+          supabase.from('milestone_completions').select('milestone_key, completed_at').eq('couple_id', c.id),
         ])
-        // Derive phases from actual data
-        const derived = deriveTimelineStatus(c, v, g, b)
+        const comps = (compRes.data ?? []) as MilestoneCompletion[]
+        completionsRef.current = comps
+        rawDataRef.current = { c, v, g, b }
+
+        // Derive phases from actual data + manual completions
+        const derived = deriveTimelineStatus(c, v, g, b, comps)
         setPhases(derived)
 
-        // Expand current phase by default
+        // Expand current phase by default (unless every milestone in it is complete)
         const wDate = c.wedding_date ? new Date(c.wedding_date + 'T12:00:00') : null
         if (wDate) {
           const currentId = getCurrentPhaseId(wDate)
-          setExpandedPhases(new Set([currentId]))
+          const cur = derived.find(p => p.id === currentId)
+          if (cur && cur.doneCount < cur.totalCount) {
+            setExpandedPhases(new Set([currentId]))
+          }
         }
 
         // Build fingerprint
-        const fp = buildDataFingerprint(c, v, g, b)
+        const fp = buildDataFingerprint(c, v, g, b, comps)
         fingerprintRef.current = fp
 
         // Load cached AI assessment
@@ -363,6 +472,68 @@ export default function Timeline() {
     if (!couple) return
     runAIAssessment(couple.id, fingerprintRef.current, false)
   }
+
+  // Re-derive phases + fingerprint after a completion change
+  function applyCompletions(next: MilestoneCompletion[]) {
+    completionsRef.current = next
+    const raw = rawDataRef.current
+    if (!raw) return
+    setPhases(deriveTimelineStatus(raw.c, raw.v, raw.g, raw.b, next))
+    fingerprintRef.current = buildDataFingerprint(raw.c, raw.v, raw.g, raw.b, next)
+    // Let the right panel refresh its YOUR PHASE segments
+    window.dispatchEvent(new CustomEvent('veil:milestones-changed'))
+  }
+
+  async function completeMilestone(m: MilestoneInfo) {
+    if (!couple) return
+    const completedAt = new Date().toISOString()
+    const prev = completionsRef.current
+    applyCompletions([...prev, { milestone_key: m.key, completed_at: completedAt }])
+    setSparklingKey(m.key)
+    window.setTimeout(() => setSparklingKey(k => (k === m.key ? null : k)), 600)
+    track('milestone_completed', { key: m.key })
+
+    const { error } = await supabase
+      .from('milestone_completions')
+      .upsert(
+        { couple_id: couple.id, milestone_key: m.key, completed_at: completedAt },
+        { onConflict: 'couple_id,milestone_key' }
+      )
+    if (error) applyCompletions(prev)
+  }
+
+  async function uncompleteMilestone(m: MilestoneInfo) {
+    if (!couple) return
+    const prev = completionsRef.current
+    applyCompletions(prev.filter(c2 => c2.milestone_key !== m.key))
+    setConfirmKey(null)
+    track('milestone_uncompleted', { key: m.key })
+
+    const { error } = await supabase
+      .from('milestone_completions')
+      .delete()
+      .eq('couple_id', couple.id)
+      .eq('milestone_key', m.key)
+    if (error) applyCompletions(prev)
+  }
+
+  function handleMilestoneCheck(m: MilestoneInfo) {
+    if (m.type !== 'manual') return
+    if (m.status === 'done') {
+      setConfirmKey(k => (k === m.key ? null : m.key))
+    } else {
+      setConfirmKey(null)
+      completeMilestone(m)
+    }
+  }
+
+  // Click anywhere else dismisses the inline undo confirmation
+  useEffect(() => {
+    if (!confirmKey) return
+    const onDocClick = () => setConfirmKey(null)
+    document.addEventListener('click', onDocClick)
+    return () => document.removeEventListener('click', onDocClick)
+  }, [confirmKey])
 
   function togglePhase(id: string) {
     setExpandedPhases(prev => {
@@ -439,6 +610,31 @@ export default function Timeline() {
           from { opacity: 0; transform: translateY(4px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        .tl-circle-btn {
+          position: relative;
+        }
+        .tl-circle-btn::after {
+          content: '';
+          position: absolute;
+          inset: -14px;
+          border-radius: 50%;
+        }
+        .tl-sparkle-dot {
+          position: absolute;
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background: #C9A96E;
+          top: 50%;
+          left: 50%;
+          margin: -2px 0 0 -2px;
+          animation: tl-sparkle 0.5s ease-out forwards;
+          pointer-events: none;
+        }
+        @keyframes tl-sparkle {
+          from { opacity: 1; transform: translate(0, 0) scale(1); }
+          to { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.4); }
+        }
         @media (max-width: 768px) {
           .timeline-columns {
             grid-template-columns: 1fr;
@@ -446,6 +642,10 @@ export default function Timeline() {
           .timeline-col {
             max-height: none;
             overflow-y: visible;
+          }
+          .tl-milestone-row {
+            padding-top: 10px !important;
+            padding-bottom: 10px !important;
           }
         }
         @media (min-width: 769px) and (max-width: 1024px) {
@@ -728,6 +928,11 @@ export default function Timeline() {
                     weddingDate={weddingDate}
                     expanded={isExpanded}
                     onToggle={() => togglePhase(phase.id)}
+                    sparklingKey={sparklingKey}
+                    confirmKey={confirmKey}
+                    onMilestoneCheck={handleMilestoneCheck}
+                    onUndoConfirm={uncompleteMilestone}
+                    onUndoCancel={() => setConfirmKey(null)}
                   />
                 )
               })}

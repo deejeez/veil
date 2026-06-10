@@ -41,12 +41,13 @@ Deno.serve(async (req) => {
       })
     }
 
-    const [{ data: couple }, { data: vendors }, { data: budgetCategories }, { data: payments }, { data: guests }] = await Promise.all([
+    const [{ data: couple }, { data: vendors }, { data: budgetCategories }, { data: payments }, { data: guests }, { data: milestoneCompletions }] = await Promise.all([
       supabase.from('couples').select('*, user_id_primary, user_id_partner, paid').eq('id', couple_id).single(),
       supabase.from('vendors').select('category, status, name, booked_amount').eq('couple_id', couple_id),
       supabase.from('budget_categories').select('category, budgeted').eq('couple_id', couple_id),
       supabase.from('payments').select('label, amount, due_date, paid_date').eq('couple_id', couple_id),
       supabase.from('guests').select('id, plus_ones, kids').eq('couple_id', couple_id),
+      supabase.from('milestone_completions').select('milestone_key, completed_at').eq('couple_id', couple_id),
     ])
 
     if (couple?.user_id_primary !== user.id && couple?.user_id_partner !== user.id) {
@@ -77,6 +78,10 @@ Deno.serve(async (req) => {
     const paidCount = (payments ?? []).filter((p: any) => p.paid_date).length
     const totalGuests = (guests ?? []).reduce((s: number, g: any) => s + 1 + (g.plus_ones ?? 0) + (g.kids ?? 0), 0)
 
+    const completedTasks = (milestoneCompletions ?? []).map((m: { milestone_key: string; completed_at: string }) =>
+      `${m.milestone_key.replace(/_/g, ' ')} (completed ${m.completed_at?.split('T')[0] ?? 'unknown'})`
+    ).join('\n')
+
     const vibeDesc = couple.vibe_profile
       ? `Aesthetic: ${couple.vibe_profile.aesthetic}, Formality: ${couple.vibe_profile.formality}, Setting: ${couple.vibe_profile.setting}, Priority: ${couple.vibe_profile.priority}`
       : 'No vibe profile'
@@ -102,6 +107,9 @@ Budgeted across categories: ${totalBudgeted.toLocaleString()}
 Payments: ${(payments ?? []).length} total, ${paidCount} paid, ${overduePayments.length} overdue (${overdueAmount.toLocaleString()} overdue)
 
 Guests: ${totalGuests} estimated
+
+Manually completed planning tasks (the couple checked these off themselves — do NOT flag these as urgent or outstanding):
+${completedTasks || 'None checked off yet'}
 
 Respond in this exact JSON format:
 {

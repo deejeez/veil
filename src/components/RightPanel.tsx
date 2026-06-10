@@ -6,6 +6,9 @@ import { getPaymentsForCouple, getUpcomingPayments } from '../lib/payments'
 import { getTasksForCouple } from '../lib/tasks'
 import { getCategoriesForCouple, type VendorCategoryConfig } from '../lib/categories'
 import { getVendorsForCouple } from '../lib/vendors'
+import { getGuestsForCouple } from '../lib/guests'
+import { getBudgetCategories } from '../lib/budget'
+import { deriveTimelineStatus, type PhaseStatus, type MilestoneCompletion } from '../lib/deriveTimelineStatus'
 import { MultiSegmentRing } from './MultiSegmentRing'
 import { type Couple, type Payment, type Task, type Vendor } from '../types/database'
 
@@ -180,6 +183,8 @@ export default function RightPanel() {
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [guestCount, setGuestCount] = useState(0)
   const [healthExpanded, setHealthExpanded] = useState(false)
+  const [timelinePhases, setTimelinePhases] = useState<PhaseStatus[]>([])
+  const [refreshTick, setRefreshTick] = useState(0)
 
   if (pathname === '/settings') return null
 
@@ -211,9 +216,27 @@ export default function RightPanel() {
       setVendorCategories(cats)
       setVendors(vends)
       setGuestCount(guestRes.count ?? 0)
+
+      // Timeline panel needs full milestone derivation (incl. manual completions)
+      if (pathname === '/timeline') {
+        const [g, b, compRes] = await Promise.all([
+          getGuestsForCouple(c.id),
+          getBudgetCategories(c.id),
+          supabase.from('milestone_completions').select('milestone_key, completed_at').eq('couple_id', c.id),
+        ])
+        const comps = (compRes.data ?? []) as MilestoneCompletion[]
+        setTimelinePhases(deriveTimelineStatus(c, vends, g, b, comps))
+      }
     }
     load()
-  }, [pathname])
+  }, [pathname, refreshTick])
+
+  // Re-load when the Timeline page reports a milestone completion change
+  useEffect(() => {
+    const onChange = () => setRefreshTick(t => t + 1)
+    window.addEventListener('veil:milestones-changed', onChange)
+    return () => window.removeEventListener('veil:milestones-changed', onChange)
+  }, [])
 
   const daysUntil = couple?.wedding_date
     ? Math.ceil((new Date(couple.wedding_date).getTime() - Date.now()) / 86400000)
@@ -431,8 +454,14 @@ export default function RightPanel() {
     const weddingDate = couple?.wedding_date ? new Date(couple.wedding_date + 'T12:00:00') : null
     const currentPhase = weddingDate ? getCurrentPhasePanel(weddingDate) : TIMELINE_PHASES_PANEL[0]
     const phaseIdx = TIMELINE_PHASES_PANEL.findIndex(p => p.id === currentPhase.id)
-    const phasesCompleted = phaseIdx
     const totalPhases = TIMELINE_PHASES_PANEL.length
+    // A phase counts as complete when every milestone (auto + manual) in it is done
+    const phaseComplete = TIMELINE_PHASES_PANEL.map((p, i) => {
+      const derived = timelinePhases.find(tp => tp.id === p.id)
+      if (derived) return derived.totalCount > 0 && derived.doneCount === derived.totalCount
+      return i < phaseIdx
+    })
+    const phasesCompleted = phaseComplete.filter(Boolean).length
 
     const milestones = [
       { label: 'Budget set', done: (couple?.budget_total ?? 0) > 0 },
@@ -461,7 +490,7 @@ export default function RightPanel() {
           </div>
           <div style={{ display: 'flex', gap: '3px' }}>
             {Array.from({ length: totalPhases }).map((_, i) => (
-              <div key={i} style={{ flex: 1, height: '5px', borderRadius: '3px', background: i < phasesCompleted ? '#7B8F6B' : '#EDE8E1' }} />
+              <div key={i} style={{ flex: 1, height: '5px', borderRadius: '3px', background: phaseComplete[i] ? '#7B8F6B' : '#EDE8E1', transition: 'background 0.3s ease' }} />
             ))}
           </div>
         </div>
