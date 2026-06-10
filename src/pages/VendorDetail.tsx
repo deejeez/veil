@@ -51,6 +51,14 @@ type ShortlistItem = {
   why_good_fit?: string
 }
 
+type ShortlistReview = {
+  ratings?: { platform: string; rating: number; review_count?: number; url?: string }[]
+  review_summary?: string | null
+  review_highlight?: string | null
+}
+
+type ShortlistReviewState = { status: 'loading' | 'done' | 'error'; data?: ShortlistReview }
+
 const SHORTLIST_CACHE_TTL = 60 * 60 * 1000 // 1 hour
 
 function shortlistCacheKey(coupleId: string, category: string) {
@@ -76,6 +84,9 @@ export default function VendorDetail() {
   const cardTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>[]>>({})
   const shortlistRef = useRef<ShortlistItem[]>([])
   const [allSuggestionsAdded, setAllSuggestionsAdded] = useState(false)
+  const [shortlistReviews, setShortlistReviews] = useState<Record<string, ShortlistReviewState>>({})
+  const shortlistReviewsRef = useRef<Record<string, ShortlistReviewState>>({})
+  const [expandedReviews, setExpandedReviews] = useState<Record<string, boolean>>({})
   const [contracts, setContracts] = useState<{ id: string; vendor_id: string; file_path: string; file_name: string; document_type: 'contract' | 'proposal'; ai_review: AiReview | null; uploaded_at: string }[]>([])
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null) // 'vendorId-contract' or 'vendorId-proposal'
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -141,6 +152,44 @@ export default function VendorDetail() {
 
   // Keep a ref mirror of the shortlist so timer callbacks read fresh data
   useEffect(() => { shortlistRef.current = shortlist }, [shortlist])
+  useEffect(() => { shortlistReviewsRef.current = shortlistReviews }, [shortlistReviews])
+
+  // Persist fetched reviews into the existing shortlist cache payload (best-effort)
+  function cacheShortlistReview(coupleId: string, cat: string, vendorName: string, data: ShortlistReview) {
+    try {
+      const key = shortlistCacheKey(coupleId, cat)
+      const raw = localStorage.getItem(key)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as { reviews?: Record<string, ShortlistReview> }
+      parsed.reviews = { ...(parsed.reviews ?? {}), [vendorName]: data }
+      localStorage.setItem(key, JSON.stringify(parsed))
+    } catch {
+      // localStorage full/unavailable — caching is best-effort
+    }
+  }
+
+  // Fire-and-forget background review lookups, one per suggestion, in parallel.
+  // Results fill into the cards as they arrive so they never block the shortlist.
+  function fetchShortlistReviews(coupleId: string, items: ShortlistItem[]) {
+    for (const item of items) {
+      if (shortlistReviewsRef.current[item.name]) continue // already loading or loaded
+      shortlistReviewsRef.current = { ...shortlistReviewsRef.current, [item.name]: { status: 'loading' } }
+      setShortlistReviews(prev => ({ ...prev, [item.name]: { status: 'loading' } }))
+      supabase.functions.invoke('vendor-reviews', {
+        body: { couple_id: coupleId, vendor_name: item.name, location: item.location, website: item.website },
+      }).then(({ data, error: fnError }) => {
+        if (fnError || !data || !Array.isArray((data as ShortlistReview).ratings)) {
+          setShortlistReviews(prev => ({ ...prev, [item.name]: { status: 'error' } }))
+          return
+        }
+        const review = data as ShortlistReview
+        setShortlistReviews(prev => ({ ...prev, [item.name]: { status: 'done', data: review } }))
+        if (category) cacheShortlistReview(coupleId, category, item.name, review)
+      }).catch(() => {
+        setShortlistReviews(prev => ({ ...prev, [item.name]: { status: 'error' } }))
+      })
+    }
+  }
 
   // Restore cached AI suggestions (1-hour TTL) so returning to this page is instant
   useEffect(() => {
@@ -149,7 +198,7 @@ export default function VendorDetail() {
       const key = shortlistCacheKey(couple.id, category)
       const raw = localStorage.getItem(key)
       if (!raw) return
-      const parsed = JSON.parse(raw) as { ts?: number; vendors?: ShortlistItem[]; history?: string[] }
+      const parsed = JSON.parse(raw) as { ts?: number; vendors?: ShortlistItem[]; history?: string[]; reviews?: Record<string, ShortlistReview> }
       if (!parsed?.ts || Date.now() - parsed.ts > SHORTLIST_CACHE_TTL || !Array.isArray(parsed.vendors) || parsed.vendors.length === 0) {
         localStorage.removeItem(key)
         return
@@ -157,9 +206,18 @@ export default function VendorDetail() {
       setShortlist(parsed.vendors)
       setSuggestedHistory(parsed.history ?? parsed.vendors.map(v => v.name))
       setShortlistExpanded(true)
+      const cachedReviews: Record<string, ShortlistReviewState> = {}
+      for (const [name, data] of Object.entries(parsed.reviews ?? {})) {
+        cachedReviews[name] = { status: 'done', data }
+      }
+      shortlistReviewsRef.current = cachedReviews
+      setShortlistReviews(cachedReviews)
+      // Fetch reviews for any suggestions that didn't get them cached
+      fetchShortlistReviews(couple.id, parsed.vendors.filter(v => !cachedReviews[v.name]))
     } catch {
       // ignore corrupt cache
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [couple?.id, category])
 
   // Clear pending card animation timers on unmount
@@ -415,6 +473,9 @@ export default function VendorDetail() {
       setAllSuggestionsAdded(false)
       setCardStates({})
       setShortlistExpanded(true)
+      shortlistReviewsRef.current = {}
+      setShortlistReviews({})
+      setExpandedReviews({})
       try {
         localStorage.setItem(
           shortlistCacheKey(couple.id, category!),
@@ -423,6 +484,7 @@ export default function VendorDetail() {
       } catch {
         // localStorage full/unavailable — caching is best-effort
       }
+      fetchShortlistReviews(couple.id, newVendors)
       track('shortlist_generated', { category })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Couldn't generate suggestions — try again"
@@ -1693,6 +1755,21 @@ export default function VendorDetail() {
         .shortlist-card-reveal {
           animation: shortlistReveal 300ms ease-out backwards;
         }
+        .shortlist-ratings {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          flex-wrap: wrap;
+          font-size: 12px;
+          margin: 8px 0;
+        }
+        .shortlist-rating-star {
+          color: #C9A96E;
+        }
+        .shortlist-rating-platform {
+          color: #999;
+          margin-right: 8px;
+        }
       `}</style>
       {/* Back */}
       <button
@@ -2341,6 +2418,10 @@ export default function VendorDetail() {
               {shortlist.map((v, i) => {
                 const isAdded = vendors.some(vd => vd.name === v.name)
                 const cardState = cardStates[v.name]
+                const reviewState = shortlistReviews[v.name]
+                const review = reviewState?.status === 'done' ? reviewState.data : undefined
+                const ratings = review?.ratings?.filter(r => r && r.platform && typeof r.rating === 'number') ?? []
+                const reviewsOpen = !!expandedReviews[v.name]
                 return (
                 <div
                   key={v.name}
@@ -2367,6 +2448,63 @@ export default function VendorDetail() {
                     )}
                     {v.why_good_fit && (
                       <div style={{ fontSize: '11px', color: '#7a6358', fontStyle: 'italic', marginBottom: '4px' }}>{v.why_good_fit}</div>
+                    )}
+                    {reviewState?.status === 'loading' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '8px 0' }}>
+                        <div className="skeleton-line" style={{ width: '110px' }} />
+                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Checking reviews…</span>
+                      </div>
+                    )}
+                    {review && (
+                      ratings.length === 0 && !review.review_summary ? (
+                        <div className="shortlist-ratings" style={{ color: 'var(--color-text-muted)' }}>No reviews found</div>
+                      ) : (
+                        <>
+                          {ratings.length > 0 && (
+                            <div className="shortlist-ratings" style={{ color: '#5C524A' }}>
+                              {ratings.map((r, ri) => (
+                                <span key={r.platform} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  {ri > 0 && <span style={{ color: '#D4CFC8', margin: '0 4px' }}>·</span>}
+                                  <span className="shortlist-rating-star">★</span>
+                                  <span style={{ fontWeight: 600 }}>{r.rating.toFixed(1)}</span>
+                                  <span className="shortlist-rating-platform">{r.platform}{r.review_count ? ` (${r.review_count})` : ''}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {review.review_summary && (
+                            <>
+                              <button
+                                onClick={() => setExpandedReviews(prev => ({ ...prev, [v.name]: !reviewsOpen }))}
+                                style={{ fontSize: '11px', color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '0', fontWeight: 600, display: 'block', marginBottom: '4px' }}
+                              >
+                                {reviewsOpen ? 'Show less ▴' : 'Read review summary ▾'}
+                              </button>
+                              {reviewsOpen && (
+                                <div style={{ marginBottom: '4px' }}>
+                                  <div style={{ fontSize: '13px', color: '#2C2420', fontStyle: 'italic', marginBottom: '6px' }}>{review.review_summary}</div>
+                                  {review.review_highlight && (
+                                    <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', borderLeft: '2px solid #8B9E7E', paddingLeft: '8px', marginBottom: '6px' }}>
+                                      {review.review_highlight}
+                                    </div>
+                                  )}
+                                  {ratings.some(r => r.url) && (
+                                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                                      Read reviews on:{' '}
+                                      {ratings.filter(r => r.url).map((r, ri) => (
+                                        <span key={r.platform}>
+                                          {ri > 0 && ' · '}
+                                          <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ color: '#C9A96E' }}>{r.platform}</a>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </>
+                      )
                     )}
                     {v.website && (
                       <a href={v.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--color-accent)' }}>
@@ -2429,7 +2567,7 @@ export default function VendorDetail() {
                       transition: 'color 200ms, border-color 200ms, background 200ms',
                     }}
                   >
-                    {isAdded ? '✓ Added' : 'Add →'}
+                    {isAdded ? '✓ Added' : 'Add to shortlist'}
                   </button>
                 </div>
                 )
