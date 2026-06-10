@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Veil — Design Comparison</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'Inter', 'Helvetica Neue', sans-serif; background: #e8e8f0; }
+
+/* ── Tab switcher ─────────────────────────────────── */
+.tab-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: #1a1a2e; display: flex; align-items: center;
+  padding: 0 24px; gap: 4px; height: 48px;
+}
+.tab-bar span { color: #aaa; font-size: 13px; margin-right: 8px; }
+.tab-btn {
+  padding: 6px 18px; border: none; border-radius: 6px;
+  font-size: 13px; font-family: inherit; cursor: pointer;
+  background: transparent; color: #888; transition: all 0.15s;
+}
+.tab-btn.active { background: #5C5AE6; color: #fff; }
+
+.mockup { display: none; padding-top: 48px; }
+.mockup.active { display: block; }
+
+/* ──────────────────────────────────────────────────── */
+/* MOCKUP 1: Applify-inspired                          */
+/* ──────────────────────────────────────────────────── */
+
+.a-wrap {
+  display: flex; height: calc(100vh - 48px);
+  background: #EEEEFF; overflow: hidden;
+}
+
+/* Sidebar */
+.a-sidebar {
+  width: 210px; flex-shrink: 0;
+  background: #fff; display: flex; flex-direction: column;
+  padding: 24px 0; box-shadow: 2px 0 12px rgba(92,90,230,0.06);
+}
+.a-logo {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 20px 28px;
+}
+.a-logo-mark {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: linear-gradient(135deg, #C4788A 0%, #9B5FA5 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+.a-logo-text { font-size: 18px; font-weight: 700; color: #1a1a2e; letter-spacing: -0.01em; }
+
+.a-nav-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 20px; font-size: 14px; color: #888; cursor: pointer;
+  position: relative; transition: color 0.12s;
+}
+.a-nav-item.active {
+  color: #5C5AE6; font-weight: 600;
+}
+.a-nav-item.active::before {
+  content: ''; position: absolute; left: 0; top: 6px; bottom: 6px;
+  width: 4px; background: #5C5AE6; border-radius: 0 4px 4px 0;
+}
+.a-nav-icon { width: 18px; height: 18px; opacity: 0.7; flex-shrink: 0; }
+.a-nav-item.active .a-nav-icon { opacity: 1; }
+
+.a-upgrade {
+  margin: auto 16px 0;
+  background: linear-gradient(135deg, #5C5AE6, #9B5FA5);
+  border-radius: 16px; padding: 20px 16px; color: #fff;
+  position: relative; overflow: hidden;
+}
+.a-upgrade::before {
+  content: ''; position: absolute; top: -20px; right: -20px;
+  width: 80px; height: 80px; background: rgba(255,255,255,0.1);
+  border-radius: 50%;
+}
+.a-upgrade h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.a-upgrade p { font-size: 11px; opacity: 0.8; margin-bottom: 14px; line-height: 1.4; }
+.a-upgrade button {
+  background: #fff; color: #5C5AE6; border: none;
+  border-radius: 8px; padding: 7px 16px; font-size: 12px;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+}
+
+/* Main content */
+.a-main {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+}
+.a-topbar {
+  background: #fff; padding: 16px 28px;
+  display: flex; align-items: center; gap: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.a-topbar h2 { font-size: 22px; font-weight: 700; color: #1a1a2e; flex: 1; }
+.a-search {
+  display: flex; align-items: center;
+  background: #F0F0FF; border-radius: 10px;
+  padding: 8px 16px; gap: 10px; width: 260px;
+}
+.a-search input {
+  border: none; background: transparent; font-size: 13px;
+  color: #555; outline: none; width: 100%; font-family: inherit;
+}
+.a-search-btn {
+  width: 36px; height: 36px; background: #5C5AE6; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+
+.a-content { flex: 1; overflow-y: auto; padding: 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+
+/* Stat cards */
+.a-stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.a-stat-card {
+  background: #fff; border-radius: 16px; padding: 20px 20px 16px;
+  box-shadow: 0 2px 12px rgba(92,90,230,0.07);
+}
+.a-stat-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 12px;
+}
+.a-stat-label { font-size: 12px; color: #888; font-weight: 500; }
+.a-stat-dots { color: #bbb; font-size: 16px; cursor: pointer; letter-spacing: 2px; }
+.a-stat-body { display: flex; align-items: center; justify-content: space-between; }
+.a-stat-number { font-size: 32px; font-weight: 700; color: #1a1a2e; line-height: 1; }
+.a-stat-delta { font-size: 12px; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+.a-delta-up { color: #5C5AE6; }
+.a-delta-down { color: #F5A623; }
+
+/* SVG donut ring */
+.a-ring { transform: rotate(-90deg); }
+.a-ring-bg { fill: none; stroke: #EEEEFF; stroke-width: 8; }
+.a-ring-fg { fill: none; stroke-width: 8; stroke-linecap: round; }
+
+/* Lower grid */
+.a-lower { display: grid; grid-template-columns: 1fr auto; gap: 16px; }
+.a-chart-card {
+  background: #fff; border-radius: 16px; padding: 22px 22px 16px;
+  box-shadow: 0 2px 12px rgba(92,90,230,0.07);
+}
+.a-chart-head {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+}
+.a-chart-title { font-size: 15px; font-weight: 700; color: #1a1a2e; }
+.a-chart-period {
+  display: flex; align-items: center; gap: 6px;
+  background: #F0F0FF; border-radius: 8px; padding: 5px 12px;
+  font-size: 12px; color: #5C5AE6; font-weight: 600; cursor: pointer;
+}
+
+/* Bar chart */
+.a-bars { display: flex; align-items: flex-end; gap: 16px; height: 120px; padding-top: 10px; }
+.a-bar-group { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; }
+.a-bar-stack { display: flex; flex-direction: column; justify-content: flex-end; height: 100px; width: 18px; gap: 2px; }
+.a-bar-seg { border-radius: 4px 4px 0 0; }
+.a-bar-day { font-size: 10px; color: #bbb; margin-top: 6px; }
+.a-legend { display: flex; gap: 16px; margin-top: 14px; }
+.a-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #888; }
+.a-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* Acquisitions panel */
+.a-acq-card {
+  width: 240px; background: #fff; border-radius: 16px; padding: 22px 20px;
+  box-shadow: 0 2px 12px rgba(92,90,230,0.07);
+}
+.a-acq-row { margin-bottom: 14px; }
+.a-acq-label-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+.a-acq-name { font-size: 12px; color: #444; }
+.a-acq-pct { font-size: 12px; color: #888; }
+.a-acq-bar { height: 4px; background: #EEEEFF; border-radius: 4px; overflow: hidden; }
+.a-acq-fill { height: 100%; border-radius: 4px; }
+.a-acq-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+
+/* Right panel */
+.a-right {
+  width: 280px; flex-shrink: 0; background: #fff;
+  border-left: 1px solid #EEEEFF; overflow-y: auto;
+  padding: 24px 20px; display: flex; flex-direction: column; gap: 20px;
+}
+.a-profile-card { text-align: center; }
+.a-avatar {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: linear-gradient(135deg, #C4788A, #9B5FA5);
+  margin: 0 auto 10px; display: flex; align-items: center;
+  justify-content: center; font-size: 26px; color: #fff; font-weight: 700;
+}
+.a-profile-name { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 2px; }
+.a-profile-role { font-size: 12px; color: #888; margin-bottom: 6px; }
+.a-profile-loc { font-size: 11px; color: #5C5AE6; display: flex; align-items: center; justify-content: center; gap: 4px; }
+
+.a-right-section-title {
+  font-size: 14px; font-weight: 700; color: #1a1a2e;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.a-right-add {
+  background: #5C5AE6; color: #fff; border: none; border-radius: 8px;
+  padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer;
+  font-family: inherit; display: flex; align-items: center; gap: 4px;
+}
+
+.a-job-card {
+  border-radius: 12px; padding: 14px 14px;
+  margin-top: 10px; display: flex; align-items: center; gap: 12px;
+}
+.a-job-card.orange { background: linear-gradient(135deg, #F5A623, #F07B3F); }
+.a-job-card.purple { background: linear-gradient(135deg, #5C5AE6, #9B5FA5); }
+.a-job-num { font-size: 22px; font-weight: 700; color: #fff; }
+.a-job-info { flex: 1; }
+.a-job-title { font-size: 13px; font-weight: 700; color: #fff; }
+.a-job-sub { font-size: 11px; color: rgba(255,255,255,0.75); }
+.a-toggle {
+  width: 32px; height: 18px; background: rgba(255,255,255,0.35); border-radius: 9px;
+  position: relative;
+}
+.a-toggle::after {
+  content: ''; position: absolute; right: 3px; top: 3px;
+  width: 12px; height: 12px; background: #fff; border-radius: 50%;
+}
+
+.a-reminder { display: flex; align-items: flex-start; gap: 10px; margin-top: 10px; }
+.a-reminder-icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 14px;
+}
+.a-reminder-text { flex: 1; }
+.a-reminder-title { font-size: 12px; color: #333; line-height: 1.4; }
+.a-reminder-title strong { color: #5C5AE6; }
+.a-reminder-time { font-size: 10px; color: #bbb; }
+
+
+
+/* ──────────────────────────────────────────────────── */
+/* MOCKUP 2: Ckdulz-inspired                           */
+/* ──────────────────────────────────────────────────── */
+
+.b-wrap {
+  height: calc(100vh - 48px);
+  background: #F8F9FE;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* Top nav */
+.b-topnav {
+  background: #fff; height: 60px;
+  display: flex; align-items: center; padding: 0 28px;
+  border-bottom: 1px solid #EEEEFF;
+  box-shadow: 0 1px 6px rgba(92,90,230,0.05);
+}
+.b-logo-wrap { display: flex; align-items: center; gap: 10px; margin-right: 40px; }
+.b-logo-icon {
+  width: 36px; height: 36px; background: linear-gradient(135deg, #C4788A, #9B5FA5);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+}
+.b-logo-name { font-size: 18px; font-weight: 700; color: #1a1a2e; }
+
+.b-nav-links { display: flex; gap: 4px; flex: 1; }
+.b-nav-link {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 16px; border-radius: 10px; font-size: 14px;
+  color: #888; cursor: pointer; transition: all 0.12s;
+}
+.b-nav-link.active { background: #EEEEFF; color: #5C5AE6; font-weight: 600; }
+
+.b-nav-right { display: flex; align-items: center; gap: 14px; }
+.b-icon-btn {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: #F0F0FF; display: flex; align-items: center;
+  justify-content: center; cursor: pointer; position: relative;
+}
+.b-notif-dot {
+  position: absolute; top: 6px; right: 6px;
+  width: 8px; height: 8px; background: #5C5AE6; border-radius: 50%;
+  font-size: 8px; color: #fff; display: flex; align-items: center; justify-content: center;
+}
+.b-user-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 10px 4px 4px; border-radius: 20px;
+  border: 1px solid #EEEEFF; cursor: pointer;
+}
+.b-user-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, #C4788A, #9B5FA5);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #fff; font-weight: 700;
+}
+.b-user-name { font-size: 12px; font-weight: 600; color: #1a1a2e; }
+.b-user-role { font-size: 10px; color: #888; }
+
+/* Body */
+.b-body { display: flex; flex: 1; overflow: hidden; }
+
+/* Left panel */
+.b-left {
+  width: 270px; flex-shrink: 0;
+  background: #fff; border-right: 1px solid #EEEEFF;
+  overflow-y: auto; padding: 20px 16px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+/* Mini calendar */
+.b-mini-cal {
+  background: #fff; border: 1px solid #EEEEFF;
+  border-radius: 16px; padding: 16px;
+}
+.b-cal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px;
+}
+.b-cal-month { font-size: 14px; font-weight: 700; color: #1a1a2e; }
+.b-cal-nav { color: #5C5AE6; cursor: pointer; font-size: 16px; user-select: none; }
+.b-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.b-cal-day-label { font-size: 10px; color: #bbb; padding: 3px 0; font-weight: 600; text-transform: uppercase; }
+.b-cal-day {
+  font-size: 12px; color: #555; padding: 5px 2px; border-radius: 8px;
+  cursor: pointer; position: relative; transition: background 0.1s;
+}
+.b-cal-day:hover { background: #F0F0FF; }
+.b-cal-day.today {
+  background: #5C5AE6; color: #fff; font-weight: 700; border-radius: 50%;
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  margin: 0 auto;
+}
+.b-cal-day.has-event::after {
+  content: ''; position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%);
+  width: 4px; height: 4px; background: #5C5AE6; border-radius: 50%;
+}
+.b-cal-day.other-month { color: #ddd; }
+
+/* Categories */
+.b-cats {
+  background: #fff; border: 1px solid #EEEEFF;
+  border-radius: 16px; padding: 16px;
+}
+.b-cats-header {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+}
+.b-cats-title { font-size: 14px; font-weight: 700; color: #1a1a2e; }
+.b-cats-add { color: #5C5AE6; font-size: 18px; cursor: pointer; }
+.b-cat-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0; font-size: 13px; color: #444;
+}
+.b-cat-check {
+  width: 20px; height: 20px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Upgrade card */
+.b-upgrade-card {
+  background: linear-gradient(135deg, #5C5AE6 0%, #9B5FA5 100%);
+  border-radius: 16px; padding: 20px 16px;
+  position: relative; overflow: hidden;
+}
+.b-upgrade-card::before {
+  content: ''; position: absolute;
+  top: -30px; right: -30px; width: 120px; height: 120px;
+  background: rgba(255,255,255,0.08); border-radius: 50%;
+}
+.b-upgrade-card::after {
+  content: ''; position: absolute;
+  bottom: -20px; right: 20px; width: 80px; height: 80px;
+  background: rgba(255,255,255,0.06); border-radius: 50%;
+}
+.b-upgrade-title { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 5px; }
+.b-upgrade-sub { font-size: 11px; color: rgba(255,255,255,0.75); margin-bottom: 14px; line-height: 1.4; }
+.b-upgrade-btn {
+  background: #fff; color: #5C5AE6; border: none;
+  border-radius: 10px; padding: 8px 18px; font-size: 12px;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+}
+
+/* Main calendar area */
+.b-main { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 22px 24px; gap: 16px; }
+
+.b-cal-top {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.b-cal-range { font-size: 28px; font-weight: 700; color: #1a1a2e; }
+.b-cal-controls { display: flex; align-items: center; gap: 12px; }
+.b-cal-arrow {
+  width: 32px; height: 32px; border-radius: 8px; border: 1px solid #EEEEFF;
+  background: #fff; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: #888; font-size: 14px;
+}
+.b-view-select {
+  display: flex; align-items: center; gap: 6px; padding: 7px 14px;
+  border: 1px solid #EEEEFF; border-radius: 10px; background: #fff;
+  font-size: 13px; color: #555; cursor: pointer; font-family: inherit;
+}
+.b-add-btn {
+  background: #5C5AE6; color: #fff; border: none;
+  border-radius: 10px; padding: 9px 20px; font-size: 13px;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* Week grid */
+.b-week-grid { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.b-week-header {
+  display: grid; grid-template-columns: 60px repeat(7, 1fr);
+  border-bottom: 1px solid #EEEEFF; margin-bottom: 0;
+}
+.b-week-header-empty { border-right: 1px solid #EEEEFF; }
+.b-week-day-col {
+  text-align: center; padding: 10px 4px;
+  border-right: 1px solid #EEEEFF;
+}
+.b-week-day-num { font-size: 22px; font-weight: 700; color: #1a1a2e; line-height: 1; }
+.b-week-day-num.today { color: #5C5AE6; }
+.b-week-day-label { font-size: 10px; color: #bbb; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+
+.b-week-body { flex: 1; overflow-y: auto; display: grid; grid-template-columns: 60px repeat(7, 1fr); }
+.b-time-col { border-right: 1px solid #EEEEFF; }
+.b-time-slot {
+  height: 64px; padding: 4px 8px; border-bottom: 1px solid #EEEEFF;
+  font-size: 10px; color: #bbb; text-align: right;
+}
+.b-day-col { border-right: 1px solid #EEEEFF; position: relative; }
+.b-day-slot { height: 64px; border-bottom: 1px solid #EEEEFF; }
+
+.b-event {
+  position: absolute; left: 6px; right: 6px;
+  border-radius: 10px; padding: 8px 10px;
+  font-size: 11px; cursor: pointer;
+}
+.b-event-title { font-weight: 700; margin-bottom: 2px; }
+.b-event-time { font-size: 10px; opacity: 0.75; }
+
+/* event colors */
+.ev-lavender { background: #EDE9FE; color: #5C5AE6; }
+.ev-mint { background: #D1FAE5; color: #059669; }
+.ev-rose { background: #FFE4E6; color: #BE185D; }
+.ev-sage { background: #D1FAE5; color: #047857; }
+.ev-sky { background: #E0F2FE; color: #0369A1; }
+.ev-amber { background: #FEF3C7; color: #92400E; }
+
+/* bottom bar */
+.b-bottom-bar {
+  background: #fff; border-top: 1px solid #EEEEFF;
+  padding: 14px 24px; display: flex; align-items: center; gap: 0;
+}
+.b-avatars { display: flex; margin-right: 12px; }
+.b-sm-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 2px solid #fff; margin-left: -8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff;
+  flex-shrink: 0;
+}
+.b-sm-avatar:first-child { margin-left: 0; }
+.b-sm-avatar.add-btn { background: #E0E7FF; color: #5C5AE6; font-size: 18px; }
+.b-view-all { font-size: 13px; color: #555; margin-right: auto; }
+.b-bottom-action {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border: 1px solid #EEEEFF;
+  border-radius: 10px; font-size: 13px; color: #555; cursor: pointer;
+  margin-left: 12px; background: #fff; font-family: inherit;
+  transition: border-color 0.12s;
+}
+.b-bottom-action:hover { border-color: #5C5AE6; color: #5C5AE6; }
+</style>
+</head>
+<body>
+
+<!-- Tab bar -->
+<div class="tab-bar">
+  <span>Compare designs →</span>
+  <button class="tab-btn active" onclick="switchTab(1)">Option 1: Applify-style</button>
+  <button class="tab-btn" onclick="switchTab(2)">Option 2: Ckdulz-style</button>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- MOCKUP 1: Applify-inspired                      -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="mockup active" id="mockup1">
+<div class="a-wrap">
+
+  <!-- Sidebar -->
+  <div class="a-sidebar">
+    <div class="a-logo">
+      <div class="a-logo-mark">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M9 12l2 2 4-4"/></svg>
+      </div>
+      <div class="a-logo-text">Veil.</div>
+    </div>
+
+    <div class="a-nav-item active">
+      <svg class="a-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </div>
+    <div class="a-nav-item">
+      <svg class="a-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      Tasks
+    </div>
+    <div class="a-nav-item">
+      <svg class="a-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      Vendors
+    </div>
+    <div class="a-nav-item">
+      <svg class="a-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      Venue
+    </div>
+    <div class="a-nav-item">
+      <svg class="a-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Budget
+    </div>
+    <div class="a-nav-item">
+      <svg class="a-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Finances
+    </div>
+    <div class="a-nav-item">
+      <svg class="a-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Timeline
+    </div>
+    <div class="a-nav-item">
+      <svg class="a-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Settings
+    </div>
+
+    <div class="a-upgrade">
+      <h4>Go Premium</h4>
+      <p>Unlock AI advisor, unlimited vendors & payment reminders</p>
+      <button>Upgrade Now</button>
+    </div>
+  </div><!-- /sidebar -->
+
+  <!-- Main -->
+  <div class="a-main">
+    <div class="a-topbar">
+      <h2>Dashboard</h2>
+      <div class="a-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input placeholder="Search..." />
+      </div>
+      <div class="a-search-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+    </div>
+
+    <div class="a-content">
+      <!-- Stat cards -->
+      <div class="a-stat-row">
+
+        <!-- Card 1: Days Until -->
+        <div class="a-stat-card">
+          <div class="a-stat-top">
+            <div class="a-stat-label">Days Until Wedding</div>
+            <div class="a-stat-dots">···</div>
+          </div>
+          <div class="a-stat-body">
+            <div>
+              <div class="a-stat-number">127</div>
+              <div class="a-stat-delta a-delta-up">↑ June 28, 2026</div>
+            </div>
+            <svg width="64" height="64" viewBox="0 0 64 64">
+              <circle class="a-ring-bg" cx="32" cy="32" r="26"/>
+              <circle class="a-ring-fg" cx="32" cy="32" r="26"
+                stroke="#5C5AE6"
+                stroke-dasharray="163"
+                stroke-dashoffset="40"
+                transform="rotate(-90 32 32)"/>
+              <text x="32" y="37" text-anchor="middle" font-size="11" font-weight="700" fill="#5C5AE6" font-family="Inter, sans-serif">+65%</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card 2: Vendors -->
+        <div class="a-stat-card">
+          <div class="a-stat-top">
+            <div class="a-stat-label">Vendors Booked</div>
+            <div class="a-stat-dots">···</div>
+          </div>
+          <div class="a-stat-body">
+            <div>
+              <div class="a-stat-number">8</div>
+              <div class="a-stat-delta a-delta-up">↑ of 14 categories</div>
+            </div>
+            <svg width="64" height="64" viewBox="0 0 64 64">
+              <circle class="a-ring-bg" cx="32" cy="32" r="26" stroke="#FEF3C7"/>
+              <circle class="a-ring-fg" cx="32" cy="32" r="26"
+                stroke="#F59E0B"
+                stroke-dasharray="163"
+                stroke-dashoffset="65"
+                transform="rotate(-90 32 32)"/>
+              <text x="32" y="37" text-anchor="middle" font-size="11" font-weight="700" fill="#F59E0B" font-family="Inter, sans-serif">+57%</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Card 3: Budget -->
+        <div class="a-stat-card">
+          <div class="a-stat-top">
+            <div class="a-stat-label">Budget Used</div>
+            <div class="a-stat-dots">···</div>
+          </div>
+          <div class="a-stat-body">
+            <div>
+              <div class="a-stat-number">$24K</div>
+              <div class="a-stat-delta a-delta-down">↗ of $65K total</div>
+            </div>
+            <svg width="64" height="64" viewBox="0 0 64 64">
+              <circle class="a-ring-bg" cx="32" cy="32" r="26" stroke="#FFE4E6"/>
+              <circle class="a-ring-fg" cx="32" cy="32" r="26"
+                stroke="#C4788A"
+                stroke-dasharray="163"
+                stroke-dashoffset="90"
+                transform="rotate(-90 32 32)"/>
+              <text x="32" y="37" text-anchor="middle" font-size="11" font-weight="700" fill="#C4788A" font-family="Inter, sans-serif">+37%</text>
+            </svg>
+          </div>
+        </div>
+
+      </div><!-- /stat row -->
+
+      <!-- Lower grid: chart + acquisitions -->
+      <div class="a-lower">
+        <div class="a-chart-card">
+          <div class="a-chart-head">
+            <div class="a-chart-title">Vendor Progress by Category</div>
+            <div class="a-chart-period">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              All Time ▾
+            </div>
+          </div>
+
+          <!-- Bar chart (static SVG) -->
+          <div class="a-bars">
+            <div class="a-bar-group">
+              <div class="a-bar-stack">
+                <div class="a-bar-seg" style="height:60%;background:#5C5AE6;"></div>
+                <div class="a-bar-seg" style="height:20%;background:#F59E0B;border-radius:0;"></div>
+                <div class="a-bar-seg" style="height:10%;background:#C4788A;border-radius:0;"></div>
+              </div>
+              <div class="a-bar-day">Photo</div>
+            </div>
+            <div class="a-bar-group">
+              <div class="a-bar-stack">
+                <div class="a-bar-seg" style="height:80%;background:#5C5AE6;"></div>
+                <div class="a-bar-seg" style="height:5%;background:#F59E0B;border-radius:0;"></div>
+                <div class="a-bar-seg" style="height:5%;background:#C4788A;border-radius:0;"></div>
+              </div>
+              <div class="a-bar-day">Venue</div>
+            </div>
+            <div class="a-bar-group">
+              <div class="a-bar-stack">
+                <div class="a-bar-seg" style="height:40%;background:#5C5AE6;"></div>
+                <div class="a-bar-seg" style="height:35%;background:#F59E0B;border-radius:0;"></div>
+                <div class="a-bar-seg" style="height:15%;background:#C4788A;border-radius:0;"></div>
+              </div>
+              <div class="a-bar-day">Catering</div>
+            </div>
+            <div class="a-bar-group">
+              <div class="a-bar-stack">
+                <div class="a-bar-seg" style="height:30%;background:#5C5AE6;"></div>
+                <div class="a-bar-seg" style="height:50%;background:#F59E0B;border-radius:0;"></div>
+                <div class="a-bar-seg" style="height:10%;background:#C4788A;border-radius:0;"></div>
+              </div>
+              <div class="a-bar-day">Flowers</div>
+            </div>
+            <div class="a-bar-group">
+              <div class="a-bar-stack">
+                <div class="a-bar-seg" style="height:20%;background:#5C5AE6;"></div>
+                <div class="a-bar-seg" style="height:20%;background:#F59E0B;border-radius:0;"></div>
+                <div class="a-bar-seg" style="height:50%;background:#C4788A;border-radius:0;"></div>
+              </div>
+              <div class="a-bar-day">Music</div>
+            </div>
+            <div class="a-bar-group">
+              <div class="a-bar-stack">
+                <div class="a-bar-seg" style="height:70%;background:#5C5AE6;"></div>
+                <div class="a-bar-seg" style="height:15%;background:#F59E0B;border-radius:0;"></div>
+                <div class="a-bar-seg" style="height:8%;background:#C4788A;border-radius:0;"></div>
+              </div>
+              <div class="a-bar-day">Cake</div>
+            </div>
+            <div class="a-bar-group">
+              <div class="a-bar-stack">
+                <div class="a-bar-seg" style="height:55%;background:#5C5AE6;"></div>
+                <div class="a-bar-seg" style="height:25%;background:#F59E0B;border-radius:0;"></div>
+                <div class="a-bar-seg" style="height:12%;background:#C4788A;border-radius:0;"></div>
+              </div>
+              <div class="a-bar-day">Hair</div>
+            </div>
+          </div>
+
+          <div class="a-legend">
+            <div class="a-legend-item"><div class="a-legend-dot" style="background:#5C5AE6"></div> Booked</div>
+            <div class="a-legend-item"><div class="a-legend-dot" style="background:#F59E0B"></div> Shortlisted</div>
+            <div class="a-legend-item"><div class="a-legend-dot" style="background:#C4788A"></div> Researching</div>
+          </div>
+        </div>
+
+        <!-- Acquisitions -->
+        <div class="a-acq-card">
+          <div class="a-chart-head" style="margin-bottom:16px">
+            <div class="a-chart-title" style="font-size:14px">Category Status</div>
+            <div class="a-chart-period" style="font-size:11px">Month ▾</div>
+          </div>
+
+          <div class="a-acq-row">
+            <div class="a-acq-label-row">
+              <span class="a-acq-name"><span class="a-acq-dot" style="background:#5C5AE6"></span>Venue</span>
+              <span class="a-acq-pct">100%</span>
+            </div>
+            <div class="a-acq-bar"><div class="a-acq-fill" style="width:100%;background:#5C5AE6"></div></div>
+          </div>
+          <div class="a-acq-row">
+            <div class="a-acq-label-row">
+              <span class="a-acq-name"><span class="a-acq-dot" style="background:#F59E0B"></span>Photography</span>
+              <span class="a-acq-pct">80%</span>
+            </div>
+            <div class="a-acq-bar"><div class="a-acq-fill" style="width:80%;background:#F59E0B"></div></div>
+          </div>
+          <div class="a-acq-row">
+            <div class="a-acq-label-row">
+              <span class="a-acq-name"><span class="a-acq-dot" style="background:#C4788A"></span>Catering</span>
+              <span class="a-acq-pct">55%</span>
+            </div>
+            <div class="a-acq-bar"><div class="a-acq-fill" style="width:55%;background:#C4788A"></div></div>
+          </div>
+          <div class="a-acq-row">
+            <div class="a-acq-label-row">
+              <span class="a-acq-name"><span class="a-acq-dot" style="background:#A78BFA"></span>Florals</span>
+              <span class="a-acq-pct">40%</span>
+            </div>
+            <div class="a-acq-bar"><div class="a-acq-fill" style="width:40%;background:#A78BFA"></div></div>
+          </div>
+          <div class="a-acq-row">
+            <div class="a-acq-label-row">
+              <span class="a-acq-name"><span class="a-acq-dot" style="background:#6EE7B7"></span>Music/DJ</span>
+              <span class="a-acq-pct">25%</span>
+            </div>
+            <div class="a-acq-bar"><div class="a-acq-fill" style="width:25%;background:#6EE7B7"></div></div>
+          </div>
+        </div>
+      </div><!-- /lower -->
+    </div><!-- /content -->
+  </div><!-- /main -->
+
+  <!-- Right panel -->
+  <div class="a-right">
+    <div class="a-profile-card">
+      <div class="a-avatar">S+J</div>
+      <div class="a-profile-name">Sarah & James</div>
+      <div class="a-profile-role">Getting married June 28, 2026</div>
+      <div class="a-profile-loc">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        New York, NY
+      </div>
+    </div>
+
+    <div>
+      <div class="a-right-section-title">
+        Upcoming Payments
+        <button class="a-right-add">+ Add</button>
+      </div>
+      <div class="a-job-card orange">
+        <div class="a-job-num">$4K</div>
+        <div class="a-job-info">
+          <div class="a-job-title">Venue Deposit</div>
+          <div class="a-job-sub">Due July 1</div>
+        </div>
+        <div class="a-toggle"></div>
+      </div>
+      <div class="a-job-card purple">
+        <div class="a-job-num">$2K</div>
+        <div class="a-job-info">
+          <div class="a-job-title">Photographer</div>
+          <div class="a-job-sub">Due July 15</div>
+        </div>
+        <div class="a-toggle"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="a-right-section-title" style="margin-bottom:10px">
+        Reminders
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.8" stroke-linecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      </div>
+      <div class="a-reminder">
+        <div class="a-reminder-icon" style="background:#EEF2FF;">🎂</div>
+        <div class="a-reminder-text">
+          <div class="a-reminder-title">Cake tasting scheduled <strong>Tomorrow</strong></div>
+          <div class="a-reminder-time">2:00 PM</div>
+        </div>
+      </div>
+      <div class="a-reminder">
+        <div class="a-reminder-icon" style="background:#FEF3C7;">📸</div>
+        <div class="a-reminder-text">
+          <div class="a-reminder-title">4 photographers in your <strong>shortlist</strong> to review</div>
+          <div class="a-reminder-time">Pending</div>
+        </div>
+      </div>
+      <div class="a-reminder">
+        <div class="a-reminder-icon" style="background:#FFE4E6;">💐</div>
+        <div class="a-reminder-text">
+          <div class="a-reminder-title">Florist consultation moved to <strong>Friday</strong></div>
+          <div class="a-reminder-time">11:00 AM</div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /right panel -->
+
+</div>
+</div><!-- /mockup1 -->
+
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- MOCKUP 2: Ckdulz-inspired                      -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="mockup" id="mockup2">
+<div class="b-wrap">
+
+  <!-- Top nav -->
+  <div class="b-topnav">
+    <div class="b-logo-wrap">
+      <div class="b-logo-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M9 12l2 2 4-4"/></svg>
+      </div>
+      <div class="b-logo-name">Veil.</div>
+    </div>
+
+    <div class="b-nav-links">
+      <div class="b-nav-link active">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </div>
+      <div class="b-nav-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Calendar
+      </div>
+      <div class="b-nav-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Analytics
+      </div>
+    </div>
+
+    <div class="b-nav-right">
+      <div class="b-icon-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.8" stroke-linecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <div class="b-notif-dot">2</div>
+      </div>
+      <div class="b-icon-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.8" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        <div class="b-notif-dot">1</div>
+      </div>
+      <div class="b-user-chip">
+        <div class="b-user-avatar">SJ</div>
+        <div>
+          <div class="b-user-name">Sarah & James</div>
+          <div class="b-user-role">Wedding Jun 28</div>
+        </div>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="b-body">
+    <!-- Left panel -->
+    <div class="b-left">
+      <!-- Mini calendar -->
+      <div class="b-mini-cal">
+        <div class="b-cal-header">
+          <div class="b-cal-month">June 2026</div>
+          <div style="display:flex;gap:8px">
+            <div class="b-cal-nav">‹</div>
+            <div class="b-cal-nav">›</div>
+          </div>
+        </div>
+        <div class="b-cal-grid">
+          <div class="b-cal-day-label">Su</div><div class="b-cal-day-label">Mo</div><div class="b-cal-day-label">Tu</div><div class="b-cal-day-label">We</div><div class="b-cal-day-label">Th</div><div class="b-cal-day-label">Fr</div><div class="b-cal-day-label">Sa</div>
+          <div class="b-cal-day other-month">31</div>
+          <div class="b-cal-day">1</div><div class="b-cal-day">2</div><div class="b-cal-day">3</div><div class="b-cal-day has-event">4</div><div class="b-cal-day">5</div><div class="b-cal-day">6</div>
+          <div class="b-cal-day">7</div><div class="b-cal-day has-event">8</div><div class="b-cal-day">9</div><div class="b-cal-day has-event">10</div><div class="b-cal-day">11</div><div class="b-cal-day">12</div><div class="b-cal-day">13</div>
+          <div class="b-cal-day">14</div><div class="b-cal-day">15</div><div class="b-cal-day has-event">16</div><div class="b-cal-day">17</div><div class="b-cal-day today">18</div><div class="b-cal-day has-event">19</div><div class="b-cal-day">20</div>
+          <div class="b-cal-day">21</div><div class="b-cal-day has-event">22</div><div class="b-cal-day">23</div><div class="b-cal-day has-event has-event">24</div><div class="b-cal-day">25</div><div class="b-cal-day">26</div><div class="b-cal-day has-event">27</div>
+          <div class="b-cal-day" style="color:#C4788A;font-weight:700">28</div><div class="b-cal-day">29</div><div class="b-cal-day">30</div>
+          <div class="b-cal-day other-month">1</div><div class="b-cal-day other-month">2</div><div class="b-cal-day other-month">3</div><div class="b-cal-day other-month">4</div>
+        </div>
+      </div>
+
+      <!-- Categories -->
+      <div class="b-cats">
+        <div class="b-cats-header">
+          <div class="b-cats-title">Planning</div>
+          <div style="display:flex;gap:8px">
+            <div class="b-cats-add">+</div>
+            <div class="b-cats-add" style="font-size:14px">⌃</div>
+          </div>
+        </div>
+        <div class="b-cat-item">
+          <div class="b-cat-check" style="background:#EDE9FE">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5C5AE6" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          Vendor Meetings
+        </div>
+        <div class="b-cat-item">
+          <div class="b-cat-check" style="background:#D1FAE5">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          Tastings & Trials
+        </div>
+        <div class="b-cat-item">
+          <div class="b-cat-check" style="background:#FFE4E6">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#BE185D" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          Dress Appointments
+        </div>
+        <div class="b-cat-item">
+          <div class="b-cat-check" style="background:#FEF3C7">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          Payment Deadlines
+        </div>
+      </div>
+
+      <!-- Upgrade -->
+      <div class="b-upgrade-card">
+        <div class="b-upgrade-title">Upgrade to Premium</div>
+        <div class="b-upgrade-sub">Unlock AI advisor, payment alerts & vendor comparison</div>
+        <button class="b-upgrade-btn">Upgrade Now!</button>
+      </div>
+    </div><!-- /left -->
+
+    <!-- Main calendar -->
+    <div class="b-main">
+      <div class="b-cal-top">
+        <div class="b-cal-range">June 15 – 21, 2026</div>
+        <div class="b-cal-controls">
+          <div class="b-cal-arrow">‹</div>
+          <div class="b-cal-arrow">›</div>
+          <div class="b-view-select">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Week ▾
+          </div>
+          <button class="b-add-btn">＋ Add Event</button>
+        </div>
+      </div>
+
+      <div class="b-week-grid">
+        <!-- Header row -->
+        <div class="b-week-header">
+          <div class="b-week-header-empty"></div>
+          <div class="b-week-day-col">
+            <div class="b-week-day-num">15</div>
+            <div class="b-week-day-label">Sunday</div>
+          </div>
+          <div class="b-week-day-col">
+            <div class="b-week-day-num">16</div>
+            <div class="b-week-day-label">Monday</div>
+          </div>
+          <div class="b-week-day-col">
+            <div class="b-week-day-num">17</div>
+            <div class="b-week-day-label">Tuesday</div>
+          </div>
+          <div class="b-week-day-col">
+            <div class="b-week-day-num today">18</div>
+            <div class="b-week-day-label" style="color:#5C5AE6">Wednesday</div>
+          </div>
+          <div class="b-week-day-col">
+            <div class="b-week-day-num">19</div>
+            <div class="b-week-day-label">Thursday</div>
+          </div>
+          <div class="b-week-day-col">
+            <div class="b-week-day-num">20</div>
+            <div class="b-week-day-label">Friday</div>
+          </div>
+          <div class="b-week-day-col">
+            <div class="b-week-day-num">21</div>
+            <div class="b-week-day-label">Saturday</div>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div class="b-week-body">
+          <!-- Time column -->
+          <div class="b-time-col">
+            <div class="b-time-slot">08:00</div>
+            <div class="b-time-slot">09:00</div>
+            <div class="b-time-slot">10:00</div>
+            <div class="b-time-slot">11:00</div>
+            <div class="b-time-slot">12:00</div>
+            <div class="b-time-slot">13:00</div>
+            <div class="b-time-slot">14:00</div>
+          </div>
+
+          <!-- Sun -->
+          <div class="b-day-col">
+            <div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div>
+            <div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div>
+          </div>
+
+          <!-- Mon -->
+          <div class="b-day-col">
+            <div class="b-day-slot"></div>
+            <div class="b-day-slot" style="position:relative">
+              <div class="b-event ev-lavender" style="top:8px;height:116px">
+                <div class="b-event-title">Venue Walkthrough</div>
+                <div class="b-event-time">09:00 – 11:00</div>
+              </div>
+            </div>
+            <div class="b-day-slot"></div>
+            <div class="b-day-slot"></div>
+            <div class="b-day-slot" style="position:relative">
+              <div class="b-event ev-amber" style="top:8px;height:116px">
+                <div class="b-event-title">Caterer Call</div>
+                <div class="b-event-time">12:00 – 14:00</div>
+              </div>
+            </div>
+            <div class="b-day-slot"></div>
+            <div class="b-day-slot"></div>
+          </div>
+
+          <!-- Tue -->
+          <div class="b-day-col">
+            <div class="b-day-slot"></div><div class="b-day-slot"></div>
+            <div class="b-day-slot" style="position:relative">
+              <!-- "now" line placeholder -->
+              <div style="position:absolute;left:0;right:0;top:28px;height:2px;background:#5C5AE6;opacity:0.4"></div>
+              <div style="position:absolute;left:-4px;top:24px;width:8px;height:8px;background:#5C5AE6;border-radius:50;opacity:0.6"></div>
+            </div>
+            <div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div>
+          </div>
+
+          <!-- Wed (today) -->
+          <div class="b-day-col" style="background:#FAFBFF">
+            <div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div>
+            <div class="b-day-slot" style="position:relative">
+              <div class="b-event ev-rose" style="top:8px;height:180px">
+                <div class="b-event-title">Dress Fitting</div>
+                <div class="b-event-time">11:00 – 14:00</div>
+              </div>
+            </div>
+            <div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div>
+          </div>
+
+          <!-- Thu -->
+          <div class="b-day-col">
+            <div class="b-day-slot"></div>
+            <div class="b-day-slot" style="position:relative">
+              <div class="b-event ev-sky" style="top:8px;height:116px">
+                <div class="b-event-title">Florist Consult</div>
+                <div class="b-event-time">09:00 – 11:00</div>
+              </div>
+            </div>
+            <div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div>
+          </div>
+
+          <!-- Fri -->
+          <div class="b-day-col">
+            <div class="b-day-slot"></div><div class="b-day-slot"></div>
+            <div class="b-day-slot" style="position:relative">
+              <div class="b-event ev-mint" style="top:8px;height:116px">
+                <div class="b-event-title">Cake Tasting</div>
+                <div class="b-event-time">10:00 – 12:00</div>
+              </div>
+            </div>
+            <div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div>
+          </div>
+
+          <!-- Sat -->
+          <div class="b-day-col">
+            <div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div>
+            <div class="b-day-slot" style="position:relative">
+              <div class="b-event ev-lavender" style="top:8px;height:116px">
+                <div class="b-event-title">Hair Trial</div>
+                <div class="b-event-time">11:00 – 13:00</div>
+              </div>
+            </div>
+            <div class="b-day-slot"></div><div class="b-day-slot"></div><div class="b-day-slot"></div>
+          </div>
+        </div><!-- /week body -->
+      </div><!-- /week grid -->
+
+      <!-- Bottom bar -->
+      <div class="b-bottom-bar">
+        <div class="b-avatars">
+          <div class="b-sm-avatar" style="background:#C4788A">S</div>
+          <div class="b-sm-avatar" style="background:#5C5AE6">J</div>
+          <div class="b-sm-avatar" style="background:#9B5FA5">M</div>
+          <div class="b-sm-avatar add-btn">+</div>
+        </div>
+        <div class="b-view-all">View All Guests</div>
+        <button class="b-bottom-action">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Share
+        </button>
+        <button class="b-bottom-action">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          Email
+        </button>
+      </div>
+    </div><!-- /b-main -->
+  </div><!-- /b-body -->
+</div>
+</div><!-- /mockup2 -->
+
+<script>
+function switchTab(n) {
+  document.querySelectorAll('.mockup').forEach(el => el.classList.remove('active'))
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'))
+  document.getElementById('mockup' + n).classList.add('active')
+  document.querySelectorAll('.tab-btn')[n - 1].classList.add('active')
+}
+</script>
+</body>
+</html>
