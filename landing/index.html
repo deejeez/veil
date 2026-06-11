@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Veil — Plan your wedding without the chaos</title>
+<meta name="description" content="Veil is the AI wedding planner that matches you with vendors, builds your timeline, reviews contracts, and tracks every payment. $149 once. No subscriptions.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Async font CSS: render-blocking removal (Lighthouse). display=swap + system fallbacks keep text visible; the hero reveal already waits on document.fonts.ready (max 800ms). -->
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"></noscript>
+<style>
+/* ============ TOKENS ============ */
+:root{
+  --cream:#FAF7F2; --cream-warm:#F3EDE4; --cream-deep:#EDE6DA;
+  --charcoal:#2C2420; --charcoal-light:#5C524A; --muted:#8A8179;
+  --champagne:#C9A96E; --champagne-light:#D4BA85; --champagne-dark:#B8944F;
+  --sage:#8B9E7E; --terracotta:#C17A5A;
+  --hairline:#E2D9CB; --dark:#231D18;
+  --serif:'Playfair Display',Georgia,serif; --sans:'DM Sans',-apple-system,sans-serif;
+  --ease:cubic-bezier(.22,1,.36,1);
+  --gold-text:#7A5A22;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;overflow-x:hidden}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{font-family:var(--sans);background:var(--cream);color:var(--charcoal);
+  font-size:17px;line-height:1.6;font-weight:400;-webkit-font-smoothing:antialiased;
+  overflow-x:hidden}
+img{max-width:100%;height:auto;display:block}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--charcoal);outline-offset:3px;border-radius:2px}
+/* dark sections need a light focus ring to pass 3:1 on dark bg */
+.final :focus-visible,.footer :focus-visible{outline-color:#F5EFE6}
+.container{max-width:1200px;margin:0 auto;padding:0 40px}
+@media(max-width:768px){.container{padding:0 22px}}
+
+/* noise overlay — non-interactive; z-index 200 so future modals/toasts can sit above */
+body::after{content:'';position:fixed;inset:0;z-index:200;pointer-events:none;opacity:.35;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.04'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* reveal grammar primitives */
+.line-mask{display:block;overflow:hidden;padding-bottom:.08em;margin-bottom:-.08em}
+.line-inner{display:block;transform:translateY(110%)}
+.no-js .line-inner,.reduced .line-inner{transform:none}
+/* hidden only when not yet revealed; once .is-revealed is added, this rule no longer applies
+   and inline transforms can be safely cleared without snapping back to the class rule */
+.fade-up:not(.is-revealed){opacity:0;transform:translateY(28px)}
+/* specificity (0,2,0) — same as above, so these neutralizers must stay AFTER to win */
+.no-js .fade-up,.reduced .fade-up{opacity:1;transform:none}
+.kicker{font-size:12px;letter-spacing:.22em;text-transform:uppercase;font-weight:600;color:var(--gold-text)}
+/* hairline: CSS owns hidden state (scaleX 0); GSAP .to() reveals; full width in no-js/reduced */
+.hairline{height:1px;background:var(--hairline);transform-origin:left center}
+.proof-line{transform:scaleX(0)}
+.no-js .proof-line,.reduced .proof-line{transform:none}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.btn{display:inline-flex;align-items:center;gap:10px;border-radius:999px;font-weight:500;
+  font-size:16px;padding:16px 34px;transition:transform .3s var(--ease),box-shadow .3s var(--ease),background .3s}
+.btn-primary{background:var(--charcoal);color:var(--cream)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 14px 30px -12px rgba(44,36,32,.45)}
+.btn-ghost{color:var(--charcoal);border:1px solid var(--hairline)}
+.btn-ghost:hover{background:var(--cream-warm)}
+
+/* NAV */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(250,247,242,.82);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid rgba(226,217,203,.6);transition:transform .45s var(--ease)}
+.nav.nav-hidden{transform:translateY(-100%)}
+.nav.nav-hidden:focus-within{transform:none}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:72px}
+.nav-logo{font-family:var(--serif);font-size:24px;display:flex;align-items:center;gap:9px}
+.nav-links{display:flex;align-items:center;gap:30px;font-size:15px;font-weight:500;color:var(--charcoal-light)}
+.nav-links a:not(.btn){padding:8px 0}
+.nav-links a:hover{color:var(--charcoal)}
+.nav-logo svg{color:var(--champagne-dark)}
+.nav-cta{padding:11px 24px;font-size:14px}
+@media(max-width:768px){
+  .nav-links a:not(.nav-login):not(.nav-cta){display:none}
+  .nav-inner{height:62px}
+  .nav-cta{padding:10px 18px}
+}
+/* ============ HERO (Tasks 3-5) ============ */
+.hero{position:relative;min-height:100vh;min-height:100svh;display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-start;padding-top:max(15vh,140px);overflow:hidden;
+  background:linear-gradient(180deg,var(--cream) 0%,var(--cream-deep) 100%)}
+.hero-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:0}
+/* static silk fallback when no canvas (mobile / reduced / no three.js) */
+.hero.silk-static .hero-canvas{display:none}
+.hero.silk-static{background:
+  radial-gradient(120% 60% at 20% 30%,rgba(212,186,133,.28) 0%,transparent 60%),
+  radial-gradient(100% 50% at 85% 55%,rgba(201,169,110,.22) 0%,transparent 60%),
+  radial-gradient(90% 45% at 50% 85%,rgba(226,207,164,.25) 0%,transparent 60%),
+  linear-gradient(180deg,var(--cream) 0%,var(--cream-deep) 100%)}
+.hero-content{position:relative;z-index:2;text-align:center;display:flex;flex-direction:column;align-items:center}
+.hero-h1{font-family:var(--serif);font-weight:400;letter-spacing:-.02em;line-height:1.04;
+  font-size:clamp(48px,8vw,92px);margin:22px 0 26px}
+.hero-h1 em{font-style:italic;color:var(--champagne-dark)}
+.hero-sub{font-size:clamp(16px,1.6vw,19px);font-weight:300;color:var(--charcoal-light);max-width:620px}
+.hero-ctas{display:flex;gap:14px;margin:34px 0 16px;flex-wrap:wrap;justify-content:center}
+.hero-note{font-size:13px;letter-spacing:.06em;color:var(--charcoal-light)}
+.hero-product{position:relative;z-index:2;width:min(960px,86vw);margin-top:7vh;
+  perspective:1400px;perspective-origin:top center}
+.product-frame{background:#fff;border:1px solid var(--hairline);border-radius:14px 14px 0 0;
+  overflow:hidden;transform:rotateX(24deg) scale(.94);transform-origin:top center;
+  box-shadow:0 -30px 80px -40px rgba(140,116,84,.45);will-change:transform}
+.reduced .product-frame,.no-js .product-frame{transform:none;border-radius:14px;
+  box-shadow:0 30px 80px -40px rgba(140,116,84,.45);will-change:auto}
+.product-glow{position:absolute;inset:0;border-radius:14px;box-shadow:0 40px 100px -40px rgba(140,116,84,.55);opacity:0;pointer-events:none;will-change:opacity}
+.product-bar{display:flex;align-items:center;gap:6px;padding:11px 14px;background:var(--cream-warm);
+  border-bottom:1px solid var(--hairline)}
+.product-bar span{width:9px;height:9px;border-radius:50%;background:#DCD2C2}
+.product-bar i{font-style:normal;font-size:11px;color:var(--muted);margin:0 auto;
+  background:var(--cream);padding:3px 14px;border-radius:6px;border:1px solid var(--hairline)}
+@media(max-width:768px){
+  .hero{padding-top:120px}
+  .hero-ctas{flex-direction:column;width:100%;max-width:340px}
+  .hero-ctas .btn{justify-content:center}
+  .hero-product{width:92vw;margin-top:44px;perspective:none}
+  .product-frame{transform:none;border-radius:12px;box-shadow:0 24px 60px -30px rgba(140,116,84,.4);will-change:auto}
+}
+@media(max-width:480px){.hero-sub br{display:none}}
+/* ============ PROOF STRIP (Task 6) ============ */
+.proof{padding:72px 0;background:var(--cream)}
+.proof-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;padding:44px 0;text-align:center}
+.proof-num{font-family:var(--serif);font-size:clamp(34px,4vw,48px);line-height:1;display:block;margin-bottom:10px}
+.proof-num small{font-family:var(--sans);font-size:15px;color:var(--charcoal-light)}
+.proof-ai{color:var(--champagne-dark)}
+.proof-label{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+@media(max-width:768px){.proof{padding:48px 0}.proof-grid{grid-template-columns:1fr 1fr;gap:32px 12px;padding:34px 0}}
+/* ============ STORY (Tasks 7-8) ============ */
+.story{background:#fff;position:relative}
+.story-pin{min-height:100vh;display:flex;align-items:center;position:relative;padding-top:60px;padding-bottom:60px}
+.story-rail{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:2px;height:200px;background:var(--hairline);border-radius:2px}
+.story-rail-fill{position:absolute;top:0;left:0;width:100%;height:25%;background:var(--champagne);border-radius:2px;transition:height .5s var(--ease)}
+.story-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:72px;align-items:center;width:100%}
+.story-chapters{position:relative;margin-top:26px;min-height:300px}
+.story-ch{position:absolute;inset:0;opacity:0;transform:translateY(20px);pointer-events:none;
+  transition:opacity .5s var(--ease),transform .5s var(--ease)}
+.story-ch.is-active{opacity:1;transform:none;pointer-events:auto}
+.story-index{font-family:var(--serif);font-size:64px;color:var(--cream-deep);line-height:1;display:block;
+  -webkit-text-stroke:1px var(--champagne-light)}
+.story-ch h2{font-family:var(--serif);font-weight:400;font-size:clamp(28px,3vw,40px);margin:14px 0 16px;letter-spacing:-.01em}
+.story-ch p{color:var(--charcoal-light);font-size:17px;max-width:420px}
+.story-right{position:relative;min-height:420px}
+/* aria-hidden="true" on each .vig is load-bearing: on mobile, JS re-parents vignettes OUT of
+   the aria-hidden .story-right container, so per-element aria-hidden must travel with them */
+.vig{position:absolute;inset:0;opacity:0;visibility:hidden;transform:scale(.96);
+  transition:opacity .55s var(--ease),transform .55s var(--ease),visibility .55s;display:flex;align-items:center}
+.vig.is-active{opacity:1;visibility:visible;transform:none}
+.vig-frame{background:var(--cream);border:1px solid var(--hairline);border-radius:16px;padding:26px;width:100%;
+  box-shadow:0 30px 70px -40px rgba(140,116,84,.4)}
+.vig-head{font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;color:var(--muted);
+  padding-bottom:14px;border-bottom:1px solid var(--hairline);margin-bottom:16px}
+.vig-vendor{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--hairline);
+  border-radius:11px;padding:14px 16px;margin-bottom:10px}
+.vig-vendor b{display:block;font-weight:600;font-size:15px}
+.vig-vendor i{font-style:normal;font-size:13px;color:var(--muted)}
+.vig-vendor div{flex:1}
+.vig-avatar{width:38px;height:38px;border-radius:50%;flex-shrink:0;opacity:.85}
+.vig-badge{font-style:normal;font-size:12px;font-weight:600;color:var(--charcoal-light);background:var(--cream-warm);
+  padding:4px 10px;border-radius:999px}
+.vig-match{background:#EDF0E7;color:#5F7351}
+.vig-task{display:flex;align-items:center;gap:12px;padding:12px 4px;font-size:15px;border-bottom:1px solid var(--cream-deep)}
+.vig-task:last-child{border-bottom:0}
+.vig-task.is-done{color:var(--muted);text-decoration:line-through}
+.vig-check{width:17px;height:17px;color:var(--sage)}
+.vig-check path{stroke-dasharray:20;stroke-dashoffset:0}
+.vig-dot{width:11px;height:11px;border-radius:50%;background:var(--champagne);flex-shrink:0;margin:0 3px}
+.vig-dot-future{background:var(--hairline)}
+.vig-task.is-now{font-weight:600}
+.vig-task.is-now em{font-style:normal;font-weight:400;color:var(--champagne-dark);font-size:13px}
+.vig-flag{display:flex;flex-direction:column;gap:3px;border-left:3px solid;border-radius:0 9px 9px 0;
+  background:#fff;padding:13px 16px;margin-bottom:10px;font-size:14px}
+.vig-flag b{font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.vig-flag span{color:var(--charcoal-light)}
+.vig-flag-ok{border-color:var(--sage)} .vig-flag-ok b{color:var(--sage)}
+.vig-flag-warn{border-color:var(--champagne)} .vig-flag-warn b{color:var(--champagne-dark)}
+.vig-flag-alert{border-color:var(--terracotta)} .vig-flag-alert b{color:var(--terracotta)}
+.vig-bar-row{display:grid;grid-template-columns:74px 1fr 56px;align-items:center;gap:14px;margin-bottom:14px;font-size:14px}
+.vig-bar-row b{font-weight:600;text-align:right}
+.vig-bar{height:8px;background:var(--cream-deep);border-radius:99px;overflow:hidden}
+.vig-bar i{display:block;height:100%;width:var(--w);background:linear-gradient(90deg,var(--champagne-light),var(--champagne-dark));border-radius:99px}
+.vig-due{margin-top:18px;padding:12px 16px;background:#fff;border:1px dashed var(--champagne-light);border-radius:9px;font-size:14px;color:var(--charcoal-light)}
+.vig-due b{color:var(--charcoal)}
+/* stacked-mode: used by .story-stacked (mobile/no-GSAP JS path), .reduced (CDN guard), .no-js */
+/* selectors are NOT inside a media query so they work at any viewport width */
+.story-stacked .story-pin,.reduced .story-pin,.no-js .story-pin{min-height:0}
+.story-stacked .story-grid,.reduced .story-grid,.no-js .story-grid{display:block}
+.story-stacked .story-chapters,.reduced .story-chapters,.no-js .story-chapters{min-height:0}
+.story-stacked .story-ch,.reduced .story-ch,.no-js .story-ch,
+.story-stacked .vig,.reduced .vig,.no-js .vig{position:static;opacity:1;visibility:visible;transform:none;pointer-events:auto}
+/* stacked story spacing: vig leads with top margin, chapter follows with bottom only */
+.story-stacked .story-ch,.reduced .story-ch,.no-js .story-ch{margin:0 0 12px}
+.story-stacked .vig,.reduced .vig,.no-js .vig{margin:40px 0 12px}
+.story-stacked .story-right,.reduced .story-right,.no-js .story-right{min-height:0}
+.story-stacked .story-rail,.reduced .story-rail,.no-js .story-rail{display:none}
+@media(max-width:900px){.story-grid{grid-template-columns:1fr;gap:40px}}
+/* ============ HOW IT WORKS (Task 9) ============ */
+.how{padding:120px 0;background:var(--cream)}
+.sect-h{font-family:var(--serif);font-weight:400;font-size:clamp(30px,3.6vw,46px);letter-spacing:-.01em;margin:14px 0 0}
+.how-line{margin:54px 0 0;transform:scaleX(0);transform-origin:left center}
+.no-js .how-line,.reduced .how-line{transform:none}
+.how-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:48px;margin-top:54px}
+.how-num{font-family:var(--serif);font-size:clamp(56px,6vw,84px);line-height:1;color:var(--champagne-light);display:block}
+.how-step h3{font-family:var(--serif);font-weight:500;font-size:21px;margin:18px 0 10px}
+.how-step p{color:var(--charcoal-light);font-size:15.5px}
+@media(max-width:768px){.how{padding:72px 0}.how-grid{grid-template-columns:1fr;gap:40px;margin-top:40px}}
+/* ============ TESTIMONIALS (Task 10) ============ */
+.quotes{padding:130px 0;background:#fff;text-align:center}
+.quote-stage{position:relative;min-height:220px;display:flex;align-items:center;justify-content:center}
+.quote{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  opacity:0;visibility:hidden;transition:opacity .6s var(--ease),visibility .6s;margin:0}
+.quote.is-active{opacity:1;visibility:visible}
+.quote blockquote{font-family:var(--serif);font-style:italic;font-weight:400;
+  font-size:clamp(24px,3.2vw,40px);line-height:1.35;letter-spacing:-.01em;max-width:820px;margin:0 auto}
+.quote blockquote .qw{display:inline-block}
+.quote figcaption{margin-top:26px;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.quote-dashes{display:flex;gap:10px;justify-content:center;margin-top:44px}
+.quote-dash{width:44px;height:44px;padding:0;border:0;background:none;cursor:pointer;position:relative}
+.quote-dash::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:26px;height:3px;border-radius:2px;background:var(--hairline);transition:background .3s}
+.quote-dash.is-active::after{background:var(--champagne)}
+@media(max-width:768px){.quotes{padding:80px 0}.quote-stage{min-height:280px}}
+/* reduced-mode quote swaps are instant — no cross-fade */
+.reduced .quote{transition:none}
+/* ============ PRICING (Task 11) ============ */
+.pricing{padding:120px 0 140px;background:var(--cream)}
+.price-card{position:relative;max-width:460px;margin:54px auto 0;background:#fff;border:1px solid var(--hairline);
+  border-radius:18px;padding:48px 44px 44px;text-align:center;overflow:hidden;
+  box-shadow:0 30px 80px -50px rgba(140,116,84,.5)}
+.price-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--champagne-light),var(--champagne-dark),var(--champagne-light));
+  background-size:200% 100%;animation:shimmer 3.5s linear infinite}
+@keyframes shimmer{to{background-position:-200% 0}}
+.reduced .price-card::before{animation:none}
+.price-badge{position:absolute;top:20px;right:20px;background:#EDF0E7;color:#5F7351;
+  font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:999px}
+.price-amount{font-family:var(--serif);font-size:72px;line-height:1;margin-top:8px}
+.price-sub{font-size:13px;letter-spacing:.06em;color:var(--muted);margin:10px 0 30px}
+.price-list{list-style:none;text-align:left;margin-bottom:34px}
+.price-list li{padding:11px 0 11px 32px;border-bottom:1px solid var(--cream-deep);font-size:15.5px;position:relative;
+  opacity:0;transform:translateX(-18px)}
+.no-js .price-list li,.reduced .price-list li{opacity:1;transform:none}
+.price-list li:last-child{border-bottom:0}
+.price-list li::before{content:'';position:absolute;left:4px;top:17px;width:14px;height:8px;
+  border-left:2px solid var(--sage);border-bottom:2px solid var(--sage);transform:rotate(-45deg)}
+.price-cta{display:block;text-align:center;width:100%}
+@media(max-width:768px){.pricing{padding:72px 0 90px}.price-card{padding:40px 26px 34px}}
+/* ============ FINAL CTA + FOOTER (Task 12) ============ */
+.final{background:
+  radial-gradient(110% 55% at 25% 20%,rgba(201,169,110,.10) 0%,transparent 60%),
+  radial-gradient(90% 50% at 80% 75%,rgba(212,186,133,.08) 0%,transparent 60%),
+  var(--dark);
+  color:#F5EFE6;padding:150px 0;text-align:center}
+.final-h{font-family:var(--serif);font-weight:400;font-size:clamp(36px,5.4vw,68px);line-height:1.12;letter-spacing:-.015em}
+.final-em{font-style:italic;position:relative;display:inline-block}
+/* FRAGILE: .line-mask{padding-bottom:.08em} keeps this SVG underline from being clipped — do not remove */
+.final-underline{position:absolute;left:0;right:0;bottom:-.12em;width:100%;height:.18em}
+.final-underline path{stroke-dasharray:300;stroke-dashoffset:0}
+.final-sub{color:#B8AC9C;font-size:17px;margin:26px auto 38px;max-width:480px}
+.final-cta{background:var(--cream);color:var(--charcoal)}
+.final-cta:hover{transform:translateY(-2px);box-shadow:0 16px 36px -14px rgba(0,0,0,.5)}
+.footer{background:var(--dark);color:#8F8475;padding:70px 0 36px;border-top:1px solid rgba(245,239,230,.08)}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px}
+.footer-brand{font-family:var(--serif);font-size:26px;color:#F5EFE6}
+.footer-tag{font-size:14px;margin-top:10px}
+/* .footer-h replaces h4 to avoid heading-level skip (footer has no h3); visually identical */
+.footer-h{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#A89F95;margin-bottom:16px;font-weight:600}
+.footer-grid a{display:block;font-size:14.5px;padding:5px 0;color:#9E9286}
+.footer-grid a:hover{color:#F5EFE6}
+.footer-bottom{margin-top:56px;padding-top:24px;border-top:1px solid rgba(245,239,230,.08);font-size:13px}
+@media(max-width:768px){.final{padding:90px 0}.footer-grid{grid-template-columns:1fr 1fr;gap:32px}}
+/* ============ MOBILE + REDUCED MOTION (Task 13) ============ */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important}
+  .line-inner{transform:none!important}
+  .fade-up{opacity:1!important;transform:none!important}
+  .product-frame{transform:none!important}
+  .hero-canvas{display:none!important}
+}
+/* pricing shimmer: @keyframes shimmer is effectively frozen by animation-duration:.01ms above —
+   no extra rule needed; verified by the kill-switch covering all animation-duration */
+</style>
+</head>
+<body class="no-js">
+<script>
+document.body.classList.remove('no-js');
+/* slow-CDN guard: if our DOMContentLoaded handler hasn't fired in 2.5s (GSAP may have loaded
+   but our handler failed), show everything statically. __veilReady is set at top of handler. */
+setTimeout(function(){ if(!window.__veilReady) document.body.classList.add('reduced'); }, 2500);
+</script>
+
+<nav class="nav" id="nav" aria-label="Main">
+  <div class="nav-inner container">
+    <a href="#" class="nav-logo" aria-label="Veil home">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s-7.5-4.8-9.8-9.2C.6 8.6 2.3 5 5.8 5c2 0 3.4 1.1 4.2 2.4h4c.8-1.3 2.2-2.4 4.2-2.4 3.5 0 5.2 3.6 3.6 6.8C19.5 16.2 12 21 12 21z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      Veil
+    </a>
+    <div class="nav-links">
+      <a href="#story">Features</a>
+      <a href="#how">Story</a>
+      <a href="#pricing">Pricing</a>
+      <a href="https://app.getwed.ai/login" class="nav-login">Log in</a>
+      <a href="https://app.getwed.ai/signup" class="btn btn-primary nav-cta">Get Started</a>
+    </div>
+  </div>
+</nav>
+<header class="hero" id="hero">
+  <canvas class="hero-canvas" id="silk-canvas" aria-hidden="true"></canvas>
+  <div class="hero-content container">
+    <p class="kicker hero-kicker fade-up">Veil — AI Wedding Planner</p>
+    <h1 class="hero-h1">
+      <span class="line-mask"><span class="line-inner">Plan your wedding</span></span>
+      <span class="line-mask"><span class="line-inner"><em>without the chaos</em></span></span>
+    </h1>
+    <p class="hero-sub fade-up">Vendors matched. Timeline built. Contracts reviewed. Payments tracked. <br>One calm place for all of it — powered by AI that actually plans.</p>
+    <div class="hero-ctas fade-up">
+      <a href="https://app.getwed.ai/signup" class="btn btn-primary">Start planning — $149</a>
+      <a href="#story" class="btn btn-ghost">See how it works</a>
+    </div>
+    <p class="hero-note fade-up">One-time purchase. No subscriptions. Yours forever.</p>
+  </div>
+  <div class="hero-product" id="hero-product">
+    <div class="product-glow" aria-hidden="true"></div>
+    <div class="product-frame">
+      <div class="product-bar" aria-hidden="true"><span></span><span></span><span></span><i>app.getwed.ai</i></div>
+      <img src="app-screenshot.webp" alt="The Veil dashboard showing vendor progress, budget tracking, and a wedding countdown" width="1920" height="957" decoding="async" fetchpriority="high">
+    </div>
+  </div>
+</header>
+<main id="main">
+<section class="proof" aria-label="Veil at a glance">
+  <div class="container">
+    <div class="hairline proof-line"></div>
+    <div class="proof-grid">
+      <div class="proof-item fade-up"><span class="proof-num" data-count="14" aria-hidden="true">14</span><span class="sr-only">14</span><span class="proof-label">vendor categories</span></div>
+      <div class="proof-item fade-up"><span class="proof-num proof-ai">AI</span><span class="proof-label">personalized timeline</span></div>
+      <div class="proof-item fade-up"><span class="proof-num">$0<small>/mo</small></span><span class="proof-label">no subscriptions</span></div>
+      <div class="proof-item fade-up"><span class="proof-num" data-count="1" aria-hidden="true">1</span><span class="sr-only">1</span><span class="proof-label">place for everything</span></div>
+    </div>
+    <div class="hairline proof-line"></div>
+  </div>
+</section>
+<section class="story" id="story">
+  <div class="story-pin container">
+    <div class="story-rail" aria-hidden="true"><span class="story-rail-fill"></span></div>
+    <div class="story-grid">
+      <div class="story-left">
+        <p class="kicker">What Veil does</p>
+        <div class="story-chapters">
+          <article class="story-ch is-active" data-ch="0">
+            <span class="story-index" aria-hidden="true">01</span>
+            <h2>Smart vendor matching</h2>
+            <p>Tell Veil your style, city, and budget. It surfaces photographers, florists, venues, and eleven more categories that actually fit — then tracks every proposal in one place.</p>
+          </article>
+          <article class="story-ch" data-ch="1">
+            <span class="story-index" aria-hidden="true">02</span>
+            <h2>A timeline that thinks ahead</h2>
+            <p>Your wedding date generates a living plan: what to book, when to book it, and what slips if you wait. It updates itself as you check things off.</p>
+          </article>
+          <article class="story-ch" data-ch="2">
+            <span class="story-index" aria-hidden="true">03</span>
+            <h2>AI contract review</h2>
+            <p>Upload any vendor contract and Veil flags the fine print — cancellation terms, hidden fees, overtime rates — before you sign, not after.</p>
+          </article>
+          <article class="story-ch" data-ch="3">
+            <span class="story-index" aria-hidden="true">04</span>
+            <h2>Budget &amp; payment tracking</h2>
+            <p>Every deposit, every due date, every dollar — tracked against your budget automatically. Veil reminds you before payments land, so nothing surprises you.</p>
+          </article>
+        </div>
+      </div>
+      <div class="story-right" aria-hidden="true">
+        <div class="vig is-active" data-vig="0" aria-hidden="true">
+          <div class="vig-frame">
+            <div class="vig-head">Vendors · Photographers</div>
+            <div class="vig-vendor"><span class="vig-avatar" style="background:#D4BA85"></span><div><b>Golden Hour Studio</b><i>Proposal received · $3,400</i></div><em class="vig-badge vig-match">96% match</em></div>
+            <div class="vig-vendor"><span class="vig-avatar" style="background:#8B9E7E"></span><div><b>Forever Films Co.</b><i>Meeting scheduled</i></div><em class="vig-badge">88% match</em></div>
+            <div class="vig-vendor"><span class="vig-avatar" style="background:#C17A5A"></span><div><b>Lens &amp; Lace</b><i>Researching</i></div><em class="vig-badge">82% match</em></div>
+          </div>
+        </div>
+        <div class="vig" data-vig="1" aria-hidden="true">
+          <div class="vig-frame">
+            <div class="vig-head">Timeline · 11 months out</div>
+            <div class="vig-task is-done"><svg viewBox="0 0 16 16" class="vig-check"><path d="M3 8.5L6.5 12L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Book your venue</span></div>
+            <div class="vig-task is-done"><svg viewBox="0 0 16 16" class="vig-check"><path d="M3 8.5L6.5 12L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Set your budget</span></div>
+            <div class="vig-task is-now"><span class="vig-dot"></span><span>Book photographer <em>— do this now</em></span></div>
+            <div class="vig-task"><span class="vig-dot vig-dot-future"></span><span>Send save-the-dates</span></div>
+          </div>
+        </div>
+        <div class="vig" data-vig="2" aria-hidden="true">
+          <div class="vig-frame">
+            <div class="vig-head">Contract review · Golden Hour Studio</div>
+            <div class="vig-flag vig-flag-ok"><b>Standard</b><span>Payment schedule: 50% deposit, 50% two weeks out</span></div>
+            <div class="vig-flag vig-flag-warn"><b>Caution</b><span>Overtime billed at $450/hr after 8 hours</span></div>
+            <div class="vig-flag vig-flag-alert"><b>Flag</b><span>No refund clause if photographer cancels</span></div>
+          </div>
+        </div>
+        <div class="vig" data-vig="3" aria-hidden="true">
+          <div class="vig-frame">
+            <div class="vig-head">Budget · $42,000 total</div>
+            <div class="vig-bar-row"><span>Venue</span><div class="vig-bar"><i style="--w:78%"></i></div><b>$18.2k</b></div>
+            <div class="vig-bar-row"><span>Catering</span><div class="vig-bar"><i style="--w:55%"></i></div><b>$9.6k</b></div>
+            <div class="vig-bar-row"><span>Photo</span><div class="vig-bar"><i style="--w:40%"></i></div><b>$3.4k</b></div>
+            <div class="vig-due">Next payment: <b>$4,500</b> due Jun 28 · venue balance</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="how" id="how">
+  <div class="container">
+    <p class="kicker fade-up">How it works</p>
+    <h2 class="sect-h fade-up">Three steps to a calmer engagement</h2>
+    <div class="how-line hairline" aria-hidden="true"></div>
+    <div class="how-grid">
+      <div class="how-step fade-up"><span class="how-num" aria-hidden="true">01</span><h3>Tell us your date</h3><p>Your wedding date and city seed everything — Veil builds your personalized timeline instantly.</p></div>
+      <div class="how-step fade-up"><span class="how-num" aria-hidden="true">02</span><h3>Add what you have</h3><p>Already booked a venue? Have a budget in mind? Drop it in and Veil works around it.</p></div>
+      <div class="how-step fade-up"><span class="how-num" aria-hidden="true">03</span><h3>Let AI guide you</h3><p>Veil tells you what to do next, finds vendors worth your time, and keeps every dollar visible.</p></div>
+    </div>
+  </div>
+</section>
+<section class="quotes" aria-label="What couples say">
+  <div class="container">
+    <div class="quote-stage" id="quote-stage" aria-live="polite">
+      <figure class="quote is-active" data-q="0">
+        <blockquote>&ldquo;Veil told us to book our photographer 11&nbsp;months out. Every other tool just said &lsquo;soon.&rsquo; We got our first choice.&rdquo;</blockquote>
+        <figcaption>Sarah M. &middot; New York City</figcaption>
+      </figure>
+      <figure class="quote" data-q="1">
+        <blockquote>&ldquo;I uploaded our venue contract and Veil flagged a hidden overtime fee we would have missed. Paid for itself instantly.&rdquo;</blockquote>
+        <figcaption>Jessica T. &middot; Austin</figcaption>
+      </figure>
+      <figure class="quote" data-q="2">
+        <blockquote>&ldquo;We went from a 47-tab spreadsheet to actually knowing what to do next. Every dollar tracked, every vendor managed.&rdquo;</blockquote>
+        <figcaption>Rachel &amp; Dan &middot; Chicago</figcaption>
+      </figure>
+    </div>
+    <div class="quote-dashes" role="tablist" aria-label="Testimonials">
+      <button class="quote-dash is-active" role="tab" aria-selected="true" aria-label="Testimonial 1" data-go="0"></button>
+      <button class="quote-dash" role="tab" aria-selected="false" aria-label="Testimonial 2" data-go="1"></button>
+      <button class="quote-dash" role="tab" aria-selected="false" aria-label="Testimonial 3" data-go="2"></button>
+    </div>
+  </div>
+</section>
+<section class="pricing" id="pricing">
+  <div class="container">
+    <p class="kicker fade-up" style="text-align:center">Pricing</p>
+    <h2 class="sect-h fade-up" style="text-align:center">One price. Every feature. Forever.</h2>
+    <div class="price-card fade-up">
+      <span class="price-badge">Best value</span>
+      <div class="price-amount">$149</div>
+      <p class="price-sub">one-time purchase &middot; no subscriptions &middot; yours forever</p>
+      <ul class="price-list">
+        <li>AI vendor shortlists ranked to your style and budget</li>
+        <li>Personalized planning timeline with urgency alerts</li>
+        <li>Contract review that flags what matters</li>
+        <li>Budget and payment tracking with family cost splitting</li>
+        <li>Works for any budget, guest count, or wedding style</li>
+      </ul>
+      <a href="https://app.getwed.ai/signup" class="btn btn-primary price-cta">Get Started</a>
+    </div>
+  </div>
+</section>
+<section class="final">
+  <div class="container">
+    <h2 class="final-h">
+      <span class="line-mask"><span class="line-inner">Your wedding deserves better</span></span>
+      <span class="line-mask"><span class="line-inner">than a <em class="final-em">spreadsheet.<svg class="final-underline" viewBox="0 0 280 12" preserveAspectRatio="none" aria-hidden="true"><path d="M4 8 C70 2, 210 2, 276 7" fill="none" stroke="var(--champagne)" stroke-width="3" stroke-linecap="round"/></svg></em></span></span>
+    </h2>
+    <p class="final-sub fade-up">Join couples who planned calmer, booked smarter, and never missed a payment.</p>
+    <a href="https://app.getwed.ai/signup" class="btn final-cta fade-up">Get Started — $149, yours forever</a>
+  </div>
+</section>
+</main>
+<footer class="footer">
+  <div class="container footer-grid">
+    <div>
+      <span class="footer-brand">Veil</span>
+      <p class="footer-tag">AI-powered wedding planning</p>
+    </div>
+    <div><div class="footer-h">Product</div><a href="#story">Features</a><a href="#pricing">Pricing</a><a href="https://app.getwed.ai/login">Dashboard</a></div>
+    <div><div class="footer-h">Company</div><a href="#">About</a><a href="#">Contact</a></div>
+    <div><div class="footer-h">Legal</div><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Service</a></div>
+  </div>
+  <div class="container footer-bottom">&copy; 2026 Veil. All rights reserved.</div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
+<script src="https://unpkg.com/lenis@1.1.20/dist/lenis.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js" defer></script>
+<script>
+window.addEventListener('DOMContentLoaded',()=>{
+  // Mark handler as running so CDN guard knows our code executed (not just that GSAP loaded)
+  window.__veilReady = true;
+
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const MOBILE  = matchMedia('(max-width: 768px)').matches;
+  const HAS_GSAP  = typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined';
+  const HAS_THREE = typeof THREE !== 'undefined';
+  if (REDUCED || !HAS_GSAP) document.body.classList.add('reduced'); // CSS shows everything statically
+  if (HAS_GSAP) gsap.registerPlugin(ScrollTrigger);
+
+  // Lenis smooth scroll — desktop, motion-ok, GSAP present
+  try {
+    if (HAS_GSAP && !REDUCED && !document.body.classList.contains('reduced') && !MOBILE && typeof Lenis !== 'undefined') {
+      const lenis = new Lenis({ anchors: true, lerp: 0.1 });
+      document.documentElement.style.scrollBehavior = 'auto';
+      lenis.on('scroll', ScrollTrigger.update);
+      gsap.ticker.add((t)=>lenis.raf(t*1000));
+      gsap.ticker.lagSmoothing(0);
+    }
+  } catch(e){console.warn('[veil]',e)}
+
+  (function(){ try {
+    const nav = document.getElementById('nav');
+    if (REDUCED || document.body.classList.contains('reduced')) return;
+    let last = scrollY;
+    addEventListener('scroll', ()=>{
+      const y = scrollY;
+      nav.classList.toggle('nav-hidden', y > 120 && y > last);
+      last = y;
+    }, {passive:true});
+  } catch(e){console.warn('[veil]',e)} })();
+
+  (function(){ try {
+  const hero = document.getElementById('hero');
+  const canvas = document.getElementById('silk-canvas');
+  if (REDUCED || MOBILE || !HAS_THREE) { hero.classList.add('silk-static'); return; }
+
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({canvas, antialias:false, alpha:true, powerPreference:'low-power'});
+  } catch (err) {
+    hero.classList.add('silk-static');
+    return;
+  }
+  let dead = false;
+  canvas.addEventListener('webglcontextlost', e=>{ e.preventDefault(); hero.classList.add('silk-static'); dead = true; });
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+
+  const uniforms = {
+    uTime:{value:0},
+    uMouse:{value:new THREE.Vector2(.5,.5)},
+    uRes:{value:new THREE.Vector2(1,1)}
+  };
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms, transparent:true,
+    vertexShader:`
+      varying vec2 vUv;
+      void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }`,
+    fragmentShader:`
+      precision highp float;
+      varying vec2 vUv;
+      uniform float uTime; uniform vec2 uMouse; uniform vec2 uRes;
+      // simplex-ish value noise (cheap, smooth)
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+      float noise(vec2 p){
+        vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+        return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),
+                   mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
+      }
+      float fbm(vec2 p){
+        float v=0., a=.5;
+        for(int i=0;i<4;i++){ v+=a*noise(p); p*=2.05; a*=.5; }
+        return v;
+      }
+      void main(){
+        vec2 uv = vUv; uv.x *= uRes.x/uRes.y;
+        vec2 m = (uMouse - .5) * .25;
+        float t = uTime * .04;
+        // silk ribbons: layered fbm bands flowing horizontally
+        float n1 = fbm(vec2(uv.x*1.6 + t, uv.y*3.2 - t*.6 + m.y));
+        float n2 = fbm(vec2(uv.x*2.4 - t*.8 + m.x, uv.y*2.2 + t*.4));
+        float band1 = smoothstep(.42,.5,n1) * smoothstep(.62,.5,n1);
+        float band2 = smoothstep(.45,.52,n2) * smoothstep(.6,.52,n2);
+        vec3 cream = vec3(.98,.969,.949);
+        vec3 champ = vec3(.788,.663,.431);   // #C9A96E
+        vec3 light = vec3(.831,.729,.522);   // #D4BA85
+        vec3 col = cream;
+        col = mix(col, light, band1*.5);
+        col = mix(col, champ, band2*.38);
+        float alpha = clamp(band1*.55 + band2*.45, 0., .85);
+        gl_FragColor = vec4(col, alpha);
+      }`
+  });
+  scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2,1,1), mat));
+
+  function resize(){
+    const w = hero.clientWidth, h = hero.clientHeight;
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(w, h, false);
+    uniforms.uRes.value.set(w, h);
+  }
+  resize(); addEventListener('resize', resize);
+
+  // eased mouse
+  let mx=.5, my=.5;
+  addEventListener('mousemove', e=>{ mx=e.clientX/innerWidth; my=1-e.clientY/innerHeight; }, {passive:true});
+
+  // pause when hero off-screen or tab hidden
+  let visible = true, hidden = false;
+  new IntersectionObserver(([e])=>{ visible = e.isIntersecting; }).observe(hero);
+  document.addEventListener('visibilitychange', ()=>{ hidden = document.hidden; });
+
+  const clock = new THREE.Clock();
+  (function loop(){
+    if (dead) return; // context lost: stop scheduling entirely
+    requestAnimationFrame(loop);
+    const d = clock.getDelta();
+    if (!visible || hidden) return;
+    uniforms.uTime.value += Math.min(d, 0.1);
+    uniforms.uMouse.value.x += (mx - uniforms.uMouse.value.x) * .04;
+    uniforms.uMouse.value.y += (my - uniforms.uMouse.value.y) * .04;
+    renderer.render(scene, camera);
+  })();
+  } catch(e){console.warn('[veil]',e)} })();
+
+  (function(){ try {
+  if (!HAS_GSAP || REDUCED || document.body.classList.contains('reduced')) return; // .reduced CSS already shows everything
+
+  // load reveal: kicker → headline lines → sub → ctas → note
+  // paused until fonts are ready (max 800ms) to avoid line-mask rewrap jank
+  const tl = gsap.timeline({paused:true, defaults:{ease:'power3.out'}});
+  tl.to('.hero-kicker',{opacity:1,y:0,duration:.7}, .15)
+    .to('.hero-h1 .line-inner',{y:0,duration:1.1,stagger:.12}, .25)
+    .to('.hero-sub',{opacity:1,y:0,duration:.8}, .7)
+    .to('.hero-ctas',{opacity:1,y:0,duration:.8}, .85)
+    .to('.hero-note',{opacity:1,y:0,duration:.8}, .95);
+  Promise.race([document.fonts.ready, new Promise(r=>setTimeout(r,800))]).then(()=>tl.play());
+
+  // product rise: tilted 24deg -> flat, scaled to full width, scrubbed
+  // Desktop query is the exact negation of the mobile (max-width:768px) query so the two
+  // branches can never both match (sub-pixel rounding beat the old 768.01px epsilon at 768px).
+  const mm = gsap.matchMedia();
+  mm.add('not all and (max-width: 768px)', () => {
+    gsap.fromTo('.product-frame', {rotateX:24, scale:.94},
+      {rotateX:0, scale:1, ease:'none',
+       scrollTrigger:{trigger:'#hero-product', start:'top 85%', end:'top 25%', scrub:true}});
+    gsap.to('.product-glow',{opacity:1, ease:'none',
+      scrollTrigger:{trigger:'#hero-product', start:'top 60%', end:'top 25%', scrub:true}});
+  });
+  mm.add('(max-width: 768px)', () => {
+    // mobile: simple one-shot reveal of the flat screenshot
+    gsap.from('.hero-product',{opacity:0, y:40, duration:.9, ease:'power3.out',
+      scrollTrigger:{trigger:'.hero-product', start:'top 90%'}});
+  });
+  } catch(e){console.warn('[veil]',e)} })();
+
+  (function(){ try {
+  const nums = document.querySelectorAll('.proof-num[data-count]');
+  if (!HAS_GSAP || REDUCED || document.body.classList.contains('reduced')) {
+    nums.forEach(n=>n.textContent=n.dataset.count);
+    document.querySelectorAll('.proof-line').forEach(l=>l.style.transform='none');
+    return;
+  }
+  gsap.to('.proof-line',{scaleX:1,duration:1.1,ease:'power3.out',stagger:.15,
+    scrollTrigger:{trigger:'.proof',start:'top 78%'}});
+  gsap.to('.proof-item',{opacity:1,y:0,duration:.8,ease:'power3.out',stagger:.08,
+    scrollTrigger:{trigger:'.proof',start:'top 78%'}});
+  nums.forEach(n=>{
+    const target = +n.dataset.count;
+    gsap.fromTo(n,{textContent:0},{textContent:target,duration:1.4,ease:'power2.out',snap:{textContent:1},
+      scrollTrigger:{trigger:'.proof',start:'top 78%'}});
+  });
+  } catch(e){console.warn('[veil]',e)} })();
+
+  (function(){ try {
+  const chapters = [...document.querySelectorAll('.story-ch')];
+  const vigs = [...document.querySelectorAll('.vig')];
+  const railFill = document.querySelector('.story-rail-fill');
+
+  function activate(i){
+    chapters.forEach((c,j)=>c.classList.toggle('is-active', j===i));
+    vigs.forEach((v,j)=>v.classList.toggle('is-active', j===i));
+    if (railFill) railFill.style.height = ((i+1)/4*100)+'%';
+    playVig(i);
+  }
+
+  // internal vignette animations, replayed on activation
+  function playVig(i){
+    // Amendment 1: also guard against late body.reduced (slow-CDN case)
+    if (!HAS_GSAP || REDUCED || document.body.classList.contains('reduced')) return;
+    if (i===0) gsap.fromTo('[data-vig="0"] .vig-vendor',{opacity:0,y:16},{opacity:1,y:0,duration:.5,stagger:.09,ease:'power3.out',overwrite:true});
+    if (i===1) gsap.fromTo('[data-vig="1"] .vig-check path',{strokeDashoffset:20},{strokeDashoffset:0,duration:.6,stagger:.2,ease:'power2.out',overwrite:true});
+    if (i===2) gsap.fromTo('[data-vig="2"] .vig-flag',{opacity:0,x:-14},{opacity:1,x:0,duration:.45,stagger:.12,ease:'power3.out',overwrite:true});
+    if (i===3) gsap.fromTo('[data-vig="3"] .vig-bar i',{scaleX:0,transformOrigin:'left center'},{scaleX:1,duration:.8,stagger:.1,ease:'power3.out',overwrite:true});
+  }
+
+  // Fix: use STORY_STACK (≤900px) rather than MOBILE (≤768px) so the breakpoint
+  // matches the CSS @media(max-width:900px) that collapses the story grid to single-column.
+  // This prevents the pin engaging while the grid is already stacked (769–900px tablets).
+  const STORY_STACK = matchMedia('(max-width: 900px)').matches;
+
+  // Amendment 3: the desktop/tablet branch is intentionally frozen at DOMContentLoaded
+  // (not gsap.matchMedia) because the stacked branch re-parents vignettes into the
+  // chapters column — a one-way DOM mutation that cannot be responsively toggled.
+  // Amendment 1: also exclude body.reduced (late-CDN guard may add it after JS runs)
+  if (HAS_GSAP && !REDUCED && !STORY_STACK && !document.body.classList.contains('reduced')) {
+    // pin for 4 viewport-heights, step through chapters
+    ScrollTrigger.create({
+      trigger:'.story', start:'top top', end:'+=300%', pin:'.story-pin',
+      onEnter(self){ playVig(Math.min(3, Math.floor(self.progress*4))); },
+      onUpdate(self){
+        const i = Math.min(3, Math.floor(self.progress * 4));
+        if (!chapters[i].classList.contains('is-active')) activate(i);
+      }
+    });
+  } else {
+    // mobile / reduced: stacked layout (CSS unstacks the absolute positioning)
+    document.querySelector('.story').classList.add('story-stacked');
+    chapters.forEach(c=>c.classList.add('is-active'));
+    vigs.forEach(v=>v.classList.add('is-active'));
+    // interleave: vignette above its chapter text (mobile spec: "vignette above text")
+    vigs.forEach((v,i)=>chapters[i].parentNode.insertBefore(v, chapters[i]));
+  }
+  } catch(e){console.warn('[veil]',e)} })();
+
+  (function(){ try {
+  if (!HAS_GSAP || REDUCED || document.body.classList.contains('reduced')) return;
+  gsap.to('.how-line',{scaleX:1,duration:1.2,ease:'power3.inOut',
+    scrollTrigger:{trigger:'.how',start:'top 70%'}});
+  gsap.to('.how .fade-up',{opacity:1,y:0,duration:.8,ease:'power3.out',stagger:.12,
+    scrollTrigger:{trigger:'.how',start:'top 70%'}});
+  } catch(e){console.warn('[veil]',e)} })();
+
+  (function(){ try {
+  const quotes = [...document.querySelectorAll('.quote')];
+  const dashes = [...document.querySelectorAll('.quote-dash')];
+  // stage is re-queried here; aria-live="polite" in markup is the correct static default
+  // for the no-ANIM path (manual clicks only, no auto-advance → announcements are wanted)
+  const stage = document.getElementById('quote-stage');
+  let current = 0, timer = null;
+
+  // Amendment 1: define ANIM once, checking all three conditions
+  const ANIM = HAS_GSAP && !REDUCED && !document.body.classList.contains('reduced');
+
+  // word-stagger prep: wrap words in spans (skip when reduced)
+  if (ANIM) quotes.forEach(q=>{
+    const b = q.querySelector('blockquote');
+    b.innerHTML = b.textContent.trim().split(/\s+/).map(w=>`<span class="qw">${w}</span>`).join(' ');
+  });
+
+  function show(i){
+    quotes.forEach((q,j)=>q.classList.toggle('is-active', j===i));
+    dashes.forEach((d,j)=>{d.classList.toggle('is-active', j===i); d.setAttribute('aria-selected', j===i);});
+    current = i;
+    if (ANIM)
+      gsap.fromTo(quotes[i].querySelectorAll('.qw'),{opacity:0,y:14},{opacity:1,y:0,duration:.5,stagger:.025,ease:'power3.out',overwrite:true});
+  }
+
+  // paused must be declared before click handler binds (avoids TDZ if ANIM check rearranged)
+  let paused = false;
+
+  // restart after click only when ANIM is on and the pointer isn't hovering the section
+  dashes.forEach(d=>d.addEventListener('click',()=>{ show(+d.dataset.go); if (ANIM && !paused) restart(); }));
+
+  // Amendment 2: no auto-advance when animation is off for any reason
+  if (!ANIM) return;
+
+  // APG carousel pattern: live region is 'off' while auto-rotating so SR users aren't spammed
+  // every 6s. It flips to 'polite' only when rotation is paused (user hover/focus) so manual
+  // navigation and the initial paused state are still announced. Clicks always happen while
+  // paused (hover/focus precedes click), so they are announced.
+  function restart(){
+    clearInterval(timer);
+    stage.setAttribute('aria-live','off');  // suppress auto-advance announcements
+    timer = setInterval(()=>show((current+1)%quotes.length), 6000);
+  }
+  // pause on hover/focus — attach to section.quotes so dashes (siblings of stage) are covered
+  const section = document.querySelector('section.quotes');
+  section.addEventListener('mouseenter',()=>{ paused = true;  clearInterval(timer); stage.setAttribute('aria-live','polite'); });
+  section.addEventListener('mouseleave',()=>{ paused = false; restart(); });
+  section.addEventListener('focusin', ()=>{ paused = true;  clearInterval(timer); stage.setAttribute('aria-live','polite'); });
+  section.addEventListener('focusout',()=>{ paused = false; restart(); });
+  // pause off-screen; only restart when not hovered/focused
+  new IntersectionObserver(([e])=>{ e.isIntersecting ? (paused || restart()) : clearInterval(timer); }).observe(section);
+  restart();
+  } catch(e){console.warn('[veil]',e)} })();
+
+  (function(){ try {
+  if (!HAS_GSAP || REDUCED || document.body.classList.contains('reduced')) return;
+  // onComplete: add .is-revealed then clear inline transform so .btn :hover lift works.
+  // CSS hidden state is .fade-up:not(.is-revealed) so removing inline transform is safe once
+  // .is-revealed is present (the class rule no longer applies).
+  gsap.to('.pricing .fade-up',{opacity:1,y:0,duration:.8,ease:'power3.out',stagger:.12,
+    onComplete(){
+      this.targets().forEach(el=>{el.classList.add('is-revealed');gsap.set(el,{clearProps:'transform'});});
+    },
+    scrollTrigger:{trigger:'.pricing',start:'top 70%'}});
+  gsap.to('.price-list li',{opacity:1,x:0,duration:.5,stagger:.09,ease:'power3.out',
+    scrollTrigger:{trigger:'.price-card',start:'top 70%'}});
+  } catch(e){console.warn('[veil]',e)} })();
+
+  (function(){ try {
+  if (!HAS_GSAP || REDUCED || document.body.classList.contains('reduced')) return;
+  gsap.to('.final .line-inner',{y:0,duration:1,stagger:.12,ease:'power3.out',
+    scrollTrigger:{trigger:'.final',start:'top 65%'}});
+  gsap.fromTo('.final-underline path',{strokeDashoffset:300},{strokeDashoffset:0,duration:1.1,ease:'power2.inOut',
+    scrollTrigger:{trigger:'.final',start:'top 55%'}});
+  // onComplete: add .is-revealed then clear inline transform so .final-cta :hover lift works.
+  gsap.to('.final .fade-up',{opacity:1,y:0,duration:.8,ease:'power3.out',stagger:.12,
+    onComplete(){
+      this.targets().forEach(el=>{el.classList.add('is-revealed');gsap.set(el,{clearProps:'transform'});});
+    },
+    scrollTrigger:{trigger:'.final',start:'top 65%'}});
+  } catch(e){console.warn('[veil]',e)} })();
+
+  // GENERIC REVEALS (Task 13)
+  // Sweep all .fade-up elements not already claimed by a section-scoped tween.
+  // Claimed sections: .hero (hero IIFE), .proof (proof IIFE via .proof-item),
+  //                   .how (how IIFE via .how .fade-up), .pricing (pricing IIFE),
+  //                   .final (final IIFE via .final .fade-up)
+  // .story and .quotes have no .fade-up elements so no exclusion needed for them.
+  try {
+    if (HAS_GSAP && !REDUCED && !document.body.classList.contains('reduced')) {
+      gsap.utils.toArray('.fade-up')
+        .filter(el => !el.closest('.hero, .proof, .how, .pricing, .final'))
+        .forEach(el=>{
+          gsap.to(el,{opacity:1,y:0,duration:.8,ease:'power3.out',
+            scrollTrigger:{trigger:el,start:'top 88%'}});
+        });
+    } else {
+      // belt & braces: ensure nothing stays hidden in no-GSAP / reduced-motion path
+      document.querySelectorAll('.fade-up').forEach(el=>{el.style.opacity=1;el.style.transform='none';});
+      document.querySelectorAll('.line-inner').forEach(el=>{el.style.transform='none';});
+    }
+  } catch(e){console.warn('[veil]',e)}
+});
+</script>
+</body>
+</html>

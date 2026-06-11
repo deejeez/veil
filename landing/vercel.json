@@ -1,0 +1,6 @@
+{
+  "redirects": [
+    { "source": "/privacy", "destination": "https://app.getwed.ai/privacy", "permanent": false },
+    { "source": "/terms", "destination": "https://app.getwed.ai/terms", "permanent": false }
+  ]
+}
