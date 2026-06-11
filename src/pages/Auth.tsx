@@ -1,5 +1,5 @@
 import { type FormEvent, useState, useMemo } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { signIn, signUp } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { identifyUser } from '../lib/analytics'
@@ -368,13 +368,13 @@ export default function Auth() {
             </form>
 
             <p style={{
-              fontFamily: 'var(--font-body)', fontSize: '11px',
-              color: 'var(--color-text-muted)', marginTop: '16px', textAlign: 'center', lineHeight: 1.5,
+              fontFamily: 'var(--font-body)', fontSize: '12px',
+              color: 'var(--color-text-secondary)', marginTop: '12px', textAlign: 'center', lineHeight: 1.5,
             }}>
-              By creating an account, you agree to our{' '}
-              <a href="/terms" style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>Terms of Service</a>
+              By creating your account, you agree to our{' '}
+              <Link to="/terms" style={{ color: 'var(--color-accent)', textDecoration: 'underline' }}>Terms of Service</Link>
               {' '}and{' '}
-              <a href="/privacy" style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>Privacy Policy</a>
+              <Link to="/privacy" style={{ color: 'var(--color-accent)', textDecoration: 'underline' }}>Privacy Policy</Link>.
             </p>
           </>
         )}
@@ -448,6 +448,15 @@ export default function Auth() {
                 {loading ? 'Logging in...' : 'Log In'}
               </button>
             </form>
+
+            <p style={{
+              fontFamily: 'var(--font-body)', fontSize: '12px',
+              color: 'var(--color-text-muted)', marginTop: '20px', textAlign: 'center',
+            }}>
+              <Link to="/privacy" style={{ color: 'var(--color-text-muted)', textDecoration: 'none' }}>Privacy Policy</Link>
+              <span style={{ margin: '0 8px' }}>·</span>
+              <Link to="/terms" style={{ color: 'var(--color-text-muted)', textDecoration: 'none' }}>Terms of Service</Link>
+            </p>
           </>
         )}
 

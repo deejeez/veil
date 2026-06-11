@@ -16,6 +16,8 @@ const EXCLUDED_PREFIXES = [
   '/reset-password',
   '/demo',
   '/accept-invite',
+  '/privacy',
+  '/terms',
 ]
 
 function clearChatHistory() {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import Button from '../components/Button'
 import { supabase } from '../lib/supabase'
@@ -416,6 +416,20 @@ export default function Settings() {
               ✓ Saved
             </div>
           )}
+        </div>
+
+        {/* Legal */}
+        <div style={{ marginTop: '24px', borderTop: '1px solid var(--color-border)', paddingTop: '24px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>
+            Legal
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', margin: '0 0 10px 0', lineHeight: 1.5 }}>
+            The terms and policies that apply to your Veil account.
+          </p>
+          <div style={{ display: 'flex', gap: '20px', fontSize: '13px', fontFamily: 'var(--font-body)' }}>
+            <Link to="/privacy" style={{ color: 'var(--color-accent)', textDecoration: 'none', fontWeight: 500 }}>Privacy Policy</Link>
+            <Link to="/terms" style={{ color: 'var(--color-accent)', textDecoration: 'none', fontWeight: 500 }}>Terms of Service</Link>
+          </div>
         </div>
 
         {/* Danger Zone */}

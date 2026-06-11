@@ -18,6 +18,7 @@ import GuestList from './pages/GuestList'
 import PaymentSuccess from './pages/PaymentSuccess'
 import AcceptInvite from './pages/AcceptInvite'
 import Demo from './pages/Demo'
+import Legal from './pages/Legal'
 import AuthGuard from './components/AuthGuard'
 import PaywallGuard from './components/PaywallGuard'
 import OnboardingGuard from './components/OnboardingGuard'
@@ -47,6 +48,8 @@ export default function App() {
         <Route path="/settings" element={<AuthGuard><PaywallGuard><OnboardingGuard><Settings /></OnboardingGuard></PaywallGuard></AuthGuard>} />
         <Route path="/demo" element={<Demo />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
+        <Route path="/privacy" element={<Legal doc="privacy" />} />
+        <Route path="/terms" element={<Legal doc="terms" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <ChatAssistant />
