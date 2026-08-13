@@ -204,6 +204,11 @@ export default function Auth() {
   const cardStyle: React.CSSProperties = {
     width: '100%',
     maxWidth: '440px',
+    // Without this the 80px of horizontal padding is added *outside* width:100%,
+    // so the card measured 409px in a 375px viewport and the signup page — the
+    // first screen a new user sees — scrolled sideways. There is no global
+    // box-sizing reset in the shipped CSS to fall back on.
+    boxSizing: 'border-box',
     background: 'var(--color-surface)',
     borderRadius: '16px',
     border: '1px solid var(--color-border)',
