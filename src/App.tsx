@@ -5,6 +5,7 @@ import Paywall from './pages/Paywall'
 import OnboardingStep1 from './pages/onboarding/Step1'
 import OnboardingStep2 from './pages/onboarding/Step2'
 import OnboardingStep3 from './pages/onboarding/Step3'
+import OnboardingStep4 from './pages/onboarding/Step4'
 import Dashboard from './pages/Dashboard'
 import Vendors from './pages/Vendors'
 import VendorDetail from './pages/VendorDetail'
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/onboarding/1" element={<AuthGuard><PaywallGuard><OnboardingStep1 /></PaywallGuard></AuthGuard>} />
         <Route path="/onboarding/2" element={<AuthGuard><PaywallGuard><OnboardingStep2 /></PaywallGuard></AuthGuard>} />
         <Route path="/onboarding/3" element={<AuthGuard><PaywallGuard><OnboardingStep3 /></PaywallGuard></AuthGuard>} />
+        <Route path="/onboarding/4" element={<AuthGuard><PaywallGuard><OnboardingStep4 /></PaywallGuard></AuthGuard>} />
         <Route path="/payment-success" element={<AuthGuard><PaymentSuccess /></AuthGuard>} />
         <Route path="/" element={<AuthGuard><PaywallGuard><OnboardingGuard><Dashboard /></OnboardingGuard></PaywallGuard></AuthGuard>} />
         <Route path="/vendors" element={<AuthGuard><PaywallGuard><OnboardingGuard><Vendors /></OnboardingGuard></PaywallGuard></AuthGuard>} />

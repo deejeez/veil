@@ -14,11 +14,17 @@ export default function MobileTopNav({ onMenuToggle }: MobileTopNavProps) {
       if (!user) return
       const { data } = await supabase
         .from('couples')
-        .select('partner1_name, partner2_name')
+        .select('name_primary, name_partner')
         .or(`user_id_primary.eq.${user.id},user_id_partner.eq.${user.id}`)
-        .single()
-      if (data?.partner1_name && data?.partner2_name) {
-        setCoupleName(`${data.partner1_name} & ${data.partner2_name}`)
+        .maybeSingle()
+      // Show the primary name on its own when there's no partner name yet,
+      // matching how Dashboard and RightPanel render the couple line.
+      if (data?.name_primary) {
+        setCoupleName(
+          data.name_partner
+            ? `${data.name_primary} & ${data.name_partner}`
+            : data.name_primary
+        )
       }
     }
     fetchCouple()
