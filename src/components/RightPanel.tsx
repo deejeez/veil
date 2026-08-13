@@ -12,6 +12,22 @@ import { deriveTimelineStatus, type PhaseStatus, type MilestoneCompletion } from
 import { MultiSegmentRing } from './MultiSegmentRing'
 import { type Couple, type Payment, type Task, type Vendor } from '../types/database'
 
+// Which vendor categories satisfy a given phase task, so "Next up" stops
+// suggesting work that's already done. Tasks with no entry here (e.g. "Write
+// vows") aren't derivable from vendor state and always show.
+const TASK_TO_CATEGORIES: Record<string, string[]> = {
+  'Research and book your venue':   ['venue'],
+  'Book photographer & videographer': ['photographer', 'videographer'],
+  'Book caterer':                   ['caterer'],
+  'Book florist':                   ['florist'],
+  'Book band or DJ':                ['band_dj'],
+  'Book officiant':                 ['officiant'],
+  'Book hair & makeup artists':     ['hair_makeup'],
+  'Book transportation':            ['transportation'],
+  'Order wedding cake':             ['cake_desserts'],
+  'Plan rehearsal dinner':          ['rehearsal_dinner'],
+}
+
 const TIMELINE_PHASES_PANEL = [
   { id: '12plus', label: '12+ months out', tasks: ['Set a total wedding budget', 'Choose your wedding date', 'Estimate guest count', 'Research and book your venue'] },
   { id: '9to12', label: '9–12 months out', tasks: ['Send save-the-dates', 'Book photographer & videographer', 'Book caterer', 'Book florist', 'Book band or DJ'] },
@@ -720,14 +736,28 @@ export default function RightPanel() {
   const pendingTasks = tasks.filter(t => !t.completed).slice(0, 5)
   const overdueTasks = pendingTasks.filter(t => t.due_date && t.due_date < today)
 
-  // Next Up: first 3 tasks from current timeline phase
+  // Next Up: first 3 tasks from the current timeline phase that they haven't
+  // already done. The phase lists are static, so without this filter the panel
+  // tells a couple to "Book officiant" when the officiant is already booked.
   const weddingDateHome = couple?.wedding_date ? new Date(couple.wedding_date + 'T12:00:00') : null
   const nextUpTasks: string[] = []
   if (weddingDateHome) {
+    const bookedCats = new Set(vendors.filter(v => v.status === 'booked').map(v => v.category))
+    const isDone = (task: string): boolean => {
+      const cats = TASK_TO_CATEGORIES[task]
+      // A task covering several categories is only done when all are booked.
+      if (cats) return cats.every(c => bookedCats.has(c))
+      if (task === 'Set a total wedding budget') return Boolean(couple?.budget_total)
+      if (task === 'Choose your wedding date')   return Boolean(couple?.wedding_date)
+      if (task === 'Estimate guest count')       return Boolean(couple?.guest_count)
+      return false
+    }
+
     const currentPhase = getCurrentPhasePanel(weddingDateHome)
     const phaseIdx = TIMELINE_PHASES_PANEL.findIndex(p => p.id === currentPhase.id)
     for (let i = phaseIdx; i < TIMELINE_PHASES_PANEL.length && nextUpTasks.length < 3; i++) {
       for (const t of TIMELINE_PHASES_PANEL[i].tasks) {
+        if (isDone(t)) continue
         nextUpTasks.push(t)
         if (nextUpTasks.length === 3) break
       }

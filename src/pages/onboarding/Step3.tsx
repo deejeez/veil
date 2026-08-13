@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getCoupleForUser, updateCouple } from '../../lib/couple'
-import { upsertVendor } from '../../lib/vendors'
+import { markCategoryBooked } from '../../lib/vendors'
 import type { Couple } from '../../types/database'
 import { OnboardingShell, StepIndicator, BackLink, Eyebrow, Title, Subtitle } from './chrome'
 
@@ -126,14 +126,11 @@ export default function OnboardingStep3() {
     try {
       const selectedCategories = Array.from(selected)
       await Promise.all([
+        // Reuses the placeholder row for the category instead of inserting a
+        // second booked row alongside it (e.g. the venue captured in step 2).
         ...selectedCategories.map(category => {
           const tile = VENDOR_TILES.find(t => t.category === category)
-          return upsertVendor({
-            couple_id: couple.id,
-            category,
-            name: tile?.label ?? null,
-            status: 'booked',
-          })
+          return markCategoryBooked(couple.id, category, tile?.label ?? null)
         }),
         saveVibes(),
       ])

@@ -657,12 +657,12 @@ export default function Dashboard() {
   const paidPct    = couple?.budget_total
     ? Math.min(100, Math.round((totalPaid / couple.budget_total) * 100))
     : 0
-  // Denominator is every category they could book, not just the ones already
-  // in play. Dividing by "active" vendors excluded not_started, so the tile read
-  // N/N with a full ring the moment anything was booked — telling a couple they
-  // were done while the advisor beside it said 7 of 14 still needed attention.
-  const vendorPct  = categorySlugs.length > 0
-    ? Math.round((bookedVendors.length / categorySlugs.length) * 100)
+  // Count booked *categories*, not booked vendor rows. A category can hold
+  // several vendors (you compare three photographers, book one), so counting
+  // rows made the tile disagree with the advisor, the Vendor Status bar, and
+  // the Vendors page — all of which count categories.
+  const vendorPct  = totalCategories > 0
+    ? Math.round((bookedCatCount / totalCategories) * 100)
     : 0
   const taskPct    = tasks.length > 0
     ? Math.round((completedTasks.length / tasks.length) * 100)
@@ -855,7 +855,7 @@ export default function Dashboard() {
         />
         <CompactStatCard
           label="Vendors"
-          value={`${bookedVendors.length}/${categorySlugs.length || bookedVendors.length}`}
+          value={`${bookedCatCount}/${totalCategories || bookedCatCount}`}
           sub="booked"
           pct={vendorPct}
           onClick={() => navigate('/vendors')}

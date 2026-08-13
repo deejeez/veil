@@ -26,6 +26,7 @@ const ALLOCATION: Record<VendorCategory, number> = {
   cake_desserts:          0.02,
   invitations_stationery: 0.02,
   hotels:                 0.02,
+  officiant:              0.01,
   lighting:               0.01,
 }
 

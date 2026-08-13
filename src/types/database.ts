@@ -130,6 +130,7 @@ export const VENDOR_CATEGORIES = [
   'invitations_stationery',
   'rehearsal_dinner',
   'wedding_planner',
+  'officiant',
   'hotels',
   'lighting',
 ] as const
@@ -199,6 +200,7 @@ export const VENDOR_CATEGORY_LABELS: Record<VendorCategory, string> = {
   invitations_stationery: 'Invitations & Stationery',
   rehearsal_dinner: 'Rehearsal Dinner',
   wedding_planner: 'Wedding Planner',
+  officiant: 'Officiant',
   hotels: 'Hotels',
   lighting: 'Lighting',
 }
