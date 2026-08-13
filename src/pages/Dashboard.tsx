@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import AppShell from '../components/AppShell'
+import WelcomeCelebration from '../components/WelcomeCelebration'
 import { MultiSegmentRing } from '../components/MultiSegmentRing'
 import AiAdvisorCard from '../components/AiAdvisorCard'
 import { supabase } from '../lib/supabase'
+import { deriveBudgetRange } from '../lib/budget'
 import { getCoupleForUser, updateCouple } from '../lib/couple'
 import { getVendorsForCouple, seedDefaultVendorCategories } from '../lib/vendors'
 import { getPaymentsForCouple, getUpcomingPayments } from '../lib/payments'
@@ -12,15 +14,6 @@ import { type Couple, type Vendor, type Payment, type Task } from '../types/data
 import { getCategoriesForCouple } from '../lib/categories'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-function deriveBudgetRange(total: number): string {
-  if (total < 25000)  return 'under_25k'
-  if (total < 50000)  return '25k_50k'
-  if (total < 100000) return '50k_100k'
-  if (total < 150000) return '100k_150k'
-  if (total < 250000) return '150k_250k'
-  return 'over_250k'
-}
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -247,6 +240,18 @@ function generateActionCards(
   // Fallback
   if (cards.length === 0) {
     const unbooked = categorySlugs.filter(s => !isBooked(s)).length
+    // An empty category list is not "everything is booked" — it means categories
+    // haven't loaded yet. Claiming otherwise told brand-new couples they'd booked
+    // every vendor while the stat card next to it read 0/0.
+    if (categorySlugs.length === 0) {
+      cards.push({
+        priority: 'suggested',
+        title: 'Start with your vendors',
+        context: 'Pick the categories that matter most to you and we\'ll help you find and compare options.',
+        ctaLabel: 'View vendors',
+        ctaPath: '/vendors',
+      })
+    } else {
     cards.push(unbooked > 0
       ? {
           priority: 'suggested',
@@ -263,6 +268,7 @@ function generateActionCards(
           ctaPath: '/finances',
         }
     )
+    }
   }
 
   const order: Record<Priority, number> = { urgent: 0, important: 1, suggested: 2 }
@@ -502,6 +508,12 @@ export default function Dashboard() {
     () => localStorage.getItem('veil_date_nudge_dismissed') === '1'
   )
   const navigate = useNavigate()
+  const location = useLocation()
+  // Set by onboarding step 4. Held in state so dismissing it doesn't depend on
+  // mutating router state, and cleared from history so a refresh won't replay it.
+  const [celebrating, setCelebrating] = useState(
+    () => Boolean((location.state as { justOnboarded?: boolean } | null)?.justOnboarded)
+  )
 
   useEffect(() => {
     async function load() {
@@ -608,10 +620,25 @@ export default function Dashboard() {
   const shownAttention  = needsAttention.slice(0, 5)
   const moreAttention   = needsAttention.length - shownAttention.length
 
+  const coupleName = couple?.name_primary
+    ? `${couple.name_primary}${couple.name_partner ? ` & ${couple.name_partner}` : ''}`
+    : ''
+
   if (loading) return <AppShell><p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p></AppShell>
 
   return (
     <AppShell>
+      {celebrating && (
+        <WelcomeCelebration
+          coupleName={coupleName}
+          daysUntil={daysUntil}
+          weddingDate={couple?.wedding_date ?? null}
+          onDismiss={() => {
+            setCelebrating(false)
+            window.history.replaceState({}, '')
+          }}
+        />
+      )}
 
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div style={{ marginBottom: '24px' }}>

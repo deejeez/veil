@@ -45,3 +45,47 @@ export async function seedDefaultVendorCategories(coupleId: string, slugs?: stri
   )
   if (error) throw error
 }
+
+/**
+ * Records a booked venue captured during onboarding.
+ *
+ * The app stores "the venue" in two places that historically didn't agree:
+ *   - a `vendors` row with category 'venue' — what the Venue page reads
+ *   - `couples.venue_name` — what timeline status and the RightPanel
+ *     "Venue secured" checklist read
+ *
+ * Writing only one leaves half the UI thinking there's no venue, so this
+ * writes both. `vendors` has no unique constraint on (couple_id, category),
+ * so upserting would duplicate — we find the existing row and update it.
+ */
+export async function setBookedVenue(coupleId: string, venueName: string) {
+  const name = venueName.trim()
+  if (!name) return
+
+  const { data: existing } = await supabase
+    .from('vendors')
+    .select('id')
+    .eq('couple_id', coupleId)
+    .eq('category', 'venue')
+    .limit(1)
+    .maybeSingle()
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from('vendors')
+      .update({ name, status: 'booked' })
+      .eq('id', existing.id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase
+      .from('vendors')
+      .insert({ couple_id: coupleId, category: 'venue', name, status: 'booked' })
+    if (error) throw error
+  }
+
+  const { error: coupleError } = await supabase
+    .from('couples')
+    .update({ venue_name: name })
+    .eq('id', coupleId)
+  if (coupleError) throw coupleError
+}

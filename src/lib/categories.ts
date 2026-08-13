@@ -42,12 +42,22 @@ export async function getCategoriesForCouple(coupleId: string): Promise<VendorCa
       label: VENDOR_CATEGORY_LABELS[slug],
       sort_order: i,
     }))
-    const { data: inserted, error: insertError } = await supabase
+    // Two callers on first load can both see zero rows and both insert. A plain
+    // insert makes the loser throw on the (couple_id, slug) unique constraint,
+    // which left the dashboard with no categories at all. Ignore duplicates and
+    // re-read so both callers get the full set either way.
+    const { error: insertError } = await supabase
       .from('vendor_categories')
-      .insert(defaults)
-      .select()
+      .upsert(defaults, { onConflict: 'couple_id,slug', ignoreDuplicates: true })
     if (insertError) throw insertError
-    return (inserted ?? []) as VendorCategoryConfig[]
+
+    const { data: seeded, error: reselectError } = await supabase
+      .from('vendor_categories')
+      .select('*')
+      .eq('couple_id', coupleId)
+      .order('sort_order', { ascending: true })
+    if (reselectError) throw reselectError
+    return (seeded ?? []) as VendorCategoryConfig[]
   }
 
   return data as VendorCategoryConfig[]

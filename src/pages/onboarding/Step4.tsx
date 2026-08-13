@@ -4,15 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { getCoupleForUser, updateCouple } from '../../lib/couple'
 import { OnboardingShell, StepIndicator, BackLink, Eyebrow, Title, Subtitle } from './chrome'
 import { labelStyle, coupleLine } from './steps'
-
-const BUDGET_RANGES = [
-  { value: 'under_25k',    label: 'Under $25,000' },
-  { value: '25k_50k',      label: '$25,000 – $50,000' },
-  { value: '50k_100k',     label: '$50,000 – $100,000' },
-  { value: '100k_150k',    label: '$100,000 – $150,000' },
-  { value: '150k_250k',    label: '$150,000 – $250,000' },
-  { value: 'over_250k',    label: 'Over $250,000' },
-] as const
+import { BUDGET_RANGES, budgetRangeToTotal } from '../../lib/budget'
 
 export default function OnboardingStep4() {
   const navigate = useNavigate()
@@ -47,11 +39,21 @@ export default function OnboardingStep4() {
       }
       if (!skip) {
         if (guestCount) updates.guest_count = Number(guestCount)
-        if (budgetRange) updates.budget_range = budgetRange
         if (city) updates.city = city
+        if (budgetRange) {
+          updates.budget_range = budgetRange
+          // Give them a working budget_total straight away. Everything that
+          // actually renders a budget (dashboard ring, % committed, timeline
+          // status) reads budget_total, so without this the range they just
+          // picked would show as "Set in Settings" on arrival.
+          const derived = budgetRangeToTotal(budgetRange)
+          if (derived) updates.budget_total = derived
+        }
       }
       await updateCouple(coupleId, updates)
-      navigate('/')
+      // Router state (not localStorage) so the celebration is tied to *this*
+      // navigation — a later refresh of the dashboard won't replay it.
+      navigate('/', { state: { justOnboarded: true } })
     } catch {
       alert('Something went wrong. Please try again.')
     } finally {
@@ -96,6 +98,15 @@ export default function OnboardingStep4() {
                 <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
+            {budgetRangeToTotal(budgetRange) && (
+              <p className="page-fade-in" style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-muted)', margin: '8px 0 0 0' }}>
+                We'll start you at{' '}
+                <span style={{ color: 'var(--color-accent)', fontWeight: 600 }}>
+                  ${budgetRangeToTotal(budgetRange)!.toLocaleString()}
+                </span>
+                {' '}so your budget works right away. Fine-tune it any time in Settings.
+              </p>
+            )}
           </div>
 
           <div>

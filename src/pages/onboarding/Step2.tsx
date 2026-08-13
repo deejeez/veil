@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getCoupleForUser, updateCouple } from '../../lib/couple'
+import { setBookedVenue } from '../../lib/vendors'
 import {
   OnboardingShell, StepIndicator, BackLink, Eyebrow, Title, Subtitle, PrimaryButton,
 } from './chrome'
@@ -47,6 +48,11 @@ export default function OnboardingStep2() {
   const [noExactDate, setNoExactDate] = useState(false)
   const [season, setSeason] = useState<string>('')
   const [year, setYear] = useState<number>(new Date().getFullYear() + 1)
+  // A locked-in date usually means the venue is already booked — the venue is
+  // what fixes the date, not the other way round. Only asked when they give an
+  // exact date; couples still shopping for a date answer this in step 3.
+  const [hasVenue, setHasVenue] = useState<boolean | null>(null)
+  const [venueName, setVenueName] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -60,11 +66,18 @@ export default function OnboardingStep2() {
       if (couple.wedding_date && !couple.target_season) setExactDate(couple.wedding_date)
       if (couple.target_season) { setNoExactDate(true); setSeason(couple.target_season) }
       if (couple.target_year) setYear(couple.target_year)
+      if (couple.venue_name) { setHasVenue(true); setVenueName(couple.venue_name) }
     }
     load()
   }, [])
 
-  const canProceed = exactDate !== '' || (noExactDate && season !== '')
+  const hasDate = exactDate !== '' || (noExactDate && season !== '')
+  const showVenueQuestion = !noExactDate && exactDate !== ''
+  // If they say they have a venue, we need its name — otherwise "yes" records
+  // nothing and the Venue page still shows an empty state.
+  const venueAnswered = !showVenueQuestion || hasVenue === false
+    || (hasVenue === true && venueName.trim() !== '')
+  const canProceed = hasDate && venueAnswered
   const countdown = noExactDate ? null : daysUntil(exactDate)
 
   async function handleNext() {
@@ -83,6 +96,9 @@ export default function OnboardingStep2() {
           target_season: null,
           target_year: null,
         })
+      }
+      if (showVenueQuestion && hasVenue && venueName.trim()) {
+        await setBookedVenue(coupleId, venueName)
       }
       navigate('/onboarding/3')
     } catch {
@@ -144,13 +160,68 @@ export default function OnboardingStep2() {
         </div>
       )}
 
+      {/* Venue follow-up. A fixed date almost always means the venue is booked,
+          since the venue is usually what fixes the date. */}
+      {showVenueQuestion && (
+        <div className="page-fade-in" style={{ marginBottom: '20px' }}>
+          <label style={labelStyle}>Have you booked your venue?</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            {[
+              { value: true,  label: 'Yes, it’s booked' },
+              { value: false, label: 'Not yet' },
+            ].map(opt => (
+              <button
+                key={String(opt.value)}
+                type="button"
+                onClick={() => {
+                  setHasVenue(opt.value)
+                  if (!opt.value) setVenueName('')
+                }}
+                style={{
+                  padding: '14px 12px',
+                  borderRadius: '10px',
+                  border: `1.5px solid ${hasVenue === opt.value ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                  background: hasVenue === opt.value ? 'rgba(184,146,106,0.08)' : 'var(--color-surface)',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: hasVenue === opt.value ? 'var(--color-accent)' : 'var(--color-text-primary)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {hasVenue === true && (
+            <div className="page-fade-in" style={{ marginTop: '14px' }}>
+              <label style={labelStyle} htmlFor="venue-name">Venue name</label>
+              <input
+                id="venue-name"
+                type="text"
+                autoFocus
+                value={venueName}
+                onChange={e => setVenueName(e.target.value)}
+                placeholder="e.g. Liberty Warehouse"
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+              />
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-muted)', margin: '8px 0 0 0' }}>
+                We'll mark your venue as booked and set up its page for you.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* No exact date toggle */}
       <button
         type="button"
         onClick={() => {
           const next = !noExactDate
           setNoExactDate(next)
-          if (next) setExactDate('')
+          if (next) { setExactDate(''); setHasVenue(null); setVenueName('') }
         }}
         style={{
           background: 'none',
