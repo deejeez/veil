@@ -10,8 +10,12 @@ import { getCoupleForUser, updateCouple } from '../lib/couple'
 import { getVendorsForCouple, seedDefaultVendorCategories } from '../lib/vendors'
 import { getPaymentsForCouple, getUpcomingPayments } from '../lib/payments'
 import { getTasksForCouple } from '../lib/tasks'
-import { type Couple, type Vendor, type Payment, type Task } from '../types/database'
+import { type Couple, type Vendor, type Payment, type Task, type Guest } from '../types/database'
 import { getCategoriesForCouple } from '../lib/categories'
+import { suggestedAllocation, topSlices } from '../lib/suggestedBudget'
+import GetStartedChecklist from '../components/GetStartedChecklist'
+import { buildSteps } from '../lib/getStartedSteps'
+import { getGuestsForCouple } from '../lib/guests'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -403,7 +407,15 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 
 // ── Budget breakdown card ──────────────────────────────────────────────────
 
-function BudgetBreakdownCard({ vendors, categoryLabels }: { vendors: Vendor[]; categoryLabels: Record<string, string> }) {
+function BudgetBreakdownCard({
+  vendors, categoryLabels, categorySlugs, budgetTotal, onOpenBudget,
+}: {
+  vendors: Vendor[]
+  categoryLabels: Record<string, string>
+  categorySlugs: string[]
+  budgetTotal: number | null
+  onOpenBudget: () => void
+}) {
   const catMap: Record<string, { label: string; amount: number }> = {}
   for (const v of vendors) {
     if (v.status !== 'booked' || !v.booked_amount) continue
@@ -414,6 +426,57 @@ function BudgetBreakdownCard({ vendors, categoryLabels }: { vendors: Vendor[]; c
   const entries = Object.values(catMap).filter(e => e.amount > 0)
   const totalCommitted = entries.reduce((s, e) => s + e.amount, 0)
   const segments = entries.map((e, i) => ({ value: e.amount, color: CATEGORY_COLORS[i % CATEGORY_COLORS.length], label: e.label }))
+
+  // Nothing committed yet: propose a split of their budget rather than showing
+  // a $0 donut. They've already told us the number — make it do some work.
+  if (segments.length === 0 && budgetTotal && budgetTotal > 0) {
+    const slices = topSlices(suggestedAllocation(budgetTotal, categorySlugs, categoryLabels))
+    if (slices.length > 0) {
+      const suggested = slices.map((s, i) => ({
+        value: s.amount, color: CATEGORY_COLORS[i % CATEGORY_COLORS.length], label: s.label,
+      }))
+      return (
+        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px 24px', boxShadow: '0 1px 3px rgba(140,120,100,0.06)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <SectionHeader>Budget Breakdown</SectionHeader>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: '10px', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8B6F4E', background: '#F0E8DC', borderRadius: '6px', padding: '3px 8px' }}>
+              Suggested
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+            <MultiSegmentRing data={suggested} size={140} strokeWidth={20}>
+              <div style={{ textAlign: 'center' }}>
+                <p className="currency currency-sm" style={{ color: 'var(--color-text-primary)', margin: '0 0 2px 0' }}>
+                  ${Math.round(budgetTotal / 1000)}K
+                </p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: '10px', color: 'var(--color-text-secondary)', margin: 0 }}>to allocate</p>
+              </div>
+            </MultiSegmentRing>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '14px', justifyContent: 'center' }}>
+              {suggested.map((s, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                    {s.label} ${Math.round(s.value / 1000)}K
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-muted)', margin: '14px 0 0 0', textAlign: 'center', lineHeight: 1.5 }}>
+              A typical split for your budget. Yours will look different — adjust it any time.
+            </p>
+            <button
+              type="button"
+              onClick={onOpenBudget}
+              style={{ marginTop: '12px', background: 'none', border: '1.5px solid var(--color-border)', borderRadius: '8px', padding: '9px 16px', fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)', cursor: 'pointer' }}
+            >
+              Adjust budget →
+            </button>
+          </div>
+        </div>
+      )
+    }
+  }
 
   return (
     <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '20px 24px', boxShadow: '0 1px 3px rgba(140,120,100,0.06)', display: 'flex', flexDirection: 'column' }}>
@@ -495,6 +558,7 @@ export default function Dashboard() {
   const [vendors, setVendors]             = useState<Vendor[]>([])
   const [payments, setPayments]           = useState<Payment[]>([])
   const [tasks, setTasks]                 = useState<Task[]>([])
+  const [guests, setGuests]               = useState<Guest[]>([])
   const [categoryLabels, setCategoryLabels] = useState<Record<string, string>>({})
   const [categorySlugs, setCategorySlugs] = useState<string[]>([])
   const [loading, setLoading]             = useState(true)
@@ -535,14 +599,16 @@ export default function Dashboard() {
         setCategoryLabels(labels)
         setCategorySlugs(cats.map(cat => cat.slug))
         await seedDefaultVendorCategories(c.id, cats.map(cat => cat.slug))
-        const [v, p, t] = await Promise.all([
+        const [v, p, t, g] = await Promise.all([
           getVendorsForCouple(c.id),
           getPaymentsForCouple(c.id),
           getTasksForCouple(c.id),
+          getGuestsForCouple(c.id).catch(() => [] as Guest[]),
         ])
         setVendors(v)
         setPayments(p)
         setTasks(t)
+        setGuests(g)
       } finally {
         setLoading(false)
       }
@@ -576,7 +642,6 @@ export default function Dashboard() {
     : null
 
   const bookedVendors  = vendors.filter(v => v.status === 'booked')
-  const activeVendors  = vendors.filter(v => v.status !== 'not_started' && v.status !== 'eliminated')
   const totalPaid      = payments.filter(p => p.paid_date).reduce((sum, p) => sum + p.amount, 0)
   const today          = new Date().toISOString().split('T')[0]
   const pendingTasks   = tasks.filter(t => !t.completed)
@@ -592,8 +657,12 @@ export default function Dashboard() {
   const paidPct    = couple?.budget_total
     ? Math.min(100, Math.round((totalPaid / couple.budget_total) * 100))
     : 0
-  const vendorPct  = activeVendors.length > 0
-    ? Math.round((bookedVendors.length / activeVendors.length) * 100)
+  // Denominator is every category they could book, not just the ones already
+  // in play. Dividing by "active" vendors excluded not_started, so the tile read
+  // N/N with a full ring the moment anything was booked — telling a couple they
+  // were done while the advisor beside it said 7 of 14 still needed attention.
+  const vendorPct  = categorySlugs.length > 0
+    ? Math.round((bookedVendors.length / categorySlugs.length) * 100)
     : 0
   const taskPct    = tasks.length > 0
     ? Math.round((completedTasks.length / tasks.length) * 100)
@@ -751,6 +820,9 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Getting started ────────────────────────────────────────── */}
+      <GetStartedChecklist steps={buildSteps(couple, vendors, guests)} />
+
       {/* ── Action cards ───────────────────────────────────────────── */}
       <div style={{ marginBottom: '20px' }}>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '16px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 12px 0' }}>
@@ -783,7 +855,7 @@ export default function Dashboard() {
         />
         <CompactStatCard
           label="Vendors"
-          value={`${bookedVendors.length}/${activeVendors.length}`}
+          value={`${bookedVendors.length}/${categorySlugs.length || bookedVendors.length}`}
           sub="booked"
           pct={vendorPct}
           onClick={() => navigate('/vendors')}
@@ -799,7 +871,13 @@ export default function Dashboard() {
 
       {/* ── Budget breakdown + upcoming payments ───────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] gap-[14px]" style={{ marginBottom: '20px' }}>
-        <BudgetBreakdownCard vendors={vendors} categoryLabels={categoryLabels} />
+        <BudgetBreakdownCard
+          vendors={vendors}
+          categoryLabels={categoryLabels}
+          categorySlugs={categorySlugs}
+          budgetTotal={couple?.budget_total ?? null}
+          onOpenBudget={() => navigate('/budget')}
+        />
         <UpcomingPaymentsCard payments={payments} navigate={navigate} />
       </div>
 
