@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { daysUntilDate } from '../lib/dates'
 import { getCoupleForUser } from '../lib/couple'
 import { getPaymentsForCouple, getUpcomingPayments } from '../lib/payments'
 import { getTasksForCouple } from '../lib/tasks'
@@ -8,44 +9,22 @@ import { getCategoriesForCouple, type VendorCategoryConfig } from '../lib/catego
 import { getVendorsForCouple } from '../lib/vendors'
 import { getGuestsForCouple } from '../lib/guests'
 import { getBudgetCategories } from '../lib/budget'
-import { deriveTimelineStatus, type PhaseStatus, type MilestoneCompletion } from '../lib/deriveTimelineStatus'
+import { deriveTimelineStatus, getCurrentPhaseId, type PhaseStatus, type MilestoneCompletion } from '../lib/deriveTimelineStatus'
 import { MultiSegmentRing } from './MultiSegmentRing'
 import { type Couple, type Payment, type Task, type Vendor } from '../types/database'
 
-// Which vendor categories satisfy a given phase task, so "Next up" stops
-// suggesting work that's already done. Tasks with no entry here (e.g. "Write
-// vows") aren't derivable from vendor state and always show.
-const TASK_TO_CATEGORIES: Record<string, string[]> = {
-  'Research and book your venue':   ['venue'],
-  'Book photographer & videographer': ['photographer', 'videographer'],
-  'Book caterer':                   ['caterer'],
-  'Book florist':                   ['florist'],
-  'Book band or DJ':                ['band_dj'],
-  'Book officiant':                 ['officiant'],
-  'Book hair & makeup artists':     ['hair_makeup'],
-  'Book transportation':            ['transportation'],
-  'Order wedding cake':             ['cake_desserts'],
-  'Plan rehearsal dinner':          ['rehearsal_dinner'],
-}
-
+// Phase skeleton (ids/labels/order) used before derived phases load. The task
+// lists that used to live here duplicated — and had drifted from — the real
+// milestones in lib/deriveTimelineStatus, which know completion state.
 const TIMELINE_PHASES_PANEL = [
-  { id: '12plus', label: '12+ months out', tasks: ['Set a total wedding budget', 'Choose your wedding date', 'Estimate guest count', 'Research and book your venue'] },
-  { id: '9to12', label: '9–12 months out', tasks: ['Send save-the-dates', 'Book photographer & videographer', 'Book caterer', 'Book florist', 'Book band or DJ'] },
-  { id: '6to9', label: '6–9 months out', tasks: ['Book officiant', 'Book hair & makeup artists', 'Book transportation', 'Start planning honeymoon'] },
-  { id: '3to6', label: '3–6 months out', tasks: ['Send formal invitations', 'Register for gifts', 'Menu tasting with caterer', 'Order wedding cake', 'Plan rehearsal dinner'] },
-  { id: '1to3', label: '1–3 months out', tasks: ['Confirm all vendor bookings', 'Obtain marriage license', 'Final dress / suit fitting', 'Create seating chart', 'Write vows'] },
-  { id: 'weekof', label: 'Week of the wedding', tasks: ['Confirm day-of timeline with vendors', 'Final headcount to caterer', 'Pack for honeymoon', 'Enjoy your rehearsal dinner'] },
+  { id: '12plus', label: '12+ months out' },
+  { id: '9to12', label: '9–12 months out' },
+  { id: '6to9', label: '6–9 months out' },
+  { id: '3to6', label: '3–6 months out' },
+  { id: '1to3', label: '1–3 months out' },
+  { id: 'weekof', label: 'Week of the wedding' },
 ]
 
-function getCurrentPhasePanel(weddingDate: Date) {
-  const diffMonths = (weddingDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 30.44)
-  if (diffMonths >= 12) return TIMELINE_PHASES_PANEL[0]
-  if (diffMonths >= 9) return TIMELINE_PHASES_PANEL[1]
-  if (diffMonths >= 6) return TIMELINE_PHASES_PANEL[2]
-  if (diffMonths >= 3) return TIMELINE_PHASES_PANEL[3]
-  if (diffMonths >= 0) return TIMELINE_PHASES_PANEL[4]
-  return TIMELINE_PHASES_PANEL[5]
-}
 
 type HealthStatus = 'on_track' | 'needs_attention' | 'behind'
 type FactorStatus = 'good' | 'warning' | 'bad'
@@ -233,8 +212,8 @@ export default function RightPanel() {
       setVendors(vends)
       setGuestCount(guestRes.count ?? 0)
 
-      // Timeline panel needs full milestone derivation (incl. manual completions)
-      if (pathname === '/timeline') {
+      // Home needs this for "Next up"; Timeline for the phase progress list.
+      if (pathname === '/timeline' || pathname === '/') {
         const [g, b, compRes] = await Promise.all([
           getGuestsForCouple(c.id),
           getBudgetCategories(c.id),
@@ -255,7 +234,7 @@ export default function RightPanel() {
   }, [])
 
   const daysUntil = couple?.wedding_date
-    ? Math.ceil((new Date(couple.wedding_date).getTime() - Date.now()) / 86400000)
+    ? daysUntilDate(couple.wedding_date)
     : null
 
   // Progress ring: 0 at 540+ days out, 1 at wedding day (18-month window)
@@ -468,7 +447,7 @@ export default function RightPanel() {
   // --- TIMELINE panel ---
   if (isTimeline) {
     const weddingDate = couple?.wedding_date ? new Date(couple.wedding_date + 'T12:00:00') : null
-    const currentPhase = weddingDate ? getCurrentPhasePanel(weddingDate) : TIMELINE_PHASES_PANEL[0]
+    const currentPhase = weddingDate ? TIMELINE_PHASES_PANEL.find(p => p.id === getCurrentPhaseId(weddingDate)) ?? TIMELINE_PHASES_PANEL[0] : TIMELINE_PHASES_PANEL[0]
     const phaseIdx = TIMELINE_PHASES_PANEL.findIndex(p => p.id === currentPhase.id)
     const totalPhases = TIMELINE_PHASES_PANEL.length
     // A phase counts as complete when every milestone (auto + manual) in it is done
@@ -571,7 +550,7 @@ export default function RightPanel() {
           {upcomingPayments.length === 0 ? (
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)' }}>No upcoming payments.</p>
           ) : upcomingPayments.map(p => {
-            const daysUntilDue = p.due_date ? Math.ceil((new Date(p.due_date + 'T12:00:00').getTime() - Date.now()) / 86400000) : null
+            const daysUntilDue = daysUntilDate(p.due_date)
             return (
               <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '10px' }}>
                 <div>
@@ -668,7 +647,9 @@ export default function RightPanel() {
   if (isTasks) {
     const today3 = new Date().toISOString().split('T')[0]
     const weddingDateTasks = couple?.wedding_date ? new Date(couple.wedding_date + 'T12:00:00') : null
-    const currentPhaseTasks = weddingDateTasks ? getCurrentPhasePanel(weddingDateTasks) : TIMELINE_PHASES_PANEL[0]
+    const currentPhaseTasks = weddingDateTasks
+      ? TIMELINE_PHASES_PANEL.find(p => p.id === getCurrentPhaseId(weddingDateTasks)) ?? TIMELINE_PHASES_PANEL[0]
+      : TIMELINE_PHASES_PANEL[0]
     const phaseIdxTasks = TIMELINE_PHASES_PANEL.findIndex(p => p.id === currentPhaseTasks.id)
     const phasesCompletedTasks = phaseIdxTasks
     const totalPhasesTasks = TIMELINE_PHASES_PANEL.length
@@ -741,24 +722,12 @@ export default function RightPanel() {
   // tells a couple to "Book officiant" when the officiant is already booked.
   const weddingDateHome = couple?.wedding_date ? new Date(couple.wedding_date + 'T12:00:00') : null
   const nextUpTasks: string[] = []
-  if (weddingDateHome) {
-    const bookedCats = new Set(vendors.filter(v => v.status === 'booked').map(v => v.category))
-    const isDone = (task: string): boolean => {
-      const cats = TASK_TO_CATEGORIES[task]
-      // A task covering several categories is only done when all are booked.
-      if (cats) return cats.every(c => bookedCats.has(c))
-      if (task === 'Set a total wedding budget') return Boolean(couple?.budget_total)
-      if (task === 'Choose your wedding date')   return Boolean(couple?.wedding_date)
-      if (task === 'Estimate guest count')       return Boolean(couple?.guest_count)
-      return false
-    }
-
-    const currentPhase = getCurrentPhasePanel(weddingDateHome)
-    const phaseIdx = TIMELINE_PHASES_PANEL.findIndex(p => p.id === currentPhase.id)
-    for (let i = phaseIdx; i < TIMELINE_PHASES_PANEL.length && nextUpTasks.length < 3; i++) {
-      for (const t of TIMELINE_PHASES_PANEL[i].tasks) {
-        if (isDone(t)) continue
-        nextUpTasks.push(t)
+  if (weddingDateHome && timelinePhases.length > 0) {
+    const startIdx = Math.max(0, timelinePhases.findIndex(p => p.id === getCurrentPhaseId(weddingDateHome)))
+    for (let i = startIdx; i < timelinePhases.length && nextUpTasks.length < 3; i++) {
+      for (const m of timelinePhases[i].milestones) {
+        if (m.status === 'done') continue
+        nextUpTasks.push(m.task)
         if (nextUpTasks.length === 3) break
       }
     }

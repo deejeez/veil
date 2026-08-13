@@ -5,6 +5,7 @@ import WelcomeCelebration from '../components/WelcomeCelebration'
 import { MultiSegmentRing } from '../components/MultiSegmentRing'
 import AiAdvisorCard from '../components/AiAdvisorCard'
 import { supabase } from '../lib/supabase'
+import { daysUntilDate } from '../lib/dates'
 import { deriveBudgetRange } from '../lib/budget'
 import { getCoupleForUser, updateCouple } from '../lib/couple'
 import { getVendorsForCouple, seedDefaultVendorCategories } from '../lib/vendors'
@@ -224,8 +225,8 @@ function generateActionCards(
     const soon = payments
       .filter(p => !p.paid_date && p.due_date)
       .filter(p => {
-        const diff = (new Date(p.due_date! + 'T12:00:00').getTime() - Date.now()) / 86400000
-        return diff >= 0 && diff <= 14
+        const diff = daysUntilDate(p.due_date)
+        return diff !== null && diff >= 0 && diff <= 14
       })
     if (soon.length > 0) {
       const total = soon.reduce((s, p) => s + p.amount, 0)
@@ -637,9 +638,7 @@ export default function Dashboard() {
     }
   }
 
-  const daysUntil = couple?.wedding_date
-    ? Math.ceil((new Date(couple.wedding_date).getTime() - Date.now()) / 86400000)
-    : null
+  const daysUntil = daysUntilDate(couple?.wedding_date)
 
   const bookedVendors  = vendors.filter(v => v.status === 'booked')
   const totalPaid      = payments.filter(p => p.paid_date).reduce((sum, p) => sum + p.amount, 0)

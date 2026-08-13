@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import Button from '../components/Button'
 import { supabase } from '../lib/supabase'
+import { daysUntilDate } from '../lib/dates'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple } from '../lib/vendors'
 import { getPaymentsForCouple, insertPayment, markPaymentPaid, undoPayment, deletePayment, updatePayment } from '../lib/payments'
@@ -10,12 +12,23 @@ import { track } from '../lib/analytics'
 
 const PAYMENT_METHODS = ['Credit Card', 'Check', 'Bank Transfer', 'Venmo/Zelle', 'Cash', 'Other'] as const
 
+function todayIso(): string {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function Finances() {
+  const navigate = useNavigate()
   const [couple, setCouple] = useState<Couple | null>(null)
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [showAddForm, setShowAddForm] = useState(false)
   const [newPayment, setNewPayment] = useState({ label: '', amount: '', due_date: '', paid_by: 'couple', vendor_id: '' })
+  // 'Add payment' covered both an expense already paid and one scheduled for
+  // later, but the form only ever created upcoming ones — recording something
+  // already paid meant adding it, then marking it paid separately.
+  const [paymentMode, setPaymentMode] = useState<'upcoming' | 'paid'>('upcoming')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
@@ -67,14 +80,15 @@ export default function Finances() {
         label: newPayment.label,
         amount: Number(newPayment.amount),
         due_date: newPayment.due_date || null,
-        paid_date: null,
+        paid_date: paymentMode === 'paid' ? (newPayment.due_date || todayIso()) : null,
         paid_by: newPayment.paid_by,
         notes: null,
-        status: 'upcoming',
+        status: paymentMode === 'paid' ? 'paid' : 'upcoming',
         payment_method: null,
       })
       setShowAddForm(false)
       setNewPayment({ label: '', amount: '', due_date: '', paid_by: 'couple', vendor_id: '' })
+      setPaymentMode('upcoming')
       await load()
     } catch {
       alert('Failed to add payment. Please try again.')
@@ -158,7 +172,7 @@ export default function Finances() {
   }
 
   const getDaysUntil = (dueDate: string) =>
-    Math.ceil((new Date(dueDate).getTime() - Date.now()) / 86400000)
+    daysUntilDate(dueDate) ?? 0
 
   const isOverdue = (p: Payment) => !!p.due_date && p.due_date < today && p.status === 'upcoming'
   const isDueSoon = (p: Payment) => {
@@ -766,7 +780,47 @@ export default function Finances() {
         {/* Add payment */}
         {showAddForm ? (
           <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '14px 16px', background: '#fff' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px' }}>Add Payment</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>Add Payment</div>
+
+            {/* Which kind of payment. Both are valid here, which the single
+                "Add Payment" label never made clear. */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
+              {([
+                { key: 'paid',     title: 'Already paid',  blurb: 'An expense you’ve settled' },
+                { key: 'upcoming', title: 'Upcoming',      blurb: 'A payment still to come' },
+              ] as const).map(opt => {
+                const active = paymentMode === opt.key
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setPaymentMode(opt.key)}
+                    style={{
+                      flex: 1,
+                      textAlign: 'left',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: `1.5px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                      background: active ? 'rgba(184,146,106,0.08)' : '#fff',
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-body)',
+                    }}
+                  >
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: active ? 'var(--color-accent)' : 'var(--color-text-primary)' }}>
+                      {opt.title}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '1px' }}>
+                      {opt.blurb}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-muted)', margin: '0 0 12px 0' }}>
+              {paymentMode === 'paid'
+                ? 'This goes straight into your paid total and payment history.'
+                : 'We’ll remind you as the due date approaches.'}
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-[10px]" style={{ marginBottom: '12px' }}>
               <div>
                 <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Label</label>
@@ -777,8 +831,15 @@ export default function Finances() {
                 <input type="number" value={newPayment.amount} onChange={e => setNewPayment(f => ({ ...f, amount: e.target.value }))} style={{ display: 'block' }} />
               </div>
               <div>
-                <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Due Date</label>
+                <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                  {paymentMode === 'paid' ? 'Date paid' : 'Due date'}
+                </label>
                 <input type="date" value={newPayment.due_date} onChange={e => setNewPayment(f => ({ ...f, due_date: e.target.value }))} style={{ display: 'block' }} />
+                {paymentMode === 'paid' && !newPayment.due_date && (
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>
+                    Leave blank to use today.
+                  </p>
+                )}
               </div>
               <div>
                 <label style={{ fontSize: '10px', color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Paid By</label>
@@ -806,6 +867,22 @@ export default function Finances() {
                     )
                   })}
                 </div>
+                {/* "Family A"/"Family B" are placeholders, and nothing else in
+                    the app says where to change them. Surfaced here, at the
+                    moment they first have to pick one. */}
+                {(!couple?.family_a_name || !couple?.family_b_name) && (
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-muted)', margin: '8px 0 0 0', lineHeight: 1.5 }}>
+                    “Family A” and “Family B” are placeholders.{' '}
+                    <button
+                      type="button"
+                      onClick={() => navigate('/settings')}
+                      style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      Name them in Settings
+                    </button>{' '}
+                    so they read like your families.
+                  </p>
+                )}
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ fontSize: '10px', color: 'var(--color-text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Vendor (optional)</label>

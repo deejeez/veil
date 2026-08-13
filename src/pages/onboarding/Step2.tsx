@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getCoupleForUser, updateCouple } from '../../lib/couple'
 import { setBookedVenue } from '../../lib/vendors'
+import { daysUntilDate } from '../../lib/dates'
 import {
   OnboardingShell, StepIndicator, BackLink, Eyebrow, Title, Subtitle, PrimaryButton,
 } from './chrome'
@@ -28,16 +29,6 @@ function seasonToApproxDate(season: string, year: number): string {
     winter: `${year}-12-15`,
   }
   return map[season] ?? `${year}-06-15`
-}
-
-/** Whole days from today to the given ISO date. Null when unparseable. */
-function daysUntil(iso: string): number | null {
-  if (!iso) return null
-  const target = new Date(`${iso}T00:00:00`)
-  if (Number.isNaN(target.getTime())) return null
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return Math.round((target.getTime() - today.getTime()) / 86_400_000)
 }
 
 export default function OnboardingStep2() {
@@ -78,7 +69,7 @@ export default function OnboardingStep2() {
   const venueAnswered = !showVenueQuestion || hasVenue === false
     || (hasVenue === true && venueName.trim() !== '')
   const canProceed = hasDate && venueAnswered
-  const countdown = noExactDate ? null : daysUntil(exactDate)
+  const countdown = noExactDate ? null : daysUntilDate(exactDate)
 
   async function handleNext() {
     if (!coupleId || !canProceed || saving) return
