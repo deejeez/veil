@@ -10,45 +10,11 @@ import { getVendorsForCouple } from '../lib/vendors'
 import { getPaymentsForCouple } from '../lib/payments'
 import { type Couple } from '../types/database'
 import { getCategoriesForCouple, type VendorCategoryConfig } from '../lib/categories'
+import { suggestedAllocation } from '../lib/suggestedBudget'
 
 const CATEGORY_COLORS = ['#B8926A', '#7B8F6B', '#6B8FAE', '#9B7FA6', '#5A8F8F', '#C4785C', '#C4A5A8']
 
-// Typical budget allocation percentages by vendor category slug
-const BUDGET_SUGGESTIONS: Record<string, number> = {
-  venue: 0.30,
-  caterer: 0.22,
-  photographer: 0.10,
-  band_dj: 0.08,
-  florist: 0.07,
-  videographer: 0.05,
-  wedding_planner: 0.05,
-  hair_makeup: 0.04,
-  cake_desserts: 0.02,
-  transportation: 0.02,
-  rehearsal_dinner: 0.02,
-  invitations_stationery: 0.01,
-  hotels: 0.01,
-  lighting: 0.01,
-}
 
-// NYC absolute dollar suggestions for a ~$200K wedding
-const NYC_SUGGESTIONS: Record<string, number> = {
-  venue: 70000,
-  caterer: 40000,
-  photographer: 15000,
-  florist: 12000,
-  band_dj: 10000,
-  videographer: 8000,
-  wedding_planner: 8000,
-  rehearsal_dinner: 8000,
-  hotels: 5000,
-  hair_makeup: 5000,
-  transportation: 4000,
-  lighting: 4000,
-  invitations_stationery: 3000,
-  cake_desserts: 3000,
-}
-const NYC_TOTAL = Object.values(NYC_SUGGESTIONS).reduce((a, b) => a + b, 0)
 
 type BudgetRow = {
   id: string
@@ -137,6 +103,16 @@ function BudgetDonutCard({
   )
 }
 
+// "$0" rather than "$0.0K", and no trailing ".0" on whole thousands — the
+// stat cards read as broken when an untouched budget shows "$0.0K".
+function formatK(amount: number): string {
+  if (!amount) return '$0'
+  const k = amount / 1000
+  if (Math.abs(k) < 1) return `$${Math.round(amount).toLocaleString()}`
+  const rounded = Math.round(k * 10) / 10
+  return `$${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}K`
+}
+
 export default function Budget() {
   const [couple, setCouple] = useState<Couple | null>(null)
   const [rows, setRows] = useState<BudgetRow[]>([])
@@ -147,10 +123,6 @@ export default function Budget() {
   const [loading, setLoading] = useState(true)
   const [savingCategory, setSavingCategory] = useState<string | null>(null)
   const [applyingAll, setApplyingAll] = useState(false)
-  const [nycDismissed, setNycDismissed] = useState(
-    () => localStorage.getItem('veil_nyc_banner_dismissed') === '1'
-  )
-  const [applyingNyc, setApplyingNyc] = useState(false)
 
   async function load() {
     try {
@@ -194,11 +166,17 @@ export default function Budget() {
   const commitPercent = effectiveBudget > 0 ? Math.round((totalBooked / effectiveBudget) * 100) : 0
 
   const showSuggestions = totalBudgeted === 0 && (couple?.budget_total ?? 0) > 0
+  // Shares lib/suggestedBudget with the dashboard donut. They used to hold
+  // separate percentage tables that disagreed (venue 30% here, 25% there), so
+  // the same couple saw a different suggested split on each page.
   const suggestions: Record<string, number> = {}
   if (showSuggestions && couple?.budget_total) {
-    for (const [slug, pct] of Object.entries(BUDGET_SUGGESTIONS)) {
-      // Round to nearest $500
-      suggestions[slug] = Math.round(couple.budget_total * pct / 500) * 500
+    for (const slice of suggestedAllocation(
+      couple.budget_total,
+      vendorCategories.map(c => c.slug),
+      Object.fromEntries(vendorCategories.map(c => [c.slug, c.label])),
+    )) {
+      suggestions[slice.category] = slice.amount
     }
   }
 
@@ -247,35 +225,6 @@ export default function Budget() {
     }
   }
 
-  async function handleNycApplyAll() {
-    if (!couple) return
-    setApplyingNyc(true)
-    try {
-      const emptyRows = rows.filter(r => r.budgeted === 0 && NYC_SUGGESTIONS[r.category] !== undefined)
-      await Promise.all(
-        emptyRows.map(r => upsertBudgetCategory(couple.id, r.category, NYC_SUGGESTIONS[r.category]))
-      )
-      await load()
-    } catch {
-      alert('Failed to apply suggestions. Please try again.')
-    } finally {
-      setApplyingNyc(false)
-    }
-  }
-
-  async function handleNycAccept(category: string) {
-    if (!couple) return
-    setSavingCategory(category)
-    try {
-      await upsertBudgetCategory(couple.id, category, NYC_SUGGESTIONS[category])
-      await load()
-    } catch {
-      alert('Failed to save. Please try again.')
-    } finally {
-      setSavingCategory(null)
-    }
-  }
-
   if (loading) return <AppShell><p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p></AppShell>
 
   return (
@@ -292,43 +241,6 @@ export default function Budget() {
       {commitPercent >= 90 && commitPercent < 100 && (
         <div style={{ padding: '12px 16px', background: 'rgba(154,120,64,0.08)', border: '1px solid var(--color-status-short)', borderRadius: '12px', marginBottom: '20px', fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-status-short)' }}>
           Approaching budget — {commitPercent}% committed
-        </div>
-      )}
-
-      {/* NYC suggestions banner — shown when not dismissed */}
-      {!nycDismissed && (
-        <div style={{
-          padding: '12px 16px',
-          background: '#FBF6F0',
-          border: '1px solid rgba(184,146,106,0.3)',
-          borderLeft: '4px solid #B8926A',
-          borderRadius: '10px',
-          marginBottom: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '16px',
-        }}>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: '#2c2825', margin: '0 0 2px 0' }}>
-              Not sure how to split your budget? Here's a starting point based on NYC averages.
-            </p>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-secondary)', margin: 0 }}>
-              These are typical allocations for a ${(NYC_TOTAL / 1000).toFixed(0)}K wedding in NYC. Adjust to match your priorities.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-            <button
-              onClick={handleNycApplyAll}
-              disabled={applyingNyc}
-              style={{ fontFamily: 'var(--font-body)', fontSize: '12px', padding: '6px 14px', background: 'var(--color-accent)', color: '#fff', border: 'none', borderRadius: '7px', cursor: applyingNyc ? 'default' : 'pointer', opacity: applyingNyc ? 0.7 : 1, fontWeight: 600 }}
-            >
-              {applyingNyc ? 'Applying...' : 'Apply All'}
-            </button>
-            <button
-              onClick={() => { setNycDismissed(true); localStorage.setItem('veil_nyc_banner_dismissed', '1') }}
-              style={{ fontFamily: 'var(--font-body)', fontSize: '16px', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
-            >×</button>
-          </div>
         </div>
       )}
 
@@ -370,10 +282,10 @@ export default function Budget() {
       <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] gap-[20px]" style={{ marginBottom: '28px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           {[
-            { label: 'Total Budget', value: effectiveBudget > 0 ? `$${(effectiveBudget / 1000).toFixed(0)}K` : '—' },
-            { label: 'Committed', value: `$${(totalBooked / 1000).toFixed(1)}K` },
-            { label: 'Paid', value: `$${(totalPaid / 1000).toFixed(1)}K` },
-            { label: 'Remaining', value: totalBooked > 0 ? `$${((totalBooked - totalPaid) / 1000).toFixed(1)}K` : '—' },
+            { label: 'Total Budget', value: formatK(effectiveBudget) },
+            { label: 'Committed', value: formatK(totalBooked) },
+            { label: 'Paid', value: formatK(totalPaid) },
+            { label: 'Remaining', value: totalBooked > 0 ? formatK(totalBooked - totalPaid) : '—' },
           ].map(({ label, value }) => (
             <Card key={label}>
               <SectionLabel>{label}</SectionLabel>
@@ -427,7 +339,7 @@ export default function Budget() {
                 )}
               </div>
 
-              {/* Budgeted column: edit input | suggestion with Accept/Adjust | nyc ghost | plain value */}
+              {/* Budgeted column: edit input, suggestion with Accept/Adjust, or plain value */}
               {editingCategory === row.category ? (
                 <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                   <input
@@ -469,24 +381,6 @@ export default function Budget() {
                       Adjust
                     </button>
                   </div>
-                </div>
-              ) : row.budgeted === 0 && !nycDismissed && NYC_SUGGESTIONS[row.category] !== undefined ? (
-                <div>
-                  <p className="currency currency-sm" style={{ color: '#C4B8A8', margin: '0 0 4px 0' }}>
-                    ${NYC_SUGGESTIONS[row.category].toLocaleString()}
-                  </p>
-                  <button
-                    onClick={() => handleNycAccept(row.category)}
-                    disabled={isSaving}
-                    style={{
-                      fontFamily: 'var(--font-body)', fontSize: '10px', padding: '2px 8px',
-                      background: 'none', color: 'var(--color-text-secondary)',
-                      border: '1px solid var(--color-border)', borderRadius: '6px',
-                      cursor: isSaving ? 'default' : 'pointer', opacity: isSaving ? 0.7 : 1,
-                    }}
-                  >
-                    {isSaving ? '...' : 'Accept'}
-                  </button>
                 </div>
               ) : (
                 <p
