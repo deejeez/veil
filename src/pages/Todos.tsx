@@ -6,40 +6,15 @@ import SectionLabel from '../components/SectionLabel'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getTasksForCouple, insertTask, toggleTask, deleteTask, updateTask } from '../lib/tasks'
+import { getVendorsForCouple } from '../lib/vendors'
+import { getGuestsForCouple } from '../lib/guests'
+import { getBudgetCategories } from '../lib/budget'
+import { deriveTimelineStatus, getCurrentPhaseId, type MilestoneCompletion } from '../lib/deriveTimelineStatus'
 import type { Couple, Task } from '../types/database'
 
 const TASK_CATEGORIES = ['ceremony', 'venue', 'catering', 'vendors', 'guests', 'attire', 'decor', 'admin', 'honeymoon', 'other']
 
-const TIMELINE_PHASES = [
-  { id: '12plus', tasks: ['Set a total wedding budget', 'Choose your wedding date', 'Estimate guest count', 'Research and book your venue', 'Consider hiring a wedding planner'] },
-  { id: '9to12', tasks: ['Send save-the-dates', 'Book photographer & videographer', 'Book caterer (or confirm venue catering)', 'Book florist', 'Book band or DJ', 'Start dress / attire shopping'] },
-  { id: '6to9', tasks: ['Book officiant', 'Book hair & makeup artists', 'Book transportation', 'Start planning honeymoon', 'Finalize wedding party'] },
-  { id: '3to6', tasks: ['Send formal invitations (8–10 weeks before)', 'Register for gifts', 'Schedule menu tasting with caterer', 'Order wedding cake', 'Plan rehearsal dinner', 'Arrange accommodations for out-of-town guests'] },
-  { id: '1to3', tasks: ['Confirm all vendor bookings', 'Obtain marriage license', 'Final dress / suit fitting', 'Create seating chart', 'Write vows', 'Book honeymoon flights & hotel (if not done)'] },
-  { id: 'weekof', tasks: ['Confirm day-of timeline with all vendors', 'Final headcount to caterer', 'Pack for honeymoon', 'Prepare emergency kit (safety pins, stain pen, mints)', 'Enjoy your rehearsal dinner'] },
-]
 
-function getUpcomingTimelineTasks(weddingDate: string | null | undefined): string[] {
-  let phaseIdx = 0
-  if (weddingDate) {
-    const d = new Date(weddingDate + 'T12:00:00')
-    const diffMonths = (d.getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 30.44)
-    if (diffMonths >= 12) phaseIdx = 0
-    else if (diffMonths >= 9) phaseIdx = 1
-    else if (diffMonths >= 6) phaseIdx = 2
-    else if (diffMonths >= 3) phaseIdx = 3
-    else if (diffMonths >= 0) phaseIdx = 4
-    else phaseIdx = 5
-  }
-  const tasks: string[] = []
-  for (let i = phaseIdx; i < TIMELINE_PHASES.length && tasks.length < 3; i++) {
-    for (const t of TIMELINE_PHASES[i].tasks) {
-      tasks.push(t)
-      if (tasks.length === 3) break
-    }
-  }
-  return tasks
-}
 
 type Filter = 'pending' | 'completed' | 'all'
 
@@ -62,6 +37,13 @@ export default function Todos() {
   const [editDraft, setEditDraft] = useState({ title: '', due_date: '', assigned_to: '', category: '' })
   const [editSaving, setEditSaving] = useState(false)
   const editTitleRef = useRef<HTMLInputElement>(null)
+
+  // Derived from the same milestones as the Timeline page and the right panel,
+  // so the "coming up" preview can't drift from them or suggest work already
+  // done. Loaded only when the pending list is actually empty — three extra
+  // queries aren't worth paying on every visit for a preview most couples
+  // never see.
+  const [upcomingMilestones, setUpcomingMilestones] = useState<string[] | null>(null)
 
   const inputStyle: CSSProperties = { display: 'block' }
 
@@ -170,6 +152,36 @@ export default function Todos() {
   const pendingCount = tasks.filter(t => !t.completed).length
   const overdueCount = tasks.filter(t => !t.completed && t.due_date && t.due_date < today).length
 
+  // Only fetch once we know the preview will actually render.
+  const showTimelinePreview = !loading && filter === 'pending' && filtered.length === 0
+  useEffect(() => {
+    if (!showTimelinePreview || !couple || upcomingMilestones !== null) return
+    let cancelled = false
+    async function loadUpcoming(c: Couple) {
+      const [vendors, guests, budgetCats, comps] = await Promise.all([
+        getVendorsForCouple(c.id),
+        getGuestsForCouple(c.id).catch(() => []),
+        getBudgetCategories(c.id).catch(() => []),
+        supabase.from('milestone_completions').select('milestone_key, completed_at').eq('couple_id', c.id),
+      ])
+      const phases = deriveTimelineStatus(c, vendors, guests, budgetCats, (comps.data ?? []) as MilestoneCompletion[])
+      const startIdx = c.wedding_date
+        ? Math.max(0, phases.findIndex(p => p.id === getCurrentPhaseId(new Date(`${c.wedding_date}T00:00:00`))))
+        : 0
+      const next: string[] = []
+      for (let i = startIdx; i < phases.length && next.length < 3; i++) {
+        for (const m of phases[i].milestones) {
+          if (m.status === 'done') continue
+          next.push(m.task)
+          if (next.length === 3) break
+        }
+      }
+      if (!cancelled) setUpcomingMilestones(next)
+    }
+    loadUpcoming(couple)
+    return () => { cancelled = true }
+  }, [showTimelinePreview, couple, upcomingMilestones])
+
   if (loading) return <AppShell><p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p></AppShell>
 
   return (
@@ -205,10 +217,14 @@ export default function Todos() {
         filter === 'pending' ? (
           <div style={{ marginBottom: '16px' }}>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
-              Nothing due right now. Coming up on your timeline:
+              {upcomingMilestones === null
+                ? 'Nothing due right now.'
+                : upcomingMilestones.length > 0
+                  ? 'Nothing due right now. Coming up on your timeline:'
+                  : "Nothing due right now — and you're ahead on your timeline too."}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {getUpcomingTimelineTasks(couple?.wedding_date).map((task, i) => (
+              {(upcomingMilestones ?? []).map((task, i) => (
                 <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '9px 12px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
                   <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-accent)', flexShrink: 0 }} />
                   <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', color: 'var(--color-text-primary)' }}>{task}</span>
