@@ -17,6 +17,7 @@ const TASK_CATEGORIES = ['ceremony', 'venue', 'catering', 'vendors', 'guests', '
 
 
 type Filter = 'pending' | 'completed' | 'all'
+type SortBy = 'due_date' | 'created' | 'category' | 'assignee'
 
 export default function Todos() {
   const [couple, setCouple] = useState<Couple | null>(null)
@@ -24,6 +25,9 @@ export default function Todos() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [filter, setFilter] = useState<Filter>('pending')
+  const [categoryFilter, setCategoryFilter] = useState<string>('')
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('')
+  const [sortBy, setSortBy] = useState<SortBy>('due_date')
   const [showAddForm, setShowAddForm] = useState(false)
   const [newTask, setNewTask] = useState({
     title: '',
@@ -34,7 +38,7 @@ export default function Todos() {
   })
 
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editDraft, setEditDraft] = useState({ title: '', due_date: '', assigned_to: '', category: '' })
+  const [editDraft, setEditDraft] = useState({ title: '', due_date: '', assigned_to: '', category: '', description: '' })
   const [editSaving, setEditSaving] = useState(false)
   const editTitleRef = useRef<HTMLInputElement>(null)
 
@@ -44,6 +48,15 @@ export default function Todos() {
   // queries aren't worth paying on every visit for a preview most couples
   // never see.
   const [upcomingMilestones, setUpcomingMilestones] = useState<string[] | null>(null)
+
+  // Anyone already assigned a task, plus the couple, so a planner or a parent
+  // typed once becomes a suggestion everywhere afterwards. Free text rather
+  // than a managed people list — the vocabulary that emerges here is what would
+  // tell us what a proper people feature should look like.
+  const knownAssignees = Array.from(new Set([
+    couple?.name_primary, couple?.name_partner,
+    ...tasks.map(t => t.assigned_to),
+  ].filter((n): n is string => Boolean(n && n.trim() && n !== 'couple')))).sort()
 
   const inputStyle: CSSProperties = { display: 'block' }
 
@@ -73,7 +86,7 @@ export default function Todos() {
         description: newTask.description.trim() || null,
         due_date: newTask.due_date || null,
         completed: false,
-        assigned_to: newTask.assigned_to || 'couple',
+        assigned_to: newTask.assigned_to.trim() || 'couple',
         category: newTask.category || null,
       })
       setTasks(prev => [task, ...prev])
@@ -110,6 +123,7 @@ export default function Todos() {
       title: task.title,
       due_date: task.due_date ?? '',
       assigned_to: task.assigned_to ?? 'couple',
+      description: task.description ?? '',
       category: task.category ?? '',
     })
     setTimeout(() => editTitleRef.current?.focus(), 0)
@@ -126,11 +140,12 @@ export default function Todos() {
       await updateTask(taskId, {
         title: editDraft.title.trim(),
         due_date: editDraft.due_date || null,
-        assigned_to: editDraft.assigned_to || 'couple',
+        assigned_to: editDraft.assigned_to.trim() || 'couple',
         category: editDraft.category || null,
+        description: editDraft.description.trim() || null,
       })
       setTasks(prev => prev.map(t => t.id === taskId
-        ? { ...t, title: editDraft.title.trim(), due_date: editDraft.due_date || null, assigned_to: editDraft.assigned_to || 'couple', category: editDraft.category || null }
+        ? { ...t, title: editDraft.title.trim(), due_date: editDraft.due_date || null, assigned_to: editDraft.assigned_to.trim() || 'couple', category: editDraft.category || null, description: editDraft.description.trim() || null }
         : t
       ))
       setEditingId(null)
@@ -143,11 +158,26 @@ export default function Todos() {
 
   const today = new Date().toISOString().split('T')[0]
 
-  const filtered = tasks.filter(t => {
-    if (filter === 'pending') return !t.completed
-    if (filter === 'completed') return t.completed
-    return true
-  })
+  const filtered = tasks
+    .filter(t => {
+      if (filter === 'pending' && t.completed) return false
+      if (filter === 'completed' && !t.completed) return false
+      if (categoryFilter && (t.category ?? '') !== categoryFilter) return false
+      if (assigneeFilter && (t.assigned_to || 'couple') !== assigneeFilter) return false
+      return true
+    })
+    .sort((a, b) => {
+      if (sortBy === 'due_date') {
+        // Undated tasks sink rather than sorting as the epoch.
+        if (!a.due_date && !b.due_date) return 0
+        if (!a.due_date) return 1
+        if (!b.due_date) return -1
+        return a.due_date.localeCompare(b.due_date)
+      }
+      if (sortBy === 'category') return (a.category ?? '~').localeCompare(b.category ?? '~')
+      if (sortBy === 'assignee') return (a.assigned_to || 'couple').localeCompare(b.assigned_to || 'couple')
+      return (b.created_at ?? '').localeCompare(a.created_at ?? '')
+    })
 
   const pendingCount = tasks.filter(t => !t.completed).length
   const overdueCount = tasks.filter(t => !t.completed && t.due_date && t.due_date < today).length
@@ -193,8 +223,13 @@ export default function Todos() {
         {pendingCount} remaining{overdueCount > 0 ? ` · ${overdueCount} overdue` : ''}
       </p>
 
+      {/* Suggestions for every assignee input on the page. */}
+      <datalist id="veil-assignees">
+        {knownAssignees.map(n => <option key={n} value={n} />)}
+      </datalist>
+
       {/* Filter tabs */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
         {(['pending', 'completed', 'all'] as Filter[]).map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
             padding: '8px 18px',
@@ -210,6 +245,39 @@ export default function Todos() {
             {f === 'pending' ? `Pending (${pendingCount})` : f === 'completed' ? 'Completed' : 'All'}
           </button>
         ))}
+      </div>
+
+      {/* Category / assignee / sort */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} style={{ fontFamily: 'var(--font-body)', fontSize: '13px', padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: '#fff', color: 'var(--color-text-primary)' }}>
+          <option value="">All categories</option>
+          {TASK_CATEGORIES.map(c => (
+            <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+          ))}
+        </select>
+
+        <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)} style={{ fontFamily: 'var(--font-body)', fontSize: '13px', padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: '#fff', color: 'var(--color-text-primary)' }}>
+          <option value="">Anyone</option>
+          <option value="couple">Both of us</option>
+          {knownAssignees.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+
+        <select value={sortBy} onChange={e => setSortBy(e.target.value as SortBy)} style={{ fontFamily: 'var(--font-body)', fontSize: '13px', padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: '#fff', color: 'var(--color-text-primary)' }}>
+          <option value="due_date">Sort: due date</option>
+          <option value="created">Sort: newest</option>
+          <option value="category">Sort: category</option>
+          <option value="assignee">Sort: assignee</option>
+        </select>
+
+        {(categoryFilter || assigneeFilter) && (
+          <button
+            type="button"
+            onClick={() => { setCategoryFilter(''); setAssigneeFilter('') }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)', fontWeight: 600 }}
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
       {/* Task list */}
@@ -273,11 +341,23 @@ export default function Todos() {
                   </div>
                   <div>
                     <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Assigned To</label>
-                    <select value={editDraft.assigned_to} onChange={e => setEditDraft(d => ({ ...d, assigned_to: e.target.value }))} style={{ display: 'block', width: '100%' }}>
-                      <option value="couple">Both of us</option>
-                      {couple?.name_primary && <option value={couple.name_primary}>{couple.name_primary}</option>}
-                      {couple?.name_partner && <option value={couple.name_partner}>{couple.name_partner}</option>}
-                    </select>
+                    <input
+                      list="veil-assignees"
+                      value={editDraft.assigned_to === 'couple' ? '' : editDraft.assigned_to}
+                      onChange={e => setEditDraft(d => ({ ...d, assigned_to: e.target.value }))}
+                      placeholder="Both of us"
+                      style={{ display: 'block', width: '100%' }}
+                    />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Notes</label>
+                    <textarea
+                      value={editDraft.description}
+                      onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))}
+                      placeholder="Any details..."
+                      rows={2}
+                      style={{ display: 'block', width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'var(--font-body)' }}
+                    />
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Category</label>
@@ -411,11 +491,13 @@ export default function Todos() {
             </div>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Assigned To</label>
-              <select value={newTask.assigned_to} onChange={e => setNewTask(f => ({ ...f, assigned_to: e.target.value }))} style={{ ...inputStyle, width: '100%' }}>
-                <option value="couple">Both of us</option>
-                {couple?.name_primary && <option value={couple.name_primary}>{couple.name_primary}</option>}
-                {couple?.name_partner && <option value={couple.name_partner}>{couple.name_partner}</option>}
-              </select>
+              <input
+                list="veil-assignees"
+                value={newTask.assigned_to === 'couple' ? '' : newTask.assigned_to}
+                onChange={e => setNewTask(f => ({ ...f, assigned_to: e.target.value }))}
+                placeholder="Both of us"
+                style={{ ...inputStyle, width: '100%' }}
+              />
             </div>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Category</label>

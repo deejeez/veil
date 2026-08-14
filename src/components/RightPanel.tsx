@@ -11,7 +11,7 @@ import { getGuestsForCouple } from '../lib/guests'
 import { getBudgetCategories } from '../lib/budget'
 import { deriveTimelineStatus, getCurrentPhaseId, type PhaseStatus, type MilestoneCompletion } from '../lib/deriveTimelineStatus'
 import { MultiSegmentRing } from './MultiSegmentRing'
-import { type Couple, type Payment, type Task, type Vendor } from '../types/database'
+import { type Couple, type Payment, type Task, type Vendor, type VendorStatus, IN_PROGRESS_STATUSES } from '../types/database'
 
 // Phase skeleton (ids/labels/order) used before derived phases load. The task
 // lists that used to live here duplicated — and had drifted from — the real
@@ -336,7 +336,7 @@ export default function RightPanel() {
             </p>
           ) : openCats.slice(0, 7).map(cat => {
             const hasActive = vendors.some(v =>
-              v.category === cat.slug && ['researching', 'shortlisted', 'meeting_scheduled'].includes(v.status)
+              v.category === cat.slug && IN_PROGRESS_STATUSES.includes(v.status as VendorStatus)
             )
             return (
               <div key={cat.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '9px' }}>

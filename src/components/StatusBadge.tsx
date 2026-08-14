@@ -7,6 +7,7 @@ const badgeStyles: Record<VendorStatus, BadgeStyle> = {
   researching:       { bg: '#E2EAF0', text: '#5A7A8F' },
   shortlisted:       { bg: '#F0E8DC', text: '#8B6F4E' },
   meeting_scheduled: { bg: '#F0E8DC', text: '#8B6F4E' },
+  in_contract:       { bg: '#EDF2E8', text: '#6B8A5A' },
   booked:            { bg: '#E8F0E4', text: '#5A7A4A' },
   eliminated:        { bg: '#EDEAE6', text: '#8A8179' },
 }
@@ -16,6 +17,7 @@ const labels: Record<VendorStatus, string> = {
   researching:       'Researching',
   shortlisted:       'Shortlisted',
   meeting_scheduled: 'Meeting Set',
+  in_contract:       'In Contract',
   booked:            'Booked',
   eliminated:        'Eliminated',
 }

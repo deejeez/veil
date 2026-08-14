@@ -12,9 +12,9 @@ import {
   deleteCategory,
   type VendorCategoryConfig,
 } from '../lib/categories'
-import { type Vendor } from '../types/database'
+import { type Vendor, IN_PROGRESS_STATUSES } from '../types/database'
 
-const IN_PROGRESS_STATUSES = ['researching', 'shortlisted', 'meeting_scheduled']
+// (imported from types/database — was a local duplicate)
 
 // Typical months before wedding when each vendor category should be booked
 const VENDOR_URGENCY: Record<string, number> = {
@@ -105,7 +105,8 @@ export default function Vendors() {
     let subLabel = ''
     if (state === 'booked' && booked?.name) subLabel = booked.name
     else if (state === 'in_progress') {
-      if (shortlistedCount > 0) subLabel = `${shortlistedCount} shortlisted`
+      if (active.some(v => v.status === 'in_contract')) subLabel = 'In contract'
+      else if (shortlistedCount > 0) subLabel = `${shortlistedCount} shortlisted`
       else if (active.some(v => v.status === 'meeting_scheduled')) subLabel = 'Meeting scheduled'
       else subLabel = 'Researching'
     }

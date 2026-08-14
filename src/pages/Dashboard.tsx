@@ -11,7 +11,7 @@ import { getCoupleForUser, updateCouple } from '../lib/couple'
 import { getVendorsForCouple, seedDefaultVendorCategories } from '../lib/vendors'
 import { getPaymentsForCouple, getUpcomingPayments } from '../lib/payments'
 import { getTasksForCouple } from '../lib/tasks'
-import { type Couple, type Vendor, type Payment, type Task, type Guest } from '../types/database'
+import { type Couple, type Vendor, type Payment, type Task, type Guest, type VendorStatus, IN_PROGRESS_STATUSES } from '../types/database'
 import { getCategoriesForCouple } from '../lib/categories'
 import { suggestedAllocation, topSlices } from '../lib/suggestedBudget'
 import GetStartedChecklist from '../components/GetStartedChecklist'
@@ -109,7 +109,7 @@ function generateActionCards(
   const cards: ActionCard[] = []
 
   const isBooked     = (s: string) => vendors.some(v => v.category === s && v.status === 'booked')
-  const isInProgress = (s: string) => vendors.some(v => v.category === s && ['researching', 'shortlisted', 'meeting_scheduled'].includes(v.status))
+  const isInProgress = (s: string) => vendors.some(v => v.category === s && IN_PROGRESS_STATUSES.includes(v.status as VendorStatus))
   const has          = (s: string) => categorySlugs.includes(s)
 
   const today = new Date().toISOString().split('T')[0]
@@ -898,7 +898,7 @@ export default function Dashboard() {
               const status = vendorStatusBySlug[slug] ?? 'not_started'
               const bg = status === 'booked'
                 ? '#7B8F6B'
-                : ['researching', 'shortlisted', 'meeting_scheduled'].includes(status)
+                : IN_PROGRESS_STATUSES.includes(status as VendorStatus)
                 ? '#C4A86B'
                 : '#E8E3DC'
               return <div key={slug} style={{ flex: 1, background: bg }} />
@@ -909,7 +909,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', gap: '16px', marginBottom: needsAttention.length > 0 ? '12px' : '0' }}>
             {[
               { color: '#7B8F6B', label: `Booked (${bookedCatCount})` },
-              { color: '#C4A86B', label: `In progress (${categorySlugs.filter(s => ['researching','shortlisted','meeting_scheduled'].includes(vendorStatusBySlug[s] ?? '')).length})` },
+              { color: '#C4A86B', label: `In progress (${categorySlugs.filter(s => IN_PROGRESS_STATUSES.includes((vendorStatusBySlug[s] ?? '') as VendorStatus)).length})` },
               { color: '#E8E3DC', label: `Not started (${needsAttention.length})`, textColor: '#AAA5A0' },
             ].map(({ color, label, textColor }) => (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>

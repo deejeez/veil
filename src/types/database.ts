@@ -1,4 +1,18 @@
-export type VendorStatus = 'not_started' | 'researching' | 'shortlisted' | 'meeting_scheduled' | 'booked' | 'eliminated'
+export type VendorStatus = 'not_started' | 'researching' | 'shortlisted' | 'meeting_scheduled' | 'in_contract' | 'booked' | 'eliminated'
+
+/**
+ * Statuses that mean "actively being worked, but not settled".
+ *
+ * This list was copy-pasted into six files, so adding a status meant finding
+ * every one of them. Import it instead.
+ *
+ * 'in_contract' sits here rather than with booked deliberately: a contract out
+ * for signature isn't money committed, and counting it as booked would inflate
+ * the dashboard's booked count and the budget's committed total.
+ */
+export const IN_PROGRESS_STATUSES: VendorStatus[] = [
+  'researching', 'shortlisted', 'meeting_scheduled', 'in_contract',
+]
 
 export type VibeProfile = {
   /** Multi-select vibe values from onboarding, e.g. ['classic_elegant', 'modern_minimal'] */

@@ -6,7 +6,7 @@ import Button from '../components/Button'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser } from '../lib/couple'
 import { getVendorsForCouple, upsertVendor, updateVendorStatus, deleteVendor } from '../lib/vendors'
-import { type Couple, type Vendor, type VendorStatus, type VendorNote, VENDOR_CATEGORY_LABELS, type VendorCategory } from '../types/database'
+import { type Couple, type Vendor, type VendorStatus, type VendorNote, VENDOR_CATEGORY_LABELS, type VendorCategory, IN_PROGRESS_STATUSES } from '../types/database'
 import { getCategoriesForCouple } from '../lib/categories'
 import type { AiReview, AiReviewFlag, AiReviewDateMoney, Payment } from '../types/database'
 import { track } from '../lib/analytics'
@@ -23,6 +23,7 @@ const STATUS_CONFIG: Record<string, { bg: string; color: string; label: string }
   booked:            { bg: '#5A7A4A', color: '#fff', label: 'Booked' },
   shortlisted:       { bg: 'rgba(184,146,106,0.10)', color: 'var(--color-accent)', label: 'Shortlisted' },
   meeting_scheduled: { bg: '#FBF6F0', color: '#C4785C', label: 'Meeting' },
+  in_contract:       { bg: '#EDF2E8', color: '#6B8A5A', label: 'In contract' },
   researching:       { bg: '#F5F1EC', color: 'var(--color-text-secondary)', label: 'Researching' },
   not_started:       { bg: '#F5F1EC', color: 'var(--color-text-muted)',    label: 'Not started' },
   eliminated:        { bg: '#F5F1EC', color: 'var(--color-text-muted)', label: 'Eliminated' },
@@ -894,12 +895,12 @@ export default function VendorDetail() {
   // ─── Derived ─────────────────────────────────────────────────────────────────
 
   const booked    = vendors.filter(v => v.status === 'booked' && v.name)
-  const inProgress = vendors.filter(v => ['researching', 'shortlisted', 'meeting_scheduled'].includes(v.status) && v.name)
+  const inProgress = vendors.filter(v => IN_PROGRESS_STATUSES.includes(v.status as VendorStatus) && v.name)
   const notStarted = vendors.filter(v => v.status === 'not_started' && v.name)
   const visible   = vendors
     .filter(v => v.name || v.id === editingId)
     .sort((a, b) => {
-      const order: Record<string, number> = { booked: 0, meeting_scheduled: 1, shortlisted: 1, researching: 1, not_started: 2, eliminated: 3 }
+      const order: Record<string, number> = { booked: 0, in_contract: 1, meeting_scheduled: 2, shortlisted: 2, researching: 2, not_started: 3, eliminated: 4 }
       return (order[a.status] ?? 2) - (order[b.status] ?? 2)
     })
   const hasBooked = vendors.some(v => v.status === 'booked')
@@ -2719,7 +2720,20 @@ export default function VendorDetail() {
                               ${vendor.booked_amount.toLocaleString()}
                             </p>
                           )}
-                          <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                          <div style={{ display: 'flex', gap: '4px', marginTop: '4px', alignItems: 'center' }}>
+                            {/* A booked vendor previously offered only edit and
+                                delete, so there was no way back out of "booked"
+                                — the un-book flow existed but nothing could
+                                reach it. Correcting a premature booking meant
+                                deleting the vendor and its history. */}
+                            <select
+                              value={vendor.status}
+                              onChange={e => handleStatusChange(vendor.id, e.target.value as VendorStatus)}
+                              title="Change status"
+                              style={{ fontSize: '11px', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '3px 6px', background: '#fff', marginRight: '2px' }}
+                            >
+                              {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                            </select>
                             <button onClick={() => { setEditingId(vendor.id); setEditForm(vendor) }} title="Edit" style={{ width: '26px', height: '26px', borderRadius: '6px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#555'} onMouseLeave={e => e.currentTarget.style.color = '#999'}>
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                             </button>
@@ -3151,6 +3165,7 @@ export default function VendorDetail() {
                         <option value="researching">Researching</option>
                         <option value="shortlisted">Shortlisted</option>
                         <option value="meeting_scheduled">Meeting Scheduled</option>
+                        <option value="in_contract">In contract</option>
                         <option value="booked">Booked ✓</option>
                         <option value="eliminated">Eliminated ✕</option>
                       </select>
