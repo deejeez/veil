@@ -44,6 +44,7 @@ export type Couple = {
   family_b_name: string | null
   name_primary: string | null
   name_partner: string | null
+  vendor_sort: 'recommended' | 'custom'
   onboarding_complete: boolean
   guest_count: number | null
   target_season: 'spring' | 'summer' | 'fall' | 'winter' | null

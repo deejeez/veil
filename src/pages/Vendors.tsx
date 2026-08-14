@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { MultiSegmentRing } from '../components/MultiSegmentRing'
 import { supabase } from '../lib/supabase'
-import { getCoupleForUser } from '../lib/couple'
+import { getCoupleForUser, updateCouple } from '../lib/couple'
 import { getVendorsForCouple, seedDefaultVendorCategories } from '../lib/vendors'
 import {
   getCategoriesForCouple,
   addCategory,
   updateCategoryLabel,
   deleteCategory,
+  reorderCategories,
   type VendorCategoryConfig,
 } from '../lib/categories'
 import { type Vendor, IN_PROGRESS_STATUSES } from '../types/database'
@@ -56,6 +57,8 @@ export default function Vendors() {
   const [loading, setLoading] = useState(true)
   const [managing, setManaging] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [vendorSort, setVendorSort] = useState<'recommended' | 'custom'>('recommended')
+  const [reordering, setReordering] = useState(false)
   const [editLabel, setEditLabel] = useState('')
   const [newLabel, setNewLabel] = useState('')
   const [addError, setAddError] = useState<string | null>(null)
@@ -74,6 +77,7 @@ export default function Vendors() {
       const cats = await getCategoriesForCouple(coupleData.id)
       await seedDefaultVendorCategories(coupleData.id, cats.map(c => c.slug))
       setVendors(await getVendorsForCouple(coupleData.id))
+      setVendorSort(coupleData.vendor_sort === 'custom' ? 'custom' : 'recommended')
       setCategories(cats)
     } finally {
       setLoading(false)
@@ -133,14 +137,21 @@ export default function Vendors() {
     }
   })
 
-  // Sort: booked first (locked in), then overdue/urgent, then remaining by urgency
-  const sortedVendors = [...vendorsByCategory].sort((a, b) => {
-    if (a.state === 'booked' && b.state !== 'booked') return -1
-    if (a.state !== 'booked' && b.state === 'booked') return 1
-    if (a.isOverdue && !b.isOverdue) return -1
-    if (!a.isOverdue && b.isOverdue) return 1
-    return b.urgencyMonths - a.urgencyMonths
-  })
+  // 'custom' follows the couple's own arrangement (vendor_categories.sort_order,
+  // which `categories` is already fetched in). 'recommended' surfaces booked
+  // first, then anything overdue, then whatever needs booking soonest.
+  const categoryOrder = new Map(categories.map((c, i) => [c.slug, i]))
+  const sortedVendors = vendorSort === 'custom'
+    ? [...vendorsByCategory].sort(
+        (a, b) => (categoryOrder.get(a.category) ?? 999) - (categoryOrder.get(b.category) ?? 999)
+      )
+    : [...vendorsByCategory].sort((a, b) => {
+        if (a.state === 'booked' && b.state !== 'booked') return -1
+        if (a.state !== 'booked' && b.state === 'booked') return 1
+        if (a.isOverdue && !b.isOverdue) return -1
+        if (!a.isOverdue && b.isOverdue) return 1
+        return b.urgencyMonths - a.urgencyMonths
+      })
 
   const bookedCount = vendorsByCategory.filter(v => v.state === 'booked').length
   const activeCount = vendorsByCategory.filter(v => v.state === 'in_progress').length
@@ -189,6 +200,33 @@ export default function Vendors() {
     setVendors(await getVendorsForCouple(coupleId))
   }
 
+  async function persistSort(next: 'recommended' | 'custom') {
+    setVendorSort(next)
+    if (!coupleId) return
+    // Best-effort: the ordering already applied locally, so a failed write
+    // shouldn't throw away the interaction.
+    updateCouple(coupleId, { vendor_sort: next }).catch(() => {})
+  }
+
+  async function moveCategory(index: number, direction: -1 | 1) {
+    const target = index + direction
+    if (!coupleId || target < 0 || target >= categories.length || reordering) return
+    const next = [...categories]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    setCategories(next)          // optimistic; the list is the source of order
+    setReordering(true)
+    try {
+      await reorderCategories(next.map(c => c.id))
+      // Reordering is only meaningful if the page actually respects it.
+      if (vendorSort !== 'custom') await persistSort('custom')
+    } catch {
+      setCategories(categories)  // put it back rather than lying about the order
+      alert('Could not save the new order. Please try again.')
+    } finally {
+      setReordering(false)
+    }
+  }
+
   async function handleAddCategory() {
     if (!newLabel.trim() || !coupleId) return
     setAddError(null)
@@ -215,6 +253,27 @@ export default function Vendors() {
           <div style={{ fontSize: '22px', fontWeight: 400, fontFamily: 'var(--font-heading)', color: 'var(--color-text-primary)', marginBottom: '3px' }}>Vendors</div>
           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Track and manage all your wedding vendors</div>
         </div>
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginRight: '8px' }}>
+          {(['recommended', 'custom'] as const).map(mode => (
+            <button
+              key={mode}
+              onClick={() => persistSort(mode)}
+              title={mode === 'recommended'
+                ? 'Booked first, then anything overdue, then what needs booking soonest'
+                : 'The order you set in Manage Categories'}
+              style={{
+                fontFamily: 'var(--font-body)', fontSize: '12px', padding: '6px 12px',
+                border: '1px solid var(--color-border)', borderRadius: '8px',
+                background: vendorSort === mode ? 'rgba(184,146,106,0.10)' : 'transparent',
+                color: vendorSort === mode ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                fontWeight: vendorSort === mode ? 600 : 400,
+                cursor: 'pointer', transition: 'all 0.12s',
+              }}
+            >
+              {mode === 'recommended' ? 'Recommended' : 'My order'}
+            </button>
+          ))}
+        </div>
         <button
           onClick={() => setManaging(m => !m)}
           style={{
@@ -235,9 +294,30 @@ export default function Vendors() {
           <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-secondary)', margin: '0 0 12px 0', fontWeight: 600 }}>
             Vendor Categories
           </p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-muted)', margin: '-6px 0 12px 0' }}>
+            Reorder these to control how your vendor dashboard is arranged. Doing so switches it to <strong>My order</strong>.
+          </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
-            {categories.map(cat => (
+            {categories.map((cat, i) => (
               <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {editingId !== cat.id && (
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0 }}>
+                    <button
+                      onClick={() => moveCategory(i, -1)}
+                      disabled={i === 0 || reordering}
+                      title="Move up"
+                      aria-label={`Move ${cat.label} up`}
+                      style={{ lineHeight: 1, fontSize: '9px', padding: '1px 4px', border: '1px solid var(--color-border)', borderRadius: '4px', background: '#fff', cursor: i === 0 ? 'default' : 'pointer', opacity: i === 0 ? 0.35 : 1, color: 'var(--color-text-secondary)' }}
+                    >▲</button>
+                    <button
+                      onClick={() => moveCategory(i, 1)}
+                      disabled={i === categories.length - 1 || reordering}
+                      title="Move down"
+                      aria-label={`Move ${cat.label} down`}
+                      style={{ lineHeight: 1, fontSize: '9px', padding: '1px 4px', border: '1px solid var(--color-border)', borderRadius: '4px', background: '#fff', cursor: i === categories.length - 1 ? 'default' : 'pointer', opacity: i === categories.length - 1 ? 0.35 : 1, color: 'var(--color-text-secondary)' }}
+                    >▼</button>
+                  </span>
+                )}
                 {editingId === cat.id ? (
                   <>
                     <input

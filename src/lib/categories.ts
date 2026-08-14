@@ -129,3 +129,24 @@ export async function deleteCategory(
 
   return { ok: true }
 }
+
+/**
+ * Persists a couple's own ordering of vendor categories.
+ *
+ * sort_order already existed and was already populated — the Vendors page just
+ * overrode it with a computed sort, so there was no way to express "show me
+ * these in the order I care about".
+ *
+ * Writes sequentially rather than in parallel: these are small lists, and
+ * concurrent updates to adjacent rows have no ordering guarantee, which can
+ * leave two categories sharing a sort_order.
+ */
+export async function reorderCategories(orderedIds: string[]): Promise<void> {
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase
+      .from('vendor_categories')
+      .update({ sort_order: i })
+      .eq('id', orderedIds[i])
+    if (error) throw error
+  }
+}
