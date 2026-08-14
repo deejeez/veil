@@ -4,9 +4,17 @@ import AppShell from '../components/AppShell'
 import Button from '../components/Button'
 import { supabase } from '../lib/supabase'
 import { getCoupleForUser, updateCouple } from '../lib/couple'
-import type { Couple } from '../types/database'
+import type { Couple, Person } from '../types/database'
+import { getPeopleForCouple, addPerson, renamePerson, deletePerson } from '../lib/people'
 
 export default function Settings() {
+  const [people, setPeople] = useState<Person[]>([])
+  const [newPersonName, setNewPersonName] = useState('')
+  const [personSaving, setPersonSaving] = useState(false)
+  const [personError, setPersonError] = useState<string | null>(null)
+  const [editingPersonId, setEditingPersonId] = useState<string | null>(null)
+  const [editingPersonName, setEditingPersonName] = useState('')
+
   const navigate = useNavigate()
   const [couple, setCouple] = useState<Couple | null>(null)
   const [loading, setLoading] = useState(true)
@@ -47,6 +55,7 @@ export default function Settings() {
       const c = await getCoupleForUser(user.id)
       if (!c) return
       setCouple(c)
+      getPeopleForCouple(c.id).then(setPeople).catch(() => {})
       setForm({
         name_primary: c.name_primary ?? '',
         name_partner: c.name_partner ?? '',
@@ -149,6 +158,47 @@ export default function Settings() {
 
   if (loading) {
     return <AppShell><p style={{ color: 'var(--color-text-secondary)' }}>Loading...</p></AppShell>
+  }
+
+  async function handleAddPerson() {
+    const name = newPersonName.trim()
+    if (!couple || !name || personSaving) return
+    setPersonSaving(true)
+    setPersonError(null)
+    try {
+      const p = await addPerson(couple.id, name)
+      setPeople(prev => [...prev, p].sort((a, b) => a.name.localeCompare(b.name)))
+      setNewPersonName('')
+    } catch (err: unknown) {
+      // The (couple_id, name) unique constraint is the likely failure.
+      const msg = (err as { message?: string })?.message ?? ''
+      setPersonError(msg.includes('duplicate') || msg.includes('unique')
+        ? `${name} is already on the list.`
+        : 'Could not add that person. Please try again.')
+    } finally {
+      setPersonSaving(false)
+    }
+  }
+
+  async function handleRenamePerson(id: string) {
+    const name = editingPersonName.trim()
+    if (!name) return
+    try {
+      await renamePerson(id, name)
+      setPeople(prev => prev.map(p => p.id === id ? { ...p, name } : p).sort((a, b) => a.name.localeCompare(b.name)))
+      setEditingPersonId(null)
+    } catch {
+      setPersonError('Could not rename that person.')
+    }
+  }
+
+  async function handleDeletePerson(id: string) {
+    try {
+      await deletePerson(id)
+      setPeople(prev => prev.filter(p => p.id !== id))
+    } catch {
+      setPersonError('Could not remove that person.')
+    }
   }
 
   return (
@@ -344,6 +394,65 @@ export default function Settings() {
             </div>
 
           </div>
+        </div>
+
+        {/* People */}
+        <div style={{ border: '1px solid var(--color-border)', borderRadius: '12px', padding: '18px 20px', background: '#fff' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
+            People
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '14px' }}>
+            Anyone helping plan — a planner, a parent, your wedding party. They become options when assigning tasks. You and {form.name_partner || 'your partner'} are always available.
+          </div>
+
+          {people.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
+              {people.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                  {editingPersonId === p.id ? (
+                    <>
+                      <input
+                        value={editingPersonName}
+                        onChange={e => setEditingPersonName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleRenamePerson(p.id); if (e.key === 'Escape') setEditingPersonId(null) }}
+                        autoFocus
+                        style={{ flex: 1, display: 'block', boxSizing: 'border-box' }}
+                      />
+                      <button type="button" onClick={() => handleRenamePerson(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '12px', fontWeight: 600, color: 'var(--color-accent)' }}>Save</button>
+                      <button type="button" onClick={() => setEditingPersonId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-muted)' }}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ flex: 1, fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-text-primary)' }}>{p.name}</span>
+                      <button type="button" onClick={() => { setEditingPersonId(p.id); setEditingPersonName(p.name) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-accent)' }}>Rename</button>
+                      <button type="button" onClick={() => handleDeletePerson(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-muted)' }}>Remove</button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+            <input
+              value={newPersonName}
+              onChange={e => { setNewPersonName(e.target.value); setPersonError(null) }}
+              onKeyDown={e => { if (e.key === 'Enter') handleAddPerson() }}
+              placeholder="e.g. Mom, Sarah (planner)"
+              style={{ flex: 1, display: 'block', boxSizing: 'border-box' }}
+            />
+            <Button onClick={handleAddPerson} disabled={personSaving || !newPersonName.trim()}>
+              {personSaving ? 'Adding...' : 'Add'}
+            </Button>
+          </div>
+
+          {personError && (
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: '#C4785C', margin: '8px 0 0 0' }}>{personError}</p>
+          )}
+
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-text-muted)', margin: '10px 0 0 0', lineHeight: 1.5 }}>
+            Removing someone leaves their existing tasks alone — those still show their name.
+          </p>
         </div>
 
         {/* Family names */}

@@ -10,7 +10,8 @@ import { getVendorsForCouple } from '../lib/vendors'
 import { getGuestsForCouple } from '../lib/guests'
 import { getBudgetCategories } from '../lib/budget'
 import { deriveTimelineStatus, getCurrentPhaseId, type MilestoneCompletion } from '../lib/deriveTimelineStatus'
-import type { Couple, Task } from '../types/database'
+import type { Couple, Task, Person } from '../types/database'
+import { getPeopleForCouple, assigneeOptions } from '../lib/people'
 
 const TASK_CATEGORIES = ['ceremony', 'venue', 'catering', 'vendors', 'guests', 'attire', 'decor', 'admin', 'honeymoon', 'other']
 
@@ -22,6 +23,7 @@ type SortBy = 'due_date' | 'created' | 'category' | 'assignee'
 export default function Todos() {
   const [couple, setCouple] = useState<Couple | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
+  const [people, setPeople] = useState<Person[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [filter, setFilter] = useState<Filter>('pending')
@@ -49,14 +51,19 @@ export default function Todos() {
   // never see.
   const [upcomingMilestones, setUpcomingMilestones] = useState<string[] | null>(null)
 
-  // Anyone already assigned a task, plus the couple, so a planner or a parent
-  // typed once becomes a suggestion everywhere afterwards. Free text rather
-  // than a managed people list — the vocabulary that emerges here is what would
-  // tell us what a proper people feature should look like.
-  const knownAssignees = Array.from(new Set([
-    couple?.name_primary, couple?.name_partner,
-    ...tasks.map(t => t.assigned_to),
-  ].filter((n): n is string => Boolean(n && n.trim() && n !== 'couple')))).sort()
+  // People are managed in Settings; tasks only pick from them. A combined
+  // text-and-suggestions field read as neither one thing nor the other.
+  const options = assigneeOptions(couple?.name_primary, couple?.name_partner, people)
+
+  // An assignee can still fall outside the list — someone removed in Settings,
+  // or a name predating the people table. Show it rather than silently
+  // reassigning the task to "Both of us" the next time it's edited.
+  const optionsFor = (current?: string | null) => {
+    const extra = current && current !== 'couple' && !options.some(o => o.value === current)
+      ? [{ value: current, label: `${current} (removed)` }]
+      : []
+    return [...options, ...extra]
+  }
 
   const inputStyle: CSSProperties = { display: 'block' }
 
@@ -67,8 +74,12 @@ export default function Todos() {
       const c = await getCoupleForUser(user.id)
       if (!c) return
       setCouple(c)
-      const t = await getTasksForCouple(c.id)
+      const [t, ppl] = await Promise.all([
+        getTasksForCouple(c.id),
+        getPeopleForCouple(c.id).catch(() => [] as Person[]),
+      ])
       setTasks(t)
+      setPeople(ppl)
     } finally {
       setLoading(false)
     }
@@ -223,11 +234,6 @@ export default function Todos() {
         {pendingCount} remaining{overdueCount > 0 ? ` · ${overdueCount} overdue` : ''}
       </p>
 
-      {/* Suggestions for every assignee input on the page. */}
-      <datalist id="veil-assignees">
-        {knownAssignees.map(n => <option key={n} value={n} />)}
-      </datalist>
-
       {/* Filter tabs */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
         {(['pending', 'completed', 'all'] as Filter[]).map(f => (
@@ -258,8 +264,7 @@ export default function Todos() {
 
         <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)} style={{ fontFamily: 'var(--font-body)', fontSize: '13px', padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: '#fff', color: 'var(--color-text-primary)' }}>
           <option value="">Anyone</option>
-          <option value="couple">Both of us</option>
-          {knownAssignees.map(n => <option key={n} value={n}>{n}</option>)}
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
 
         <select value={sortBy} onChange={e => setSortBy(e.target.value as SortBy)} style={{ fontFamily: 'var(--font-body)', fontSize: '13px', padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--color-border)', background: '#fff', color: 'var(--color-text-primary)' }}>
@@ -341,13 +346,9 @@ export default function Todos() {
                   </div>
                   <div>
                     <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Assigned To</label>
-                    <input
-                      list="veil-assignees"
-                      value={editDraft.assigned_to === 'couple' ? '' : editDraft.assigned_to}
-                      onChange={e => setEditDraft(d => ({ ...d, assigned_to: e.target.value }))}
-                      placeholder="Both of us"
-                      style={{ display: 'block', width: '100%' }}
-                    />
+                    <select value={editDraft.assigned_to || 'couple'} onChange={e => setEditDraft(d => ({ ...d, assigned_to: e.target.value }))} style={{ display: 'block', width: '100%' }}>
+                      {optionsFor(editDraft.assigned_to).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '3px' }}>Notes</label>
@@ -491,13 +492,9 @@ export default function Todos() {
             </div>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Assigned To</label>
-              <input
-                list="veil-assignees"
-                value={newTask.assigned_to === 'couple' ? '' : newTask.assigned_to}
-                onChange={e => setNewTask(f => ({ ...f, assigned_to: e.target.value }))}
-                placeholder="Both of us"
-                style={{ ...inputStyle, width: '100%' }}
-              />
+              <select value={newTask.assigned_to} onChange={e => setNewTask(f => ({ ...f, assigned_to: e.target.value }))} style={{ ...inputStyle, width: '100%' }}>
+                {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
             </div>
             <div>
               <label style={{ fontSize: '10px', color: 'var(--color-text-secondary)', letterSpacing: '0.1em', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Category</label>

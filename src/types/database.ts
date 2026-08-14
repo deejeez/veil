@@ -151,6 +151,13 @@ export const VENDOR_CATEGORIES = [
 
 export type VendorCategory = typeof VENDOR_CATEGORIES[number]
 
+export type Person = {
+  id: string
+  couple_id: string
+  name: string
+  created_at: string
+}
+
 export type Task = {
   id: string
   couple_id: string
