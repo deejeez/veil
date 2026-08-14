@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { MultiSegmentRing } from '../components/MultiSegmentRing'
@@ -59,6 +59,17 @@ export default function Vendors() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [vendorSort, setVendorSort] = useState<'recommended' | 'custom'>('recommended')
   const [reordering, setReordering] = useState(false)
+  // Index under the pointer while dragging; null when idle. Held in a ref as
+  // well as state: pointermove can fire several times before React re-renders,
+  // and reading a stale index would drop those moves. The ref drives the logic,
+  // the state drives the highlight.
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const dragIndexRef = useRef<number | null>(null)
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([])
+  const orderBeforeDrag = useRef<VendorCategoryConfig[] | null>(null)
+  // The order as of the most recent move, for the same reason as dragIndexRef:
+  // pointerup can arrive before React has re-rendered with the new list.
+  const liveOrder = useRef<VendorCategoryConfig[] | null>(null)
   const [editLabel, setEditLabel] = useState('')
   const [newLabel, setNewLabel] = useState('')
   const [addError, setAddError] = useState<string | null>(null)
@@ -201,26 +212,79 @@ export default function Vendors() {
   }
 
   async function persistSort(next: 'recommended' | 'custom') {
-    setVendorSort(next)
     if (!coupleId) return
-    // Best-effort: the ordering already applied locally, so a failed write
-    // shouldn't throw away the interaction.
-    updateCouple(coupleId, { vendor_sort: next }).catch(() => {})
+    const previous = vendorSort
+    setVendorSort(next)
+    try {
+      await updateCouple(coupleId, { vendor_sort: next })
+    } catch {
+      // Swallowing this would leave the toggle claiming one thing while the
+      // database held another, and the next visit would silently disagree.
+      setVendorSort(previous)
+      alert('Could not save your sort preference. Please try again.')
+    }
   }
 
-  async function moveCategory(index: number, direction: -1 | 1) {
-    const target = index + direction
-    if (!coupleId || target < 0 || target >= categories.length || reordering) return
-    const next = [...categories]
-    ;[next[index], next[target]] = [next[target], next[index]]
-    setCategories(next)          // optimistic; the list is the source of order
+  // Pointer events rather than HTML5 drag-and-drop: the latter doesn't fire on
+  // touch devices without a polyfill, and this is a phone-heavy audience.
+  // Pointer events cover mouse, touch and pen with one code path.
+  function handleDragStart(e: React.PointerEvent, index: number) {
+    if (reordering) return
+    e.preventDefault()
+    // Capture keeps events coming to the handle even when the pointer outruns
+    // it. Not essential — if the browser refuses, the drag still tracks via the
+    // row hit-test — so a failure here shouldn't abort the interaction.
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch { /* non-fatal */ }
+    orderBeforeDrag.current = categories
+    liveOrder.current = categories
+    dragIndexRef.current = index
+    setDragIndex(index)
+  }
+
+  function handleDragMove(e: React.PointerEvent) {
+    const current = dragIndexRef.current
+    if (current === null) return
+    const y = e.clientY
+    const target = rowRefs.current.findIndex(el => {
+      if (!el) return false
+      const r = el.getBoundingClientRect()
+      return y >= r.top && y <= r.bottom
+    })
+    if (target === -1 || target === current) return
+    // Reorder as the pointer crosses each row, so the list previews the result
+    // instead of only rearranging on drop.
+    setCategories(prev => {
+      const next = [...prev]
+      const [moved] = next.splice(current, 1)
+      next.splice(target, 0, moved)
+      liveOrder.current = next
+      return next
+    })
+    dragIndexRef.current = target
+    setDragIndex(target)
+  }
+
+  async function handleDragEnd() {
+    if (dragIndexRef.current === null) return
+    const before = orderBeforeDrag.current
+    dragIndexRef.current = null
+    setDragIndex(null)
+    orderBeforeDrag.current = null
+    const finalOrder = liveOrder.current ?? categories
+    liveOrder.current = null
+    if (!coupleId || !before) return
+    // Nothing actually moved — don't write, and don't flip the sort mode.
+    if (before.map(c => c.id).join() === finalOrder.map(c => c.id).join()) return
+
     setReordering(true)
     try {
-      await reorderCategories(next.map(c => c.id))
-      // Reordering is only meaningful if the page actually respects it.
-      if (vendorSort !== 'custom') await persistSort('custom')
+      await reorderCategories(finalOrder.map(c => c.id))
+      // Written every time rather than only when local state disagrees: the
+      // write is idempotent, and gating on state meant a single failure left
+      // the preference stuck out of sync with no path back.
+      await persistSort('custom')
     } catch {
-      setCategories(categories)  // put it back rather than lying about the order
+      setCategories(before)  // put it back rather than lying about the order
       alert('Could not save the new order. Please try again.')
     } finally {
       setReordering(false)
@@ -295,27 +359,60 @@ export default function Vendors() {
             Vendor Categories
           </p>
           <p style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-text-muted)', margin: '-6px 0 12px 0' }}>
-            Reorder these to control how your vendor dashboard is arranged. Doing so switches it to <strong>My order</strong>.
+            Drag the handles to control how your vendor dashboard is arranged. Doing so switches it to <strong>My order</strong>.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
             {categories.map((cat, i) => (
-              <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                key={cat.id}
+                ref={el => { rowRefs.current[i] = el }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '4px 6px', borderRadius: '8px',
+                  background: dragIndex === i ? '#fff' : 'transparent',
+                  boxShadow: dragIndex === i ? '0 4px 14px rgba(140,120,100,0.18)' : 'none',
+                  opacity: reordering && dragIndex === null ? 0.6 : 1,
+                  transition: dragIndex === null ? 'box-shadow 0.15s, background 0.15s' : 'none',
+                }}
+              >
                 {editingId !== cat.id && (
-                  <span style={{ display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0 }}>
-                    <button
-                      onClick={() => moveCategory(i, -1)}
-                      disabled={i === 0 || reordering}
-                      title="Move up"
-                      aria-label={`Move ${cat.label} up`}
-                      style={{ lineHeight: 1, fontSize: '9px', padding: '1px 4px', border: '1px solid var(--color-border)', borderRadius: '4px', background: '#fff', cursor: i === 0 ? 'default' : 'pointer', opacity: i === 0 ? 0.35 : 1, color: 'var(--color-text-secondary)' }}
-                    >▲</button>
-                    <button
-                      onClick={() => moveCategory(i, 1)}
-                      disabled={i === categories.length - 1 || reordering}
-                      title="Move down"
-                      aria-label={`Move ${cat.label} down`}
-                      style={{ lineHeight: 1, fontSize: '9px', padding: '1px 4px', border: '1px solid var(--color-border)', borderRadius: '4px', background: '#fff', cursor: i === categories.length - 1 ? 'default' : 'pointer', opacity: i === categories.length - 1 ? 0.35 : 1, color: 'var(--color-text-secondary)' }}
-                    >▼</button>
+                  <span
+                    onPointerDown={e => handleDragStart(e, i)}
+                    onPointerMove={handleDragMove}
+                    onPointerUp={handleDragEnd}
+                    onPointerCancel={handleDragEnd}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Reorder ${cat.label}`}
+                    title="Drag to reorder"
+                    onKeyDown={e => {
+                      // Keyboard equivalent — drag alone would exclude keyboard
+                      // and screen-reader users entirely.
+                      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+                      e.preventDefault()
+                      const target = e.key === 'ArrowUp' ? i - 1 : i + 1
+                      if (target < 0 || target >= categories.length) return
+                      const before = categories
+                      const next = [...categories]
+                      ;[next[i], next[target]] = [next[target], next[i]]
+                      setCategories(next)
+                      reorderCategories(next.map(c => c.id))
+                        .then(() => { if (vendorSort !== 'custom') persistSort('custom') })
+                        .catch(() => setCategories(before))
+                    }}
+                    style={{
+                      flexShrink: 0, cursor: 'grab', color: 'var(--color-text-muted)',
+                      // Without this a touch-drag scrolls the page instead.
+                      touchAction: 'none', userSelect: 'none',
+                      padding: '2px 4px', lineHeight: 1, fontSize: '13px',
+                      display: 'flex', alignItems: 'center',
+                    }}
+                  >
+                    <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden>
+                      <circle cx="3.5" cy="3" r="1.3" /><circle cx="8.5" cy="3" r="1.3" />
+                      <circle cx="3.5" cy="8" r="1.3" /><circle cx="8.5" cy="8" r="1.3" />
+                      <circle cx="3.5" cy="13" r="1.3" /><circle cx="8.5" cy="13" r="1.3" />
+                    </svg>
                   </span>
                 )}
                 {editingId === cat.id ? (
