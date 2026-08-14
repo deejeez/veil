@@ -26,22 +26,43 @@ export default function AcceptInvite() {
           return
         }
 
-        // Link this user as the partner on the couple row.
-        // The service role is not available here, so we use the user's own
-        // session. The RLS policy on couples allows updates by email_partner
-        // only through user_id_partner being null — but actually the policy
-        // allows update by user_id_primary OR user_id_partner. Since this user
-        // isn't linked yet, we use a Supabase Edge Function bypass or rely on
-        // the email_partner match. For now we attempt the update and gracefully
-        // handle a policy denial by informing the user to contact support.
-        const { error } = await supabase
+        // Claim the invitation. `.select()` matters: without it a zero-row
+        // update returns no error, which is exactly how invited partners were
+        // told "You're in" while staying unlinked — and then hit the paywall,
+        // since with no couple nothing recorded that it had already been paid.
+        const { data: claimed, error } = await supabase
           .from('couples')
           .update({ user_id_partner: user.id })
           .eq('id', coupleId)
-          .eq('email_partner', user.email)
+          .is('user_id_partner', null)
+          .select('id')
 
         if (error) {
-          setErrorMsg('Could not link your account to this couple. ' + error.message)
+          setErrorMsg(`Could not link your account: ${error.message}`)
+          setStatus('error')
+          return
+        }
+
+        if (!claimed || claimed.length === 0) {
+          // Either someone already claimed it, or this account isn't the one
+          // that was invited. Distinguish, so the message is actionable.
+          const { data: existing } = await supabase
+            .from('couples')
+            .select('id, user_id_partner')
+            .eq('id', coupleId)
+            .maybeSingle()
+
+          if (existing?.user_id_partner === user.id) {
+            setStatus('success')                       // already linked — fine
+            setTimeout(() => navigate('/', { replace: true }), 1200)
+            return
+          }
+
+          setErrorMsg(
+            existing?.user_id_partner
+              ? 'This invitation has already been used by another account.'
+              : `This invitation was sent to a different email address. You're signed in as ${user.email}. Sign in with the invited address, or ask your partner to re-send the invite to this one.`
+          )
           setStatus('error')
           return
         }
